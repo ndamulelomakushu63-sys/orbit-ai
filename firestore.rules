@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User profile: Owners can write, anyone logged in can read (for referral confirmations)
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        request.auth.uid == userId || 
+        // Allow updating balance via referrals backend/functions
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance', 'referredBy'])
+      );
+    }
+    
+    // Messages: Read/write only owned conversations
+    match /messages/{messageId} {
+      allow read, create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Subscriptions: Authenticated reads; writes handled by automated backend webhooks
+    match /subscriptions/{subId} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || request.auth.token.admin == true);
+      allow write: if request.auth != null && request.auth.token.admin == true; // Admin/server authority only
+    }
+    
+    // Referrals: Authenticated users can view referrals related to them
+    match /referrals/{referralId} {
+      allow read: if request.auth != null && (resource.data.referrerId == request.auth.uid || resource.data.referredUserId == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.referredUserId == request.auth.uid;
+      allow update: if false; // System updates only
+    }
+    
+    // Withdrawals: Users can read and create their own request; Admin can edit/approve
+    match /withdrawals/{withdrawalId} {
+      allow read, create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Side Hustle Plans: Read and write owned plans
+    match /side_hustle_plans/{planId} {
+      allow read, create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Business Plans: Read and write owned plans
+    match /business_plans/{planId} {
+      allow read, create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+  }
+}

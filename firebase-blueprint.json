@@ -1,0 +1,68 @@
+{
+  "entities": {
+    "SideHustlePlan": {
+      "title": "SideHustlePlan",
+      "description": "A generated set of realistic, educational side hustle ideas matching user profile inputs.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this generated side hustle plan."
+        },
+        "inputs": {
+          "type": "object",
+          "description": "The questionnaire responses containing name, country, ageRange, skills, interests, hoursPerWeek, budget, internetAccess, smartphoneAccess, laptopAccess."
+        },
+        "generatedIdeas": {
+          "type": "array",
+          "description": "The list of 5 generated side hustle ideas containing name, difficulty, startupCost, timeRequired, whyMatches, steps, challenges, and resources."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The server-recorded creation timestamp."
+        }
+      },
+      "required": ["userId", "inputs", "generatedIdeas", "createdAt"]
+    },
+    "BusinessPlan": {
+      "title": "BusinessPlan",
+      "description": "A generated business concept and launch strategy detailing overview, startup checklist, marketing, pricing, and action plans.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this generated business plan."
+        },
+        "businessIdea": {
+          "type": "string",
+          "description": "The user's original business concept or idea."
+        },
+        "industry": {
+          "type": "string",
+          "description": "The selected industry category of the proposed business."
+        },
+        "generatedPlan": {
+          "type": "object",
+          "description": "The structured business builder plan containing names, description, audience, revenue model, checklist, pricing, launch timeline, and risk assessment."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The server-recorded creation timestamp."
+        }
+      },
+      "required": ["userId", "businessIdea", "industry", "generatedPlan", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/side_hustle_plans/{planId}": {
+      "schema": "SideHustlePlan",
+      "description": "Collection storing the generated side hustle options and step-by-step action plans for users."
+    },
+    "/business_plans/{planId}": {
+      "schema": "BusinessPlan",
+      "description": "Collection storing the user's customized business concept proposals and launch blueprints."
+    }
+  }
+}

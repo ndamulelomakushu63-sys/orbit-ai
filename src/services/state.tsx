@@ -1,0 +1,584 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { 
+  UserProfile, SubscriptionRecord, ReferralRecord, 
+  WithdrawalRecord, Conversation, ChatMessage, UserPlan, WithdrawalStatus,
+  AIAgent, AppNotification, SupportTicket, CardDetails
+} from '../types';
+
+interface AppContextType {
+  users: UserProfile[];
+  setUsers: React.Dispatch<React.SetStateAction<UserProfile[]>>;
+  subscriptions: SubscriptionRecord[];
+  setSubscriptions: React.Dispatch<React.SetStateAction<SubscriptionRecord[]>>;
+  referrals: ReferralRecord[];
+  setReferrals: React.Dispatch<React.SetStateAction<ReferralRecord[]>>;
+  withdrawals: WithdrawalRecord[];
+  setWithdrawals: React.Dispatch<React.SetStateAction<WithdrawalRecord[]>>;
+  conversations: Conversation[];
+  setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
+  chatMessages: ChatMessage[];
+  setChatMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  currentUser: UserProfile | null;
+  setCurrentUser: (user: UserProfile | null) => void;
+  mobileScreen: string;
+  setMobileScreen: (screen: string) => void;
+  activeConversationId: string;
+  setActiveConversationId: (id: string) => void;
+  isAiTyping: boolean;
+  setIsAiTyping: (typing: boolean) => void;
+  invitedByCode: string;
+  setInvitedByCode: (code: string) => void;
+  logout: () => void;
+  triggerChatMessage: (promptMsg: string, replyToMessageId?: string) => Promise<void>;
+  createNewConversation: () => string;
+  
+  // Custom added structures
+  agents: AIAgent[];
+  setAgents: React.Dispatch<React.SetStateAction<AIAgent[]>>;
+  activeAgentId: string;
+  setActiveAgentId: (id: string) => void;
+  notifications: AppNotification[];
+  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>;
+  supportTickets: SupportTicket[];
+  setSupportTickets: React.Dispatch<React.SetStateAction<SupportTicket[]>>;
+  cardDetails: CardDetails;
+  setCardDetails: React.Dispatch<React.SetStateAction<CardDetails>>;
+  incrementUsageLimit: (type: 'chat' | 'image' | 'file' | 'camera') => { allowed: boolean; count: number; limit: number };
+  limitModalType: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null;
+  setLimitModalType: (type: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null) => void;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // --- 1. Load users array from localStorage or build defaults ---
+  const [users, setUsers] = useState<UserProfile[]>(() => {
+    const local = localStorage.getItem("orbit_users");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        uid: "user-1",
+        name: "Solly Molapisi",
+        email: "solly@gmail.com",
+        plan: UserPlan.FREE,
+        subscription_status: "free",
+        agentStatus: false,
+        balance: 0,
+        referralCode: "ORBIT-SM8204",
+        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        uid: "user-2",
+        name: "Sipho Khumalo",
+        email: "sipho.k@gmail.com",
+        plan: UserPlan.PRO,
+        subscription_status: "pro_yearly",
+        agentStatus: true,
+        balance: 140.00,
+        referralCode: "ORBIT-SP9210",
+        createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        uid: "user-3",
+        name: "Amara Adebayo",
+        email: "amara@adebayo.co",
+        plan: UserPlan.FREE,
+        subscription_status: "free",
+        agentStatus: true,
+        balance: 80.00,
+        referralCode: "ORBIT-AA3921",
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  });
+
+  // --- Subscriptions array ---
+  const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>(() => {
+    const local = localStorage.getItem("orbit_subscriptions");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: "sub-1",
+        userId: "user-2",
+        plan: "Yearly",
+        amount: 1188.00,
+        status: "Active",
+        renewalDate: new Date(Date.now() + 300 * 24 * 60 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 65 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  });
+
+  // --- Referral records ---
+  const [referrals, setReferrals] = useState<ReferralRecord[]>(() => {
+    const local = localStorage.getItem("orbit_referrals");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: "ref-1",
+        referrerId: "user-2",
+        referredUserId: "user-1",
+        referredName: "Solly Molapisi",
+        reward: 10.00,
+        status: "Pending",
+        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: "ref-2",
+        referrerId: "user-2",
+        referredUserId: "user-3",
+        referredName: "Amara Adebayo",
+        reward: 10.00,
+        status: "Paid",
+        timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  });
+
+  // --- Withdrawals ---
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>(() => {
+    const local = localStorage.getItem("orbit_withdrawals");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: "with-1",
+        userId: "user-2",
+        userName: "Sipho Khumalo",
+        userEmail: "sipho.k@gmail.com",
+        fullName: "Sipho Khumalo",
+        bankName: "First National Bank (FNB)",
+        accountNumber: "62890483921",
+        accountHolder: "S Khumalo",
+        amount: 80.00,
+        status: WithdrawalStatus.APPROVED,
+        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: "with-2",
+        userId: "user-3",
+        userName: "Amara Adebayo",
+        userEmail: "amara@adebayo.co",
+        fullName: "Amara Adebayo",
+        bankName: "Standard Bank",
+        accountNumber: "10183921094",
+        accountHolder: "A Adebayo",
+        amount: 120.00,
+        status: WithdrawalStatus.PENDING,
+        timestamp: new Date(Date.now() - 4 * 12 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  });
+
+  // --- Conversations ---
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    const local = localStorage.getItem("orbit_conversations");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: "conv-1",
+        title: "Coding interactive components",
+        lastMessage: "I generated the React components using flexbox design.",
+        timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: "conv-2",
+        title: "Introduction setup",
+        lastMessage: "Hello! I am Orbit AI, your South African AI virtual companion.",
+        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  });
+
+  // --- Messages ---
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    const local = localStorage.getItem("orbit_messages");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: "msg-1",
+        conversationId: "conv-1",
+        message: "Can you help me build a quick tailwind interface?",
+        role: "user",
+        timestamp: new Date(Date.now() - 65 * 60 * 1000).toISOString()
+      },
+      {
+        id: "msg-2",
+        conversationId: "conv-1",
+        message: "I generated the React components using flexbox design layouts with custom rounded utilities. Give it a run!",
+        role: "model",
+        timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: "msg-3",
+        conversationId: "conv-2",
+        message: "Help me register",
+        role: "user",
+        timestamp: new Date(Date.now() - 24 * 60 * 1000 - 5 * 60).toISOString()
+      },
+      {
+        id: "msg-4",
+        conversationId: "conv-2",
+        message: "Hello! I am Orbit AI, your South African AI virtual companion. Set up your email and passcode to begin chatting in real-time.",
+        role: "model",
+        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  });
+
+  // --- 8. Custom Agents list ---
+  const [agents, setAgents] = useState<AIAgent[]>(() => {
+    const local = localStorage.getItem("orbit_agents");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: "agent-1",
+        name: "Standard Orbit Assistant",
+        category: "General",
+        description: "Friendly South African mobile AI virtual companion.",
+        systemPrompt: "You are the Standard Orbit AI, a professional, smart virtual companion. Answer clearly using beautiful markdown, structure, and simple explanations. Do not use emojis in your responses."
+      },
+      {
+        id: "agent-2",
+        name: "Mzansi Copilot",
+        category: "Writing",
+        description: "Engaging content writer tailored for the local South African context.",
+        systemPrompt: "You are the Mzansi Copilot. You are an expert copywriter specialized in creating beautiful newsletter articles, advertising templates, and descriptive essays. Speak professionally and address the South African market context. Do not use emojis in your responses."
+      },
+      {
+        id: "agent-3",
+        name: "BizDev Strategist",
+        category: "Business",
+        description: "Expert business plans, sales frameworks, and marketing ideas.",
+        systemPrompt: "You are the BizDev Strategist. You help design detailed local commercial plans, marketing ideas, tax structures, and sales strategies. Explain complex elements step-by-step. Do not use emojis in your responses."
+      },
+      {
+        id: "agent-4",
+        name: "Skhokho Code Mentor",
+        category: "Coding",
+        description: "Elite coder providing premium TypeScript & React Native solutions.",
+        systemPrompt: "You are Skhokho Code Mentor. You are an elite veteran programmer. Guide the user through technical implementations, debugging React Native files, and custom designs with code snippets. Do not use emojis in your responses."
+      }
+    ];
+  });
+
+  // --- 9. Active AI Agent ID ---
+  const [activeAgentId, setActiveAgentId] = useState<string>(() => {
+    return localStorage.getItem("orbit_active_agent_id") || "agent-1";
+  });
+
+  // --- 10. Notifications log ---
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    const local = localStorage.getItem("orbit_notifications");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: "notif-1",
+        title: "Welcome to Orbit AI",
+        message: "You can now chat in real-time with our specialized AI assistant agents.",
+        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        read: false,
+        type: "system"
+      },
+      {
+        id: "notif-2",
+        title: "Referral Account Ready",
+        message: "Activate your referral code to unlock R10 rewards per registration.",
+        timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        read: true,
+        type: "agent"
+      }
+    ];
+  });
+
+  // --- 11. Support Tickets ---
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
+    const local = localStorage.getItem("orbit_support_tickets");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: "ticket-1",
+        subject: "Trial Period Cancellations",
+        message: "Can I cancel my active premium subscription safely within 7 days?",
+        status: "Resolved",
+        timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+        reply: "Yes. In accordance with our Version 1 billing policies, you may cancel your subscription within 7 days. Your payment history and plans can be managed under the Payments portal."
+      }
+    ];
+  });
+
+  // --- 12. Billing/Card Details ---
+  const [cardDetails, setCardDetails] = useState<CardDetails>(() => {
+    const local = localStorage.getItem("orbit_card_details");
+    if (local) return JSON.parse(local);
+    return {
+      cardNumber: "4000 1234 5678 9012",
+      expiry: "12/29",
+      cvv: "321",
+      cardholderName: "Sipho Khumalo"
+    };
+  });
+
+  // Sync to localStorage
+  useEffect(() => { localStorage.setItem("orbit_users", JSON.stringify(users)); }, [users]);
+  useEffect(() => { localStorage.setItem("orbit_subscriptions", JSON.stringify(subscriptions)); }, [subscriptions]);
+  useEffect(() => { localStorage.setItem("orbit_referrals", JSON.stringify(referrals)); }, [referrals]);
+  useEffect(() => { localStorage.setItem("orbit_withdrawals", JSON.stringify(withdrawals)); }, [withdrawals]);
+  useEffect(() => { localStorage.setItem("orbit_conversations", JSON.stringify(conversations)); }, [conversations]);
+  useEffect(() => { localStorage.setItem("orbit_messages", JSON.stringify(chatMessages)); }, [chatMessages]);
+  useEffect(() => { localStorage.setItem("orbit_agents", JSON.stringify(agents)); }, [agents]);
+  useEffect(() => { localStorage.setItem("orbit_active_agent_id", activeAgentId); }, [activeAgentId]);
+  useEffect(() => { localStorage.setItem("orbit_notifications", JSON.stringify(notifications)); }, [notifications]);
+  useEffect(() => { localStorage.setItem("orbit_support_tickets", JSON.stringify(supportTickets)); }, [supportTickets]);
+  useEffect(() => { localStorage.setItem("orbit_card_details", JSON.stringify(cardDetails)); }, [cardDetails]);
+
+  // Current session User
+  const [currentUser, setCurrentUserInternal] = useState<UserProfile | null>(() => {
+    const local = localStorage.getItem("orbit_current_user_uid");
+    if (local) {
+      const match = users.find(u => u.uid === local);
+      if (match) return match;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      const updatedMatch = users.find(u => u.uid === currentUser.uid);
+      if (updatedMatch && JSON.stringify(updatedMatch) !== JSON.stringify(currentUser)) {
+        setCurrentUserInternal(updatedMatch);
+      }
+    }
+  }, [users, currentUser]);
+
+  const setCurrentUser = (user: UserProfile | null) => {
+    if (user) {
+      localStorage.setItem("orbit_current_user_uid", user.uid);
+    } else {
+      localStorage.removeItem("orbit_current_user_uid");
+    }
+    setCurrentUserInternal(user);
+  };
+
+  const [mobileScreen, setMobileScreen] = useState<string>("splash");
+  const [activeConversationId, setActiveConversationId] = useState<string>("conv-1");
+  const [isAiTyping, setIsAiTyping] = useState<boolean>(false);
+  const [invitedByCode, setInvitedByCode] = useState<string>("ORBIT-SP9210");
+  const [limitModalType, setLimitModalType] = useState<'chat' | 'image' | 'file' | 'camera' | 'premium' | null>(null);
+
+  const logout = () => {
+    setCurrentUser(null);
+    setMobileScreen("login");
+  };
+
+  const createNewConversation = () => {
+    const newId = "conv-" + Date.now();
+    const newConv: Conversation = {
+      id: newId,
+      title: `Conversation ${conversations.length + 1}`,
+      lastMessage: "No messages yet",
+      timestamp: new Date().toISOString()
+    };
+    setConversations(prev => [newConv, ...prev]);
+    setActiveConversationId(newId);
+    return newId;
+  };
+
+  const triggerChatMessage = async (promptMsg: string, replyToMessageId?: string) => {
+    if (!promptMsg.trim()) return;
+    const userMsgText = promptMsg;
+
+    const limitCheck = incrementUsageLimit('chat');
+    if (!limitCheck.allowed) {
+      setLimitModalType('chat');
+      return;
+    }
+
+    const msgId = "msg-" + Date.now();
+    const newMsg: ChatMessage = {
+      id: msgId,
+      messageId: msgId,
+      conversationId: activeConversationId,
+      message: userMsgText,
+      role: "user",
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      replyToMessageId: replyToMessageId
+    };
+
+    setChatMessages(prev => [...prev, newMsg]);
+    setIsAiTyping(true);
+
+    try {
+      const activeHistory = chatMessages
+        .filter(m => m.conversationId === activeConversationId)
+        .map(m => ({ role: m.role, text: m.message }));
+
+      const currentAgent = agents.find(a => a.id === activeAgentId);
+      const systemPrompt = currentAgent ? currentAgent.systemPrompt : undefined;
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsgText,
+          history: activeHistory,
+          systemPrompt
+        })
+      });
+
+      const data = await res.json();
+      
+      if (res.ok && data.reply) {
+        const replyId = "msg-" + Date.now() + "-reply";
+        const modelMsg: ChatMessage = {
+          id: replyId,
+          messageId: replyId,
+          conversationId: activeConversationId,
+          message: data.reply,
+          role: "model",
+          timestamp: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        };
+        setChatMessages(prev => [...prev, modelMsg]);
+
+        // Update conversation lastMessage
+        setConversations(prev => prev.map(c => {
+          if (c.id === activeConversationId) {
+            return {
+              ...c,
+              lastMessage: data.reply.length > 60 ? data.reply.substring(0, 57) + "..." : data.reply,
+              timestamp: new Date().toISOString()
+            };
+          }
+          return c;
+        }));
+      } else {
+        throw new Error(data.error || "Fallback AI error");
+      }
+    } catch (e: any) {
+      // Offline/missing key fallback if API fails
+      const reason = e?.message || "Internal Server Communication Error";
+      const errorMsgId = "msg-" + Date.now() + "-error";
+      const modelErrorMsg: ChatMessage = {
+        id: errorMsgId,
+        messageId: errorMsgId,
+        conversationId: activeConversationId,
+        message: `I was unable to retrieve a response from the Gemini server engine. This usually means the API key is either missing or has expired.\n\n### Error Details\n**Reason:** ${reason}\n\n### Troubleshooting Steps\n1. Check the **Settings > Secrets** panel in the top menu of the AI Studio workspace.\n2. Ensure that there is a secret named **GEMINI_API_KEY** with a valid Google Gemini API key.\n3. If running locally, please add \`GEMINI_API_KEY=your_key\` inside your \`.env\` file and restart your local dev server.\n4. Ensure you are connected to the internet.`,
+        role: "model",
+        timestamp: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      };
+      setChatMessages(prev => [...prev, modelErrorMsg]);
+    } finally {
+      setIsAiTyping(false);
+    }
+  };
+
+  const checkAndResetLimits = (user: UserProfile): UserProfile => {
+    const now = Date.now();
+    const lastReset = user.last_reset_time ? new Date(user.last_reset_time).getTime() : 0;
+    const isFree = !user.subscription_status || user.subscription_status === 'free';
+    
+    if (isFree && (now - lastReset >= 24 * 60 * 60 * 1000 || !user.last_reset_time)) {
+      return {
+        ...user,
+        chat_count_today: 0,
+        image_count_today: 0,
+        file_upload_count_today: 0,
+        camera_upload_count_today: 0,
+        last_reset_time: new Date().toISOString()
+      };
+    }
+    return user;
+  };
+
+  const incrementUsageLimit = (type: 'chat' | 'image' | 'file' | 'camera'): { allowed: boolean; count: number; limit: number } => {
+    if (!currentUser) return { allowed: false, count: 0, limit: 0 };
+    
+    const subStatus = currentUser.subscription_status;
+    const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly";
+    
+    if (isPro) {
+      return { allowed: true, count: 0, limit: 999999 };
+    }
+
+    // Free user logic
+    let updatedUser = checkAndResetLimits(currentUser);
+    
+    let currentCount = 0;
+    let limit = 0;
+    
+    if (type === 'chat') {
+      currentCount = updatedUser.chat_count_today ?? 0;
+      limit = 20;
+    } else if (type === 'image') {
+      currentCount = updatedUser.image_count_today ?? 0;
+      limit = 2;
+    } else if (type === 'file') {
+      currentCount = updatedUser.file_upload_count_today ?? 0;
+      limit = 2;
+    } else if (type === 'camera') {
+      currentCount = updatedUser.camera_upload_count_today ?? 0;
+      limit = 2;
+    }
+
+    if (currentCount >= limit) {
+      // If we did check and reset but it's still over, we block. 
+      // Ensure we save the updated reset fields if we updated them.
+      if (updatedUser.last_reset_time !== currentUser.last_reset_time) {
+        setUsers(prev => prev.map(u => u.uid === currentUser.uid ? updatedUser : u));
+      }
+      return { allowed: false, count: currentCount, limit };
+    }
+
+    // Increment count
+    const incrementedCount = currentCount + 1;
+    if (type === 'chat') {
+      updatedUser.chat_count_today = incrementedCount;
+    } else if (type === 'image') {
+      updatedUser.image_count_today = incrementedCount;
+    } else if (type === 'file') {
+      updatedUser.file_upload_count_today = incrementedCount;
+    } else if (type === 'camera') {
+      updatedUser.camera_upload_count_today = incrementedCount;
+    }
+
+    setUsers(prev => prev.map(u => u.uid === currentUser.uid ? updatedUser : u));
+    return { allowed: true, count: incrementedCount, limit };
+  };
+
+  return (
+    <AppContext.Provider value={{
+      users, setUsers,
+      subscriptions, setSubscriptions,
+      referrals, setReferrals,
+      withdrawals, setWithdrawals,
+      conversations, setConversations,
+      chatMessages, setChatMessages,
+      currentUser, setCurrentUser,
+      mobileScreen, setMobileScreen,
+      activeConversationId, setActiveConversationId,
+      isAiTyping, setIsAiTyping,
+      invitedByCode, setInvitedByCode,
+      logout,
+      triggerChatMessage,
+      createNewConversation,
+      agents, setAgents,
+      activeAgentId, setActiveAgentId,
+      notifications, setNotifications,
+      supportTickets, setSupportTickets,
+      cardDetails, setCardDetails,
+      incrementUsageLimit,
+      limitModalType,
+      setLimitModalType
+    }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export const useAppState = () => {
+  const context = useContext(AppContext);
+  if (!context) throw new Error("useAppState must be used within AppStateProvider");
+  return context;
+};
