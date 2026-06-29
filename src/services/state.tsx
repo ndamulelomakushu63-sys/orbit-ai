@@ -789,6 +789,9 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [limitModalType, setLimitModalType] = useState<'chat' | 'image' | 'file' | 'camera' | 'premium' | null>(null);
 
   const logout = () => {
+    supabase.auth.signOut().catch(err => {
+      console.warn("Supabase auth signOut error: ", err);
+    });
     setCurrentUser(null);
     setMobileScreen("login");
   };

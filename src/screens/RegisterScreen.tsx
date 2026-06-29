@@ -152,42 +152,29 @@ export const RegisterScreen: React.FC = () => {
     }
   };
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    const defaultEmail = email.trim() || "google.user@gmail.com";
-    const defaultName = name.trim() || "Google User";
-    
-    let match = users.find(u => u.email.toLowerCase() === defaultEmail.toLowerCase());
-    if (!match) {
-      const newProf: UserProfile = {
-        uid: "usr-google-" + Date.now(),
-        name: defaultName,
-        email: defaultEmail,
-        plan: UserPlan.FREE,
-        subscription_status: 'free',
-        chat_count_today: 0,
-        image_count_today: 0,
-        file_upload_count_today: 0,
-        camera_upload_count_today: 0,
-        last_reset_time: new Date().toISOString(),
-        subscription_start_date: "",
-        subscription_end_date: "",
-        cancelled_at: "",
-        refund_requested: false,
-
-        refund_request_date: "",
-        agentStatus: false,
-        balance: 0,
-        referralCode: "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
-        createdAt: new Date().toISOString()
-      };
-      setUsers(prev => [newProf, ...prev]);
-      match = newProf;
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            prompt: 'select_account', // FORCES GOOGLE TO SHOW ACCOUNT PICKER EVERY TIME
+            access_type: 'offline'
+          }
+        }
+      });
+      if (error) {
+        console.error('Google login error:', error);
+        setError(error.message);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Google Sign-In failed.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setCurrentUser(match);
-    setError("");
-    setMobileScreen("chat");
   };
 
   return (

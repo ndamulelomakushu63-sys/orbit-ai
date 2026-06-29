@@ -68,32 +68,23 @@ export const LoginScreen: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      // For instant dev environments, trigger a mock Google Sign In using auth or fall back to profile
-      const defaultEmail = email.trim() || "google.user@gmail.com";
-      const defaultName = "Google User";
-
-      // Attempt to sign in or sign up via Supabase if possible
-      let match = users.find(u => u.email.toLowerCase() === defaultEmail.toLowerCase());
-      if (!match) {
-        const newProf: UserProfile = {
-          uid: "usr-google-" + Date.now(),
-          name: defaultName,
-          email: defaultEmail,
-          plan: UserPlan.FREE,
-          agentStatus: false,
-          balance: 0,
-          referralCode: "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
-          createdAt: new Date().toISOString()
-        };
-        setUsers(prev => [newProf, ...prev]);
-        match = newProf;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            prompt: 'select_account', // FORCES GOOGLE TO SHOW ACCOUNT PICKER EVERY TIME
+            access_type: 'offline'
+          }
+        }
+      });
+      if (error) {
+        console.error('Google login error:', error);
+        setError(error.message);
       }
-
-      setCurrentUser(match);
-      setError("");
-      setMobileScreen("chat");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError(err?.message || "Google Sign-In failed.");
     } finally {
       setIsLoading(false);
     }
