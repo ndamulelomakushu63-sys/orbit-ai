@@ -1,10 +1,33 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { 
   UserProfile, SubscriptionRecord, ReferralRecord, 
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, WithdrawalStatus,
   AIAgent, AppNotification, SupportTicket, CardDetails,
   Business, BusinessRegistration, BusinessPhoto, Category, Special, BusinessReview, BusinessPayment
 } from '../types';
+import {
+  supabase,
+  dbFetchProfiles,
+  dbUpsertProfile,
+  dbFetchSubscriptions,
+  dbUpsertSubscription,
+  dbFetchConversations,
+  dbUpsertConversation,
+  dbFetchChatMessages,
+  dbUpsertChatMessage,
+  dbFetchReferrals,
+  dbUpsertReferral,
+  dbFetchWithdrawals,
+  dbUpsertWithdrawal,
+  dbFetchBusinesses,
+  dbUpsertBusiness,
+  dbFetchBusinessRegistrations,
+  dbUpsertBusinessRegistration,
+  dbFetchNotifications,
+  dbUpsertNotification,
+  dbFetchSupportTickets,
+  dbUpsertSupportTicket
+} from './supabase';
 
 interface AppContextType {
   users: UserProfile[];
@@ -92,6 +115,34 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     ];
   });
+
+  // Current session User
+  const [currentUser, setCurrentUserInternal] = useState<UserProfile | null>(() => {
+    const local = localStorage.getItem("orbit_current_user_uid");
+    if (local) {
+      const match = users.find(u => u.uid === local);
+      if (match) return match;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      const updatedMatch = users.find(u => u.uid === currentUser.uid);
+      if (updatedMatch && JSON.stringify(updatedMatch) !== JSON.stringify(currentUser)) {
+        setCurrentUserInternal(updatedMatch);
+      }
+    }
+  }, [users, currentUser]);
+
+  const setCurrentUser = (user: UserProfile | null) => {
+    if (user) {
+      localStorage.setItem("orbit_current_user_uid", user.uid);
+    } else {
+      localStorage.removeItem("orbit_current_user_uid");
+    }
+    setCurrentUserInternal(user);
+  };
 
   // --- Subscriptions array ---
   const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>(() => {
@@ -475,33 +526,261 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => { localStorage.setItem("orbit_business_reviews", JSON.stringify(businessReviews)); }, [businessReviews]);
   useEffect(() => { localStorage.setItem("orbit_business_payments", JSON.stringify(businessPayments)); }, [businessPayments]);
 
-  // Current session User
-  const [currentUser, setCurrentUserInternal] = useState<UserProfile | null>(() => {
-    const local = localStorage.getItem("orbit_current_user_uid");
-    if (local) {
-      const match = users.find(u => u.uid === local);
-      if (match) return match;
-    }
-    return null;
-  });
+  // --- SUPABASE SYNC AND STARTUP LOADERS ---
+  const [supabaseLoading, setSupabaseLoading] = useState<boolean>(true);
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
 
   useEffect(() => {
-    if (currentUser) {
-      const updatedMatch = users.find(u => u.uid === currentUser.uid);
-      if (updatedMatch && JSON.stringify(updatedMatch) !== JSON.stringify(currentUser)) {
-        setCurrentUserInternal(updatedMatch);
+    async function loadAllFromSupabase() {
+      try {
+        const dbProfiles = await dbFetchProfiles();
+        if (dbProfiles && dbProfiles.length > 0) {
+          setUsers(dbProfiles);
+          setSupabaseConnected(true);
+        }
+        
+        const dbSubs = await dbFetchSubscriptions();
+        if (dbSubs && dbSubs.length > 0) {
+          setSubscriptions(dbSubs);
+        }
+
+        const dbRefs = await dbFetchReferrals();
+        if (dbRefs && dbRefs.length > 0) {
+          setReferrals(dbRefs);
+        }
+
+        const dbWithdrawals = await dbFetchWithdrawals();
+        if (dbWithdrawals && dbWithdrawals.length > 0) {
+          setWithdrawals(dbWithdrawals);
+        }
+
+        const dbConvs = await dbFetchConversations();
+        if (dbConvs && dbConvs.length > 0) {
+          setConversations(dbConvs);
+        }
+
+        const dbMsgs = await dbFetchChatMessages();
+        if (dbMsgs && dbMsgs.length > 0) {
+          setChatMessages(dbMsgs);
+        }
+
+        const dbBiz = await dbFetchBusinesses();
+        if (dbBiz && dbBiz.length > 0) {
+          setBusinesses(dbBiz);
+        }
+
+        const dbRegs = await dbFetchBusinessRegistrations();
+        if (dbRegs && dbRegs.length > 0) {
+          setBusinessRegistrations(dbRegs);
+        }
+
+        const dbNotifs = await dbFetchNotifications();
+        if (dbNotifs && dbNotifs.length > 0) {
+          setNotifications(dbNotifs);
+        }
+
+        const dbTickets = await dbFetchSupportTickets();
+        if (dbTickets && dbTickets.length > 0) {
+          setSupportTickets(dbTickets);
+        }
+
+        // Handle current auth session state
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && session.user) {
+          const matchedProfile = dbProfiles?.find(u => u.uid === session.user.id);
+          if (matchedProfile) {
+            setCurrentUser(matchedProfile);
+          } else {
+            // Check if profile matches email in local store
+            const fallbackProfile = users.find(u => u.email.toLowerCase() === session.user.email?.toLowerCase());
+            if (fallbackProfile) {
+              setCurrentUser(fallbackProfile);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not synchronize data from Supabase backend yet: ", err);
+      } finally {
+        setSupabaseLoading(false);
       }
     }
+    loadAllFromSupabase();
+
+    // Listen to real-time Auth State Changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session && session.user) {
+        const dbProfiles = await dbFetchProfiles();
+        const matchedProfile = dbProfiles?.find(u => u.uid === session.user.id);
+        if (matchedProfile) {
+          setCurrentUser(matchedProfile);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // --- Real-time Upsert Synchronization Hooks ---
+  const syncedProfiles = useRef<Set<string>>(new Set());
+  const syncedSubscriptions = useRef<Set<string>>(new Set());
+  const syncedReferrals = useRef<Set<string>>(new Set());
+  const syncedWithdrawals = useRef<Set<string>>(new Set());
+  const syncedConversations = useRef<Set<string>>(new Set());
+  const syncedChatMessages = useRef<Set<string>>(new Set());
+  const syncedBusinesses = useRef<Set<string>>(new Set());
+  const syncedBusinessRegistrations = useRef<Set<string>>(new Set());
+  const syncedNotifications = useRef<Set<string>>(new Set());
+  const syncedSupportTickets = useRef<Set<string>>(new Set());
+
+  // Profile Sync: only sync the current authenticated user's profile
+  useEffect(() => {
+    if (!currentUser) return;
+    const key = `${currentUser.uid}-${JSON.stringify(currentUser)}`;
+    if (syncedProfiles.current.has(key)) return;
+
+    dbUpsertProfile(currentUser).then(success => {
+      if (success) syncedProfiles.current.add(key);
+    });
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    users.forEach(u => {
+      if (u.uid !== currentUser.uid) return; // RLS restriction
+      const key = `${u.uid}-${JSON.stringify(u)}`;
+      if (syncedProfiles.current.has(key)) return;
+
+      dbUpsertProfile(u).then(success => {
+        if (success) syncedProfiles.current.add(key);
+      });
+    });
   }, [users, currentUser]);
 
-  const setCurrentUser = (user: UserProfile | null) => {
-    if (user) {
-      localStorage.setItem("orbit_current_user_uid", user.uid);
-    } else {
-      localStorage.removeItem("orbit_current_user_uid");
-    }
-    setCurrentUserInternal(user);
-  };
+  // Subscriptions: only sync current user's subscriptions
+  useEffect(() => {
+    if (!currentUser) return;
+    subscriptions.forEach(sub => {
+      if (sub.userId !== currentUser.uid) return;
+      const key = `${sub.id}-${JSON.stringify(sub)}`;
+      if (syncedSubscriptions.current.has(key)) return;
+
+      dbUpsertSubscription(sub).then(success => {
+        if (success) syncedSubscriptions.current.add(key);
+      });
+    });
+  }, [subscriptions, currentUser]);
+
+  // Referrals: only sync current user's referrals
+  useEffect(() => {
+    if (!currentUser) return;
+    referrals.forEach(ref => {
+      if (ref.referrerId !== currentUser.uid && ref.referredUserId !== currentUser.uid) return;
+      const key = `${ref.id}-${JSON.stringify(ref)}`;
+      if (syncedReferrals.current.has(key)) return;
+
+      dbUpsertReferral(ref).then(success => {
+        if (success) syncedReferrals.current.add(key);
+      });
+    });
+  }, [referrals, currentUser]);
+
+  // Withdrawals: only sync current user's withdrawals
+  useEffect(() => {
+    if (!currentUser) return;
+    withdrawals.forEach(w => {
+      if (w.userId !== currentUser.uid) return;
+      const key = `${w.id}-${JSON.stringify(w)}`;
+      if (syncedWithdrawals.current.has(key)) return;
+
+      dbUpsertWithdrawal(w).then(success => {
+        if (success) syncedWithdrawals.current.add(key);
+      });
+    });
+  }, [withdrawals, currentUser]);
+
+  // Conversations: only sync current user's conversations
+  useEffect(() => {
+    if (!currentUser) return;
+    conversations.forEach(c => {
+      const key = `${c.id}-${JSON.stringify(c)}`;
+      if (syncedConversations.current.has(key)) return;
+
+      dbUpsertConversation(c, currentUser.uid).then(success => {
+        if (success) syncedConversations.current.add(key);
+      });
+    });
+  }, [conversations, currentUser]);
+
+  // Chat Messages: only sync current user's messages
+  useEffect(() => {
+    if (!currentUser) return;
+    chatMessages.forEach(m => {
+      const key = `${m.id}-${JSON.stringify(m)}`;
+      if (syncedChatMessages.current.has(key)) return;
+
+      dbUpsertChatMessage(m).then(success => {
+        if (success) syncedChatMessages.current.add(key);
+      });
+    });
+  }, [chatMessages, currentUser]);
+
+  // Businesses: only sync if current user is logged in
+  useEffect(() => {
+    if (!currentUser) return;
+    businesses.forEach(b => {
+      const key = `${b.id}-${JSON.stringify(b)}`;
+      if (syncedBusinesses.current.has(key)) return;
+
+      dbUpsertBusiness(b).then(success => {
+        if (success) syncedBusinesses.current.add(key);
+      });
+    });
+  }, [businesses, currentUser]);
+
+  // Registrations: only sync if current user is logged in
+  useEffect(() => {
+    if (!currentUser) return;
+    businessRegistrations.forEach(reg => {
+      const key = `${reg.id}-${JSON.stringify(reg)}`;
+      if (syncedBusinessRegistrations.current.has(key)) return;
+
+      dbUpsertBusinessRegistration(reg).then(success => {
+        if (success) syncedBusinessRegistrations.current.add(key);
+      });
+    });
+  }, [businessRegistrations, currentUser]);
+
+  // Notifications: only sync current user's notifications
+  useEffect(() => {
+    if (!currentUser) return;
+    notifications.forEach(n => {
+      const key = `${n.id}-${JSON.stringify(n)}`;
+      if (syncedNotifications.current.has(key)) return;
+
+      dbUpsertNotification(n, currentUser.uid).then(success => {
+        if (success) syncedNotifications.current.add(key);
+      });
+    });
+  }, [notifications, currentUser]);
+
+  // Support Tickets: only sync current user's support tickets
+  useEffect(() => {
+    if (!currentUser) return;
+    supportTickets.forEach(t => {
+      const key = `${t.id}-${JSON.stringify(t)}`;
+      if (syncedSupportTickets.current.has(key)) return;
+
+      dbUpsertSupportTicket(t, currentUser.uid).then(success => {
+        if (success) syncedSupportTickets.current.add(key);
+      });
+    });
+  }, [supportTickets, currentUser]);
+
+
 
   const [mobileScreen, setMobileScreen] = useState<string>("splash");
   const [activeConversationId, setActiveConversationId] = useState<string>("conv-1");

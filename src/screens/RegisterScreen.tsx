@@ -3,6 +3,7 @@ import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from '../compon
 import { Compass, Mail, Lock, User, AlertCircle } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { UserPlan, UserProfile, ReferralRecord } from '../types';
+import { supabase, dbUpsertProfile } from '../services/supabase';
 
 export const RegisterScreen: React.FC = () => {
   const { users, setUsers, referrals, setReferrals, setCurrentUser, setMobileScreen, invitedByCode } = useAppState();
@@ -10,74 +11,149 @@ export const RegisterScreen: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignUp = (e?: React.FormEvent) => {
+  const handleSignUp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!email.trim() || !password.trim() || !name.trim()) {
       setError("Please fill out all input credentials.");
       return;
     }
     if (password.length < 5) {
-      setError("Password must be at least 5 character lengths.");
+      setError("Password must be at least 5 characters.");
       return;
     }
 
-    // Check if user already exists
+    // Check if user already exists locally
     if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
       setError("Email already registered. Tap Sign In.");
       return;
     }
 
-    const referralCodeSeed = "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newUid = "usr-" + Date.now();
-    const newProf: UserProfile = {
-      uid: newUid,
-      name,
-      email,
-      plan: UserPlan.FREE,
-      subscription_status: 'free',
-      chat_count_today: 0,
-      image_count_today: 0,
-      file_upload_count_today: 0,
-      camera_upload_count_today: 0,
-      last_reset_time: new Date().toISOString(),
-      subscription_start_date: "",
-      subscription_end_date: "",
-      cancelled_at: "",
-      refund_requested: false,
-      refund_request_date: "",
-      agentStatus: false,
-      balance: 0,
-      referralCode: referralCodeSeed,
-      createdAt: new Date().toISOString()
-    };
-
-    // Trace invitedBy referral
-    if (invitedByCode.trim()) {
-      const matchReferrer = users.find(u => u.referralCode === invitedByCode.trim());
-      if (matchReferrer) {
-        newProf.referredBy = invitedByCode.trim();
-        
-        const newRefLog: ReferralRecord = {
-          id: "ref-" + Date.now(),
-          referrerId: matchReferrer.uid,
-          referredUserId: newUid,
-          referredName: name,
-          reward: 10.00,
-          status: "Pending", // Pending Pro upgrade balance trigger
-          timestamp: new Date().toISOString()
-        };
-        setReferrals(prev => [newRefLog, ...prev]);
-      }
-    }
-
-    setUsers(prev => [newProf, ...prev]);
-    setCurrentUser(newProf);
+    setIsLoading(true);
     setError("");
-    setMobileScreen("chat");
+
+    try {
+      // 1. Attempt Supabase Auth Sign Up
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password.trim(),
+        options: {
+          data: {
+            name: name.trim()
+          }
+        }
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      const registeredUid = data.user?.id || "usr-" + Date.now();
+      const referralCodeSeed = "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      const newProf: UserProfile = {
+        uid: registeredUid,
+        name: name.trim(),
+        email: email.trim(),
+        plan: UserPlan.FREE,
+        subscription_status: 'free',
+        chat_count_today: 0,
+        image_count_today: 0,
+        file_upload_count_today: 0,
+        camera_upload_count_today: 0,
+        last_reset_time: new Date().toISOString(),
+        subscription_start_date: "",
+        subscription_end_date: "",
+        cancelled_at: "",
+        refund_requested: false,
+        refund_request_date: "",
+        agentStatus: false,
+        balance: 0,
+        referralCode: referralCodeSeed,
+        createdAt: new Date().toISOString()
+      };
+
+      // Trace invitedBy referral
+      if (invitedByCode.trim()) {
+        const matchReferrer = users.find(u => u.referralCode === invitedByCode.trim());
+        if (matchReferrer) {
+          newProf.referredBy = invitedByCode.trim();
+          
+          const newRefLog: ReferralRecord = {
+            id: "ref-" + Date.now(),
+            referrerId: matchReferrer.uid,
+            referredUserId: registeredUid,
+            referredName: name.trim(),
+            reward: 10.00,
+            status: "Pending", // Pending Pro upgrade balance trigger
+            timestamp: new Date().toISOString()
+          };
+          setReferrals(prev => [newRefLog, ...prev]);
+        }
+      }
+
+      // Upsert profile directly into Supabase Profiles
+      await dbUpsertProfile(newProf);
+
+      setUsers(prev => [newProf, ...prev]);
+      setCurrentUser(newProf);
+      setMobileScreen("chat");
+    } catch (err: any) {
+      console.warn("Supabase auth signUp error, falling back to local registration: ", err);
+      // Fallback
+      const referralCodeSeed = "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const newUid = "usr-" + Date.now();
+      const newProf: UserProfile = {
+        uid: newUid,
+        name: name.trim(),
+        email: email.trim(),
+        plan: UserPlan.FREE,
+        subscription_status: 'free',
+        chat_count_today: 0,
+        image_count_today: 0,
+        file_upload_count_today: 0,
+        camera_upload_count_today: 0,
+        last_reset_time: new Date().toISOString(),
+        subscription_start_date: "",
+        subscription_end_date: "",
+        cancelled_at: "",
+        refund_requested: false,
+        refund_request_date: "",
+        agentStatus: false,
+        balance: 0,
+        referralCode: referralCodeSeed,
+        createdAt: new Date().toISOString()
+      };
+
+      if (invitedByCode.trim()) {
+        const matchReferrer = users.find(u => u.referralCode === invitedByCode.trim());
+        if (matchReferrer) {
+          newProf.referredBy = invitedByCode.trim();
+          
+          const newRefLog: ReferralRecord = {
+            id: "ref-" + Date.now(),
+            referrerId: matchReferrer.uid,
+            referredUserId: newUid,
+            referredName: name,
+            reward: 10.00,
+            status: "Pending",
+            timestamp: new Date().toISOString()
+          };
+          setReferrals(prev => [newRefLog, ...prev]);
+        }
+      }
+
+      setUsers(prev => [newProf, ...prev]);
+      setCurrentUser(newProf);
+      setMobileScreen("chat");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleSignIn = () => {
+    setIsLoading(true);
     const defaultEmail = email.trim() || "google.user@gmail.com";
     const defaultName = name.trim() || "Google User";
     
@@ -98,6 +174,7 @@ export const RegisterScreen: React.FC = () => {
         subscription_end_date: "",
         cancelled_at: "",
         refund_requested: false,
+
         refund_request_date: "",
         agentStatus: false,
         balance: 0,

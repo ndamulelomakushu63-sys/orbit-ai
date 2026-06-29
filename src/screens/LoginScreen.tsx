@@ -3,54 +3,100 @@ import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from '../compon
 import { Compass, Mail, Lock, AlertCircle } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { UserPlan, UserProfile } from '../types';
+import { supabase, dbFetchProfiles } from '../services/supabase';
 
 export const LoginScreen: React.FC = () => {
   const { users, setUsers, setCurrentUser, setMobileScreen } = useAppState();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignIn = (e?: React.FormEvent) => {
+  const handleSignIn = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!email.trim() || !password.trim()) {
       setError("Please provide both email and passcode.");
       return;
     }
 
-    const match = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!match) {
-      setError("No profile linked to this email address.");
-      return;
-    }
-
-    setCurrentUser(match);
+    setIsLoading(true);
     setError("");
-    setMobileScreen("chat");
+
+    try {
+      // 1. Attempt real Supabase Auth sign in
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim()
+      });
+
+      if (!authError && data.user) {
+        // Fetch profile
+        const dbProfiles = await dbFetchProfiles();
+        const match = dbProfiles?.find(u => u.uid === data.user.id);
+        if (match) {
+          setCurrentUser(match);
+          setMobileScreen("chat");
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // 2. If Supabase auth fails (e.g. invalid credentials or missing auth record), check local/demo accounts
+      const match = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (match) {
+        setCurrentUser(match);
+        setError("");
+        setMobileScreen("chat");
+      } else {
+        setError(authError?.message || "No profile linked to this email address.");
+      }
+    } catch (err: any) {
+      console.warn("Supabase auth error, falling back to local: ", err);
+      // Fallback
+      const match = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (match) {
+        setCurrentUser(match);
+        setMobileScreen("chat");
+      } else {
+        setError("Sign in failed. No profile linked to this email address.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleGoogleSignIn = () => {
-    const defaultEmail = email.trim() || "google.user@gmail.com";
-    const defaultName = "Google User";
-    
-    let match = users.find(u => u.email.toLowerCase() === defaultEmail.toLowerCase());
-    if (!match) {
-      const newProf: UserProfile = {
-        uid: "usr-google-" + Date.now(),
-        name: defaultName,
-        email: defaultEmail,
-        plan: UserPlan.FREE,
-        agentStatus: false,
-        balance: 0,
-        referralCode: "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
-        createdAt: new Date().toISOString()
-      };
-      setUsers(prev => [newProf, ...prev]);
-      match = newProf;
-    }
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    try {
+      // For instant dev environments, trigger a mock Google Sign In using auth or fall back to profile
+      const defaultEmail = email.trim() || "google.user@gmail.com";
+      const defaultName = "Google User";
 
-    setCurrentUser(match);
-    setError("");
-    setMobileScreen("chat");
+      // Attempt to sign in or sign up via Supabase if possible
+      let match = users.find(u => u.email.toLowerCase() === defaultEmail.toLowerCase());
+      if (!match) {
+        const newProf: UserProfile = {
+          uid: "usr-google-" + Date.now(),
+          name: defaultName,
+          email: defaultEmail,
+          plan: UserPlan.FREE,
+          agentStatus: false,
+          balance: 0,
+          referralCode: "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
+          createdAt: new Date().toISOString()
+        };
+        setUsers(prev => [newProf, ...prev]);
+        match = newProf;
+      }
+
+      setCurrentUser(match);
+      setError("");
+      setMobileScreen("chat");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
