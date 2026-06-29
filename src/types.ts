@@ -120,3 +120,85 @@ export interface CardDetails {
   cardholderName: string;
 }
 
+export interface Business {
+  id: string;
+  name: string;
+  ownerName: string;
+  description: string;
+  category: string;
+  townCity: string;
+  physicalAddress: string;
+  phoneNumber: string;
+  whatsAppNumber: string;
+  email: string;
+  openingHours: string;
+  socialMediaLinks: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+  };
+  photos: string[];
+  specials: string[];
+  isPublic: boolean;
+  isPaid: boolean;
+  createdAt: string;
+}
+
+export interface BusinessRegistration {
+  id: string;
+  businessName: string;
+  ownerName: string;
+  phoneNumber: string;
+  whatsAppNumber: string;
+  email: string;
+  category: string;
+  townCity: string;
+  physicalAddress: string;
+  description: string;
+  preferredVisitDate: string;
+  additionalNotes: string;
+  isPaid: boolean;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+}
+
+export interface BusinessPhoto {
+  id: string;
+  businessId: string;
+  url: string;
+  uploadedAt: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+}
+
+export interface Special {
+  id: string;
+  businessId: string;
+  title: string;
+  description: string;
+  expiryDate?: string;
+  createdAt: string;
+}
+
+export interface BusinessReview {
+  id: string;
+  businessId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface BusinessPayment {
+  id: string;
+  registrationId: string;
+  amount: number;
+  status: 'pending' | 'completed' | 'failed';
+  paymentMethod: string;
+  createdAt: string;
+}
+
+

@@ -17,6 +17,7 @@ import { PaymentSuccessScreen } from '../screens/PaymentSuccessScreen';
 import { PaymentFailedScreen } from '../screens/PaymentFailedScreen';
 import { SideHustleScreen } from '../screens/SideHustleScreen';
 import { BusinessBuilderScreen } from '../screens/BusinessBuilderScreen';
+import { BusinessModeScreen } from '../screens/BusinessModeScreen';
 import { PremiumLockScreen } from '../components/PremiumLockScreen';
 
 export const AppNavigator: React.FC = () => {
@@ -85,6 +86,8 @@ export const AppNavigator: React.FC = () => {
         );
       }
       return <BusinessBuilderScreen />;
+    case "business":
+      return <BusinessModeScreen />;
     default:
       return <SplashScreen />;
   }

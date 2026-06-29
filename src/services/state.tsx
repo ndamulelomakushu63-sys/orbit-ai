@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   UserProfile, SubscriptionRecord, ReferralRecord, 
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, WithdrawalStatus,
-  AIAgent, AppNotification, SupportTicket, CardDetails
+  AIAgent, AppNotification, SupportTicket, CardDetails,
+  Business, BusinessRegistration, BusinessPhoto, Category, Special, BusinessReview, BusinessPayment
 } from '../types';
 
 interface AppContextType {
@@ -318,6 +319,142 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   });
 
+  // --- 13. Business Mode Entities ---
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const local = localStorage.getItem("orbit_categories");
+    if (local) return JSON.parse(local);
+    return [
+      { id: 'cat-1', name: 'Restaurants' },
+      { id: 'cat-2', name: 'Entertainment' },
+      { id: 'cat-3', name: 'Hotels & Lodges' },
+      { id: 'cat-4', name: 'Cafes' },
+      { id: 'cat-5', name: 'Hair Salons' },
+      { id: 'cat-6', name: 'Barber Shops' },
+      { id: 'cat-7', name: 'Beauty' },
+      { id: 'cat-8', name: 'Car Wash' },
+      { id: 'cat-9', name: 'Mechanics' },
+      { id: 'cat-10', name: 'Clothing Stores' },
+      { id: 'cat-11', name: 'Supermarkets' },
+      { id: 'cat-12', name: 'Pharmacies' },
+      { id: 'cat-13', name: 'Electronics' },
+      { id: 'cat-14', name: 'Fitness & Gyms' },
+      { id: 'cat-15', name: 'Other' },
+    ];
+  });
+
+  const [businesses, setBusinesses] = useState<Business[]>(() => {
+    const local = localStorage.getItem("orbit_businesses");
+    if (local) return JSON.parse(local);
+    return [
+      {
+        id: 'biz-1',
+        name: "Phathu's Flame Grill",
+        ownerName: "Phathutshedzo",
+        description: "Polokwane's absolute favorite traditional flame grill. Savor the authentic taste of premium beef steaks, locally spiced chicken, boerewors, and traditional pap. Orbit AI highly recommends our Wednesday Steak special!",
+        category: "Restaurants",
+        townCity: "Polokwane",
+        physicalAddress: "42 Grobler Street, Polokwane, 0700",
+        phoneNumber: "+27 15 291 4050",
+        whatsAppNumber: "+27 82 123 4567",
+        email: "phathu@flamegrill.co.za",
+        openingHours: "Mon - Sat: 10:00 - 21:00",
+        socialMediaLinks: { facebook: "https://facebook.com/phathu-flamegrill", instagram: "https://instagram.com/phathu_flamegrill" },
+        photos: ["https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=60"],
+        specials: ["Buy one T-bone steak get one free on Wednesdays!"],
+        isPublic: true,
+        isPaid: true,
+        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 'biz-2',
+        name: "The Daily Grind Cafe",
+        ownerName: "Sarah de Beer",
+        description: "Premium handcrafted espresso coffee, delicious healthy breakfast options, and free high-speed WiFi. The ultimate spot for digital nomads and early morning commuters in Hatfield, Pretoria.",
+        category: "Cafes",
+        townCity: "Pretoria",
+        physicalAddress: "221 Burnett St, Hatfield, Pretoria, 0028",
+        phoneNumber: "+27 12 362 5580",
+        whatsAppNumber: "+27 71 345 6789",
+        email: "info@dailygrindhatfield.co.za",
+        openingHours: "Mon - Sun: 07:00 - 18:00",
+        socialMediaLinks: { facebook: "https://facebook.com/dailygrindhatfield" },
+        photos: ["https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=600&auto=format&fit=crop&q=60"],
+        specials: ["Get a free gourmet muffin with any Large Cappuccino before 9am!"],
+        isPublic: true,
+        isPaid: true,
+        createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 'biz-3',
+        name: "Mzansi Beats Lounge",
+        ownerName: "Siphiwe Zulu",
+        description: "Vibrant local music lounge, cocktail bar, and premium event venue in the heart of Johannesburg's cultural hub. Dance to Afrobeat, Amapiano, and live South African jazz under stunning ambient lighting.",
+        category: "Entertainment",
+        townCity: "Johannesburg",
+        physicalAddress: "12 Gwigwi Mrwebi St, Newtown, Johannesburg, 2001",
+        phoneNumber: "+27 11 833 2141",
+        whatsAppNumber: "+27 63 987 6543",
+        email: "events@mzansibeats.co.za",
+        openingHours: "Thu - Sun: 16:00 - 02:00",
+        socialMediaLinks: { facebook: "https://facebook.com/mzansibeats", instagram: "https://instagram.com/mzansibeats" },
+        photos: ["https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=60"],
+        specials: ["Happy Hour: 50% off all designer cocktails between 5pm and 7pm!"],
+        isPublic: true,
+        isPaid: true,
+        createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 'biz-4',
+        name: "Sibasa Cozy Lodge",
+        ownerName: "Tshilidzi Neluheni",
+        description: "Affordable luxury guest house in Venda. Enjoy peaceful accommodations, majestic mountain views, sparkling swimming pool, and delicious breakfast buffet.",
+        category: "Hotels & Lodges",
+        townCity: "Sibasa",
+        physicalAddress: "12 Main Road, Sibasa, Thohoyandou, 0970",
+        phoneNumber: "+27 15 963 8800",
+        whatsAppNumber: "+27 81 234 5678",
+        email: "reservations@sibasacozylodge.co.za",
+        openingHours: "Mon - Sun: 24 Hours",
+        socialMediaLinks: { facebook: "https://facebook.com/sibasacozylodge" },
+        photos: ["https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=60"],
+        specials: ["Midweek Escape: R550 per night (Monday to Thursday stay)!"],
+        isPublic: true,
+        isPaid: true,
+        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  });
+
+  const [businessRegistrations, setBusinessRegistrations] = useState<BusinessRegistration[]>(() => {
+    const local = localStorage.getItem("orbit_business_registrations");
+    if (local) return JSON.parse(local);
+    return [];
+  });
+
+  const [businessPhotos, setBusinessPhotos] = useState<BusinessPhoto[]>(() => {
+    const local = localStorage.getItem("orbit_business_photos");
+    if (local) return JSON.parse(local);
+    return [];
+  });
+
+  const [specials, setSpecials] = useState<Special[]>(() => {
+    const local = localStorage.getItem("orbit_specials");
+    if (local) return JSON.parse(local);
+    return [];
+  });
+
+  const [businessReviews, setBusinessReviews] = useState<BusinessReview[]>(() => {
+    const local = localStorage.getItem("orbit_business_reviews");
+    if (local) return JSON.parse(local);
+    return [];
+  });
+
+  const [businessPayments, setBusinessPayments] = useState<BusinessPayment[]>(() => {
+    const local = localStorage.getItem("orbit_business_payments");
+    if (local) return JSON.parse(local);
+    return [];
+  });
+
   // Sync to localStorage
   useEffect(() => { localStorage.setItem("orbit_users", JSON.stringify(users)); }, [users]);
   useEffect(() => { localStorage.setItem("orbit_subscriptions", JSON.stringify(subscriptions)); }, [subscriptions]);
@@ -330,6 +467,13 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => { localStorage.setItem("orbit_notifications", JSON.stringify(notifications)); }, [notifications]);
   useEffect(() => { localStorage.setItem("orbit_support_tickets", JSON.stringify(supportTickets)); }, [supportTickets]);
   useEffect(() => { localStorage.setItem("orbit_card_details", JSON.stringify(cardDetails)); }, [cardDetails]);
+  useEffect(() => { localStorage.setItem("orbit_categories", JSON.stringify(categories)); }, [categories]);
+  useEffect(() => { localStorage.setItem("orbit_businesses", JSON.stringify(businesses)); }, [businesses]);
+  useEffect(() => { localStorage.setItem("orbit_business_registrations", JSON.stringify(businessRegistrations)); }, [businessRegistrations]);
+  useEffect(() => { localStorage.setItem("orbit_business_photos", JSON.stringify(businessPhotos)); }, [businessPhotos]);
+  useEffect(() => { localStorage.setItem("orbit_specials", JSON.stringify(specials)); }, [specials]);
+  useEffect(() => { localStorage.setItem("orbit_business_reviews", JSON.stringify(businessReviews)); }, [businessReviews]);
+  useEffect(() => { localStorage.setItem("orbit_business_payments", JSON.stringify(businessPayments)); }, [businessPayments]);
 
   // Current session User
   const [currentUser, setCurrentUserInternal] = useState<UserProfile | null>(() => {
@@ -416,13 +560,16 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const currentAgent = agents.find(a => a.id === activeAgentId);
       const systemPrompt = currentAgent ? currentAgent.systemPrompt : undefined;
 
+      const approvedBusinesses = businesses.filter(b => b.isPublic);
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMsgText,
           history: activeHistory,
-          systemPrompt
+          systemPrompt,
+          businesses: approvedBusinesses
         })
       });
 
@@ -570,7 +717,14 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       cardDetails, setCardDetails,
       incrementUsageLimit,
       limitModalType,
-      setLimitModalType
+      setLimitModalType,
+      businesses, setBusinesses,
+      businessRegistrations, setBusinessRegistrations,
+      businessPhotos, setBusinessPhotos,
+      categories, setCategories,
+      specials, setSpecials,
+      businessReviews, setBusinessReviews,
+      businessPayments, setBusinessPayments
     }}>
       {children}
     </AppContext.Provider>

@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import AdmZip from "adm-zip";
 
 dotenv.config();
 
@@ -40,7 +41,7 @@ async function generateContentWithRetry(
 ): Promise<any> {
   let attempt = 0;
   let currentModel = params.model;
-  const fallbackModels = ["gemini-2.0-flash", "gemini-2.5-pro"];
+  const fallbackModels = ["gemini-3.5-flash", "gemini-3.1-pro-preview"];
 
   while (attempt < maxRetries) {
     try {
@@ -90,7 +91,7 @@ app.get("/robots.txt", (req, res) => {
 // Secure server-side endpoint for Gemini AI chat
 app.post("/api/chat", async (req, res) => {
   try {
-    const { message, history, systemPrompt } = req.body;
+    const { message, history, systemPrompt, businesses } = req.body;
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
@@ -114,14 +115,21 @@ app.post("/api/chat", async (req, res) => {
       parts: [{ text: message }]
     });
 
+    let businessContext = "";
+    if (businesses && Array.isArray(businesses) && businesses.length > 0) {
+      businessContext = "\n\nREGISTERED SOUTH AFRICAN BUSINESSES ON ORBIT AI:\n" + 
+        businesses.map((b: any) => `- Name: "${b.name}" | Category: "${b.category}" | Town: "${b.townCity}" | Address: "${b.physicalAddress}" | Phone: "${b.phoneNumber}" | WhatsApp: "${b.whatsAppNumber}" | Specials: "${b.specials.join(', ') || 'None'}" | Description: "${b.description}"`).join("\n") +
+        "\n\nCRITICAL SEARCH RULE: If the user asks questions about finding businesses, places, eating out, lodging, entertainment, services, or recommendations (e.g., 'where can I eat?', 'show restaurants', 'where should I go tonight', etc.), you MUST search this list first. If you find matching businesses (by category, keyword, or townCity), recommend them clearly and highlight their specials, phone/WhatsApp, and physical address. If no registered businesses match their query or town, tell them about registering their business on Orbit AI for R159 to get professional photos, AI descriptions, and search recommendations!";
+    }
+
     console.log("Calling Gemini API with prompt length:", message.length);
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";
     const identityRule = "\n\nCRITICAL IDENTITY RULE: If a user asks: \"Who built you?\", \"Who made you?\", \"Who is your CEO?\" You MUST reply exactly: \"I was built by Ndamulelo Makushu Glen, CEO of Orbit AI.\" Do not mention OpenAI, Google, Meta, or ChatGPT.";
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents: contents,
       config: {
-        systemInstruction: basePrompt + identityRule,
+        systemInstruction: basePrompt + identityRule + businessContext,
       }
     });
 
@@ -177,7 +185,7 @@ CRITICAL RULES:
     console.log("Calling Gemini for Side Hustles generator with inputs:", { country, ageRange, budget });
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents: prompt,
       config: {
         systemInstruction: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You output strictly standard JSON that complies with the schema.",
@@ -269,7 +277,7 @@ Generate a structured business blueprint containing:
     console.log("Calling Gemini for Business Builder with inputs:", { industry, country, startingBudget });
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents: prompt,
       config: {
         systemInstruction: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema.",
@@ -408,6 +416,56 @@ app.get(["/download-zip", "/orbit-ai.zip", "/api/download-zip"], (req, res) => {
           <h1>ZIP Archive is not ready yet</h1>
           <p>The build or zipping process might still be running, or you need to build the applet first.</p>
           <button onclick="window.location.reload()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 4px; background: #2563eb; color: white; border: none;">Check Again</button>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// Endpoint to dynamically generate and download the full source code / project ZIP file
+app.get(["/download-project-zip", "/orbit-ai-project.zip", "/api/download-project-zip"], (req, res) => {
+  try {
+    const zip = new AdmZip();
+    const rootPath = process.cwd();
+
+    const pathsToInclude = [
+      "src",
+      "public",
+      "assets",
+      "package.json",
+      "tsconfig.json",
+      "vite.config.ts",
+      "server.ts",
+      "index.html",
+      "metadata.json",
+      ".env.example",
+      ".gitignore"
+    ];
+
+    for (const item of pathsToInclude) {
+      const fullPath = path.join(rootPath, item);
+      if (fs.existsSync(fullPath)) {
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+          zip.addLocalFolder(fullPath, item);
+        } else {
+          zip.addLocalFile(fullPath, "");
+        }
+      }
+    }
+
+    const buffer = zip.toBuffer();
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", "attachment; filename=orbit-ai-project.zip");
+    res.send(buffer);
+  } catch (error: any) {
+    console.error("Failed to generate project ZIP:", error);
+    res.status(500).send(`
+      <html>
+        <head><title>Failed to generate ZIP</title></head>
+        <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+          <h1>Failed to generate project ZIP file</h1>
+          <p>${error.message || "An unknown error occurred."}</p>
         </body>
       </html>
     `);
