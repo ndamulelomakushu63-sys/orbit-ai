@@ -506,6 +506,16 @@ async function setupVite() {
   if (!isProduction) {
     console.log("Starting server in DEVELOPMENT mode (Vite middleware)...");
     const { createServer: createViteServer } = await import("vite");
+
+    // Mount the standalone Admin app's Vite development server first so it intercepts /admin requests
+    const adminVite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+      base: "/admin/",
+      root: path.join(process.cwd(), "orbit-ai-admin")
+    });
+    app.use("/admin", adminVite.middlewares);
+
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -513,6 +523,16 @@ async function setupVite() {
     app.use(vite.middlewares);
   } else {
     console.log("Starting server in PRODUCTION mode (serving static files from dist)...");
+    
+    // Serve compiled Admin standalone portal static files if they exist
+    const adminDistPath = path.join(process.cwd(), "orbit-ai-admin", "dist");
+    if (fs.existsSync(adminDistPath)) {
+      app.use("/admin", express.static(adminDistPath));
+      app.get('/admin/*', (req, res) => {
+        res.sendFile(path.join(adminDistPath, "index.html"));
+      });
+    }
+
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       const indexPath = path.join(distPath, "index.html");
