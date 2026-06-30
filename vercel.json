@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "routes": [
+    {
+      "src": "/admin/(.*)\\.(css|js|png|jpg|jpeg|gif|svg|ico|json|woff|woff2|ttf)$",
+      "dest": "/admin/$1.$2"
+    },
+    {
+      "src": "/admin/(.*)",
+      "dest": "/admin/index.html"
+    },
+    {
+      "src": "/(.*)\\.(css|js|png|jpg|jpeg|gif|svg|ico|json|woff|woff2|ttf)$",
+      "dest": "/$1.$2"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
