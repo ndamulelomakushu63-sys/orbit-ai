@@ -509,7 +509,7 @@ async function setupVite() {
 
     // Mount the standalone Admin app's Vite development server first so it intercepts /admin requests
     const adminVite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
       base: "/admin/",
       root: path.join(process.cwd(), "orbit-ai-admin")
@@ -517,7 +517,7 @@ async function setupVite() {
     app.use("/admin", adminVite.middlewares);
 
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
