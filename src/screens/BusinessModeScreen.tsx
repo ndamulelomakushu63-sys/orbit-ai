@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAppState } from '../services/state';
 import { Business, BusinessRegistration, ObdiLead } from '../types';
-import { dbUpsertObdiLead } from '../services/supabase';
+import { dbUpsertObdiLead, supabase } from '../services/supabase';
 
 export const BusinessModeScreen: React.FC = () => {
   const { 
@@ -36,6 +36,8 @@ export const BusinessModeScreen: React.FC = () => {
   const [registerSuccess, setRegisterSuccess] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -73,75 +75,46 @@ export const BusinessModeScreen: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: val }));
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.businessName.trim() || !formData.ownerName.trim() || !formData.phoneNumber.trim() || !formData.physicalAddress.trim() || !formData.description.trim() || !formData.preferredVisitDate) {
+    if (!formData.businessName.trim() || !formData.ownerName.trim() || !formData.phoneNumber.trim() || !formData.physicalAddress.trim() || !formData.description.trim()) {
       alert("Please fill in all required fields to register your business.");
       return;
     }
-    setShowPaymentModal(true);
-  };
 
-  const handlePayAndConfirm = () => {
-    setPaymentProcessing(true);
-    setTimeout(() => {
-      setPaymentProcessing(false);
-      setShowPaymentModal(false);
+    setSubmitting(true);
+    setErrorMessage(null);
 
-      const newRegistrationId = 'reg-' + Date.now();
-      const newBusinessId = 'biz-' + Date.now();
+    try {
+      // Get authenticated Supabase user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || currentUser?.uid || null;
 
-      const slug = formData.businessName.toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+      const businessId = 'biz-' + Date.now();
 
-      // Create OBDI Lead record
-      const newLead: ObdiLead = {
-        id: 'lead-' + Date.now(),
+      // Real Supabase insert only
+      const insertData = {
+        id: businessId,
+        user_id: userId,
         business_name: formData.businessName,
-        owner_name: formData.ownerName,
-        phone: formData.phoneNumber,
-        email: formData.email || undefined,
-        address: formData.physicalAddress,
-        notes: (formData.additionalNotes || '') + '\nPreferred visit date: ' + formData.preferredVisitDate,
-        status: 'paid_new',
-        paid: true,
-        stripe_payment_id: 'ch_' + Math.random().toString(36).substring(2, 10).toUpperCase(),
-        public_slug: slug,
-        contact_phone: formData.whatsAppNumber || formData.phoneNumber,
-        specials: ''
-      };
-
-      dbUpsertObdiLead(newLead).then(success => {
-        if (success) {
-          console.log("Successfully saved Lead in Supabase: ", newLead);
-        }
-      });
-
-      setObdiLeads(prev => [newLead, ...prev]);
-
-      // Create Registration for legacy support
-      const newReg: BusinessRegistration = {
-        id: newRegistrationId,
-        businessName: formData.businessName,
-        ownerName: formData.ownerName,
-        phoneNumber: formData.phoneNumber,
-        whatsAppNumber: formData.whatsAppNumber || formData.phoneNumber,
-        email: formData.email,
         category: formData.category,
-        townCity: formData.townCity,
-        physicalAddress: formData.physicalAddress,
         description: formData.description,
-        preferredVisitDate: formData.preferredVisitDate,
-        additionalNotes: formData.additionalNotes,
-        isPaid: true,
-        status: 'pending',
-        createdAt: new Date().toISOString()
+        location: formData.physicalAddress,
+        contact_phone: formData.phoneNumber,
+        status: "pending_review"
       };
 
-      // Create Business profile inside Orbit AI (but not public yet)
+      const { error } = await supabase
+        .from('businesses')
+        .insert(insertData);
+
+      if (error) {
+        throw error;
+      }
+
+      // Sync local AppState to reflect the pending submission
       const newBiz: Business = {
-        id: newBusinessId,
+        id: businessId,
         name: formData.businessName,
         ownerName: formData.ownerName,
         description: formData.description,
@@ -151,23 +124,22 @@ export const BusinessModeScreen: React.FC = () => {
         phoneNumber: formData.phoneNumber,
         whatsAppNumber: formData.whatsAppNumber || formData.phoneNumber,
         email: formData.email,
-        openingHours: 'Mon - Fri: 08:00 - 17:00', // Default
+        openingHours: 'Mon - Fri: 08:00 - 17:00',
         socialMediaLinks: {},
-        photos: ['https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&auto=format&fit=crop&q=60'], // Default placeholder
+        photos: ['https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&auto=format&fit=crop&q=60'],
         specials: [],
-        isPublic: false, // Wait for admin approval before making public
-        isPaid: true,
+        isPublic: false, // Wait for review
+        isPaid: false,
         createdAt: new Date().toISOString()
       };
 
-      setBusinessRegistrations(prev => [newReg, ...prev]);
       setBusinesses(prev => [newBiz, ...prev]);
 
       // Add dynamic administrative alert
       const adminNotif = {
         id: 'notif-biz-' + Date.now(),
-        title: "New Business Registered",
-        message: `${formData.businessName} has completed registration payment of R159. Review and arrange the visit schedule.`,
+        title: "New Business Submitted",
+        message: `${formData.businessName} has been submitted and is pending review.`,
         timestamp: new Date().toISOString(),
         read: false,
         type: 'system' as const
@@ -190,7 +162,16 @@ export const BusinessModeScreen: React.FC = () => {
         preferredVisitDate: '',
         additionalNotes: ''
       });
-    }, 2000);
+    } catch (err: any) {
+      console.error("Error inserting business to Supabase: ", err);
+      setErrorMessage(err.message || "Failed to submit business registration. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePayAndConfirm = () => {
+    // Unused since we perform a direct insert upon form submission, but kept to prevent compile-time errors
   };
 
   return (
@@ -431,21 +412,7 @@ export const BusinessModeScreen: React.FC = () => {
                 <CheckCircle className="w-6 h-6 text-green-600" />
               </View>
               <div className="space-y-2">
-                <Text className="text-base font-black text-slate-900 leading-tight">Thank you for registering your business with Orbit AI.</Text>
-                <Text className="text-xs text-slate-600 leading-relaxed font-sans mt-2">
-                  Our team will contact you to arrange a visit.
-                </Text>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-2 font-sans">
-                <Text className="font-bold text-slate-900 block border-b border-slate-150 pb-1.5 mb-1">During the visit we will:</Text>
-                <Text className="block leading-relaxed font-sans">• Interview you</Text>
-                <Text className="block leading-relaxed font-sans">• Take professional photos</Text>
-                <Text className="block leading-relaxed font-sans">• Write an AI-optimized business description</Text>
-                <Text className="block leading-relaxed font-sans">• Add your contact information</Text>
-                <Text className="block leading-relaxed font-sans">• Add your location</Text>
-                <Text className="block leading-relaxed font-sans">• Add your specials</Text>
-                <Text className="block leading-relaxed font-sans">• Publish your business inside Orbit AI after payment.</Text>
+                <Text className="text-base font-black text-slate-900 leading-tight">Your business has been submitted. Our team will contact you.</Text>
               </div>
 
               <TouchableOpacity 
@@ -603,12 +570,26 @@ export const BusinessModeScreen: React.FC = () => {
                   />
                 </View>
 
+                {errorMessage && (
+                  <Text className="text-red-500 text-xs font-semibold font-sans mt-2 block">{errorMessage}</Text>
+                )}
+
                 <button 
                   type="submit"
-                  className="w-full py-3 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-2xs transition select-none flex items-center justify-center gap-1 cursor-pointer"
+                  disabled={submitting}
+                  className="w-full py-3 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-2xs transition select-none flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
                 >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Proceed to Payment</span>
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Submit Business</span>
+                    </>
+                  )}
                 </button>
               </View>
             </form>
