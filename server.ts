@@ -525,7 +525,10 @@ async function setupVite() {
     console.log("Starting server in PRODUCTION mode (serving static files from dist)...");
     
     // Serve compiled Admin standalone portal static files if they exist
-    const adminDistPath = path.join(process.cwd(), "orbit-ai-admin", "dist");
+    let adminDistPath = path.join(process.cwd(), "orbit-ai-admin", "dist");
+    if (!fs.existsSync(adminDistPath)) {
+      adminDistPath = path.join(process.cwd(), "dist", "admin");
+    }
     if (fs.existsSync(adminDistPath)) {
       app.use("/admin", express.static(adminDistPath));
       app.get('/admin/*', (req, res) => {
