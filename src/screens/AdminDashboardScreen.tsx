@@ -4,9 +4,10 @@ import {
   Building, User, Mail, DollarSign, Award, Briefcase, 
   Search, Check, XCircle, Trash2, Shield, Info, Smartphone 
 } from '../components/Icons';
-import { Edit3, Plus, X, MessageSquare, Tag } from 'lucide-react';
+import { Edit3, Plus, X, MessageSquare, Tag, Camera, Upload, Trash, CheckCircle, RefreshCw } from 'lucide-react';
 import { useAppState } from '../services/state';
-import { UserPlan, WithdrawalStatus, UserProfile, WithdrawalRecord } from '../types';
+import { UserPlan, WithdrawalStatus, UserProfile, WithdrawalRecord, ObdiLead, Business } from '../types';
+import { dbUpsertObdiLead, dbDeleteObdiLead, dbUploadObdiPhoto } from '../services/supabase';
 
 export const AdminDashboardScreen: React.FC = () => {
   const { 
@@ -19,7 +20,9 @@ export const AdminDashboardScreen: React.FC = () => {
     businesses,
     setBusinesses,
     businessRegistrations,
-    setBusinessRegistrations
+    setBusinessRegistrations,
+    obdiLeads,
+    setObdiLeads
   } = useAppState();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,6 +37,13 @@ export const AdminDashboardScreen: React.FC = () => {
     townCity: '',
     specials: ''
   });
+
+  // OBDI Leads Admin states
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
+  const [uploadingPhotoLeadId, setUploadingPhotoLeadId] = useState<string | null>(null);
+  const [leadSearchQuery, setLeadSearchQuery] = useState("");
+  const [leadStatusFilter, setLeadStatusFilter] = useState<string>("all");
+  const [leadEditForm, setLeadEditForm] = useState<Partial<ObdiLead>>({});
 
   // Metrics calculation
   const totalSubscribers = users.filter(u => u.plan === UserPlan.PRO).length;
@@ -197,6 +207,112 @@ export const AdminDashboardScreen: React.FC = () => {
     }));
     setEditingBusinessId(null);
     alert("Business details updated successfully!");
+  };
+
+  // OBDI Leads Operations
+  const handleStartEditLead = (lead: ObdiLead) => {
+    setEditingLeadId(lead.id);
+    setLeadEditForm({ ...lead });
+  };
+
+  const handleSaveEditLead = async () => {
+    if (!leadEditForm.business_name || !leadEditForm.owner_name || !leadEditForm.address) {
+      alert("Business Name, Owner Name, and Address are required!");
+      return;
+    }
+
+    const updatedLead = leadEditForm as ObdiLead;
+    
+    // Save to Supabase
+    const success = await dbUpsertObdiLead(updatedLead);
+    if (success) {
+      setObdiLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+      setEditingLeadId(null);
+      alert("OBDI lead updated successfully in database!");
+
+      // Auto-publish to standard directory businesses state if status is set to 'live'
+      if (updatedLead.status === 'live') {
+        const alreadyInDirectory = businesses.some(b => b.name === updatedLead.business_name);
+        if (!alreadyInDirectory) {
+          const newBiz: Business = {
+            id: 'biz-' + Date.now(),
+            name: updatedLead.business_name,
+            ownerName: updatedLead.owner_name,
+            description: updatedLead.ai_description || 'Professional local service registered via OBDI inspection portal.',
+            category: 'Other', // default fallback
+            townCity: updatedLead.address.split(',').pop()?.trim() || 'Thohoyandou',
+            physicalAddress: updatedLead.address,
+            phoneNumber: updatedLead.phone,
+            whatsAppNumber: updatedLead.contact_phone || updatedLead.phone,
+            email: updatedLead.email || '',
+            openingHours: 'Mon - Fri: 08:00 - 17:00',
+            socialMediaLinks: {},
+            photos: extractPhotoUrls(updatedLead.notes || '').length > 0 ? [extractPhotoUrls(updatedLead.notes || '')[0]] : ['https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&auto=format&fit=crop&q=60'],
+            specials: updatedLead.specials ? [updatedLead.specials] : [],
+            isPublic: true,
+            isPaid: true,
+            createdAt: new Date().toISOString()
+          };
+          setBusinesses(prev => [newBiz, ...prev]);
+          alert(`Lead published: "${updatedLead.business_name}" is now live in the Orbit AI explore directory!`);
+        }
+      }
+    } else {
+      alert("Failed to update lead in Supabase database.");
+    }
+  };
+
+  const handleDeleteLead = async (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete the lead for "${name}" from Supabase?`)) {
+      const success = await dbDeleteObdiLead(id);
+      if (success) {
+        setObdiLeads(prev => prev.filter(l => l.id !== id));
+        alert("Lead deleted successfully!");
+      } else {
+        alert("Failed to delete lead from database.");
+      }
+    }
+  };
+
+  const handleUploadLeadPhoto = async (leadId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPhotoLeadId(leadId);
+    try {
+      const filename = `lead_${leadId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+      const publicUrl = await dbUploadObdiPhoto(file, filename);
+
+      if (publicUrl) {
+        // Find current lead and append photo URL to notes field
+        const targetLead = obdiLeads.find(l => l.id === leadId);
+        if (targetLead) {
+          const updatedNotes = `${targetLead.notes || ''}\nPhoto: ${publicUrl}`;
+          const updatedLead = { ...targetLead, notes: updatedNotes, status: 'photos_uploaded' as const };
+          
+          const success = await dbUpsertObdiLead(updatedLead);
+          if (success) {
+            setObdiLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l));
+            alert("Professional photo uploaded and saved successfully to lead notes!");
+          } else {
+            alert("Photo uploaded but failed to update lead record in Supabase.");
+          }
+        }
+      } else {
+        alert("Upload to 'obdi-photos' bucket failed. Make sure bucket permissions are open.");
+      }
+    } catch (err) {
+      console.warn("Upload handler error: ", err);
+      alert("An error occurred during photo upload.");
+    } finally {
+      setUploadingPhotoLeadId(null);
+    }
+  };
+
+  const extractPhotoUrls = (text: string): string[] => {
+    if (!text) return [];
+    const matches = text.match(/https?:\/\/[^\s,]+/g);
+    return matches || [];
   };
 
   return (
@@ -682,6 +798,315 @@ export const AdminDashboardScreen: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => setEditingBusinessId(null)}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs cursor-pointer transition border border-slate-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OBDI REAL-TIME LEADS MANAGER (SUPABASE PIPELINE) */}
+      <View className="bg-white border border-slate-200 rounded-3xl p-6 shadow-3xs space-y-5 text-left">
+        <div className="flex justify-between items-center border-b border-slate-200/60 pb-4">
+          <div className="text-left">
+            <Text className="text-sm font-bold text-slate-850 flex items-center gap-1.5">
+              <Camera className="w-5 h-5 text-blue-600 animate-pulse" />
+              <span>OBDI Business Registration & Media Pipeline</span>
+            </Text>
+            <Text className="text-[11px] text-slate-400 mt-0.5">
+              Live inspection tracking, professional photo uploads, and database lead publishing
+            </Text>
+          </div>
+          <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2.5 py-1 rounded-full border border-blue-100 font-mono">
+            {obdiLeads.length} Total Leads
+          </span>
+        </div>
+
+        {/* Filters and search for leads */}
+        <View className="flex flex-col md:flex-row gap-3">
+          <View className="flex-1 px-4 py-3 border border-slate-200 bg-slate-50 rounded-2xl flex flex-row items-center gap-2.5">
+            <Search className="w-4 h-4 text-slate-400" />
+            <input 
+              type="text"
+              placeholder="Search leads by business name, owner name, or address..."
+              value={leadSearchQuery}
+              onChange={(e) => setLeadSearchQuery(e.target.value)}
+              className="bg-transparent text-xs text-slate-800 outline-none w-full border-none p-0"
+            />
+          </View>
+
+          <View className="flex flex-row gap-2 select-none overflow-x-auto no-scrollbar pb-1">
+            {['all', 'new', 'paid_new', 'visit_needed', 'photos_uploaded', 'ready_to_publish', 'live', 'rejected'].map(status => (
+              <button
+                key={status}
+                onClick={() => setLeadStatusFilter(status)}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide whitespace-nowrap transition-all uppercase ${
+                  leadStatusFilter === status 
+                    ? 'bg-blue-600 text-white shadow-3xs' 
+                    : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {status.replace('_', ' ')}
+              </button>
+            ))}
+          </View>
+        </View>
+
+        {/* List of Leads */}
+        <View className="space-y-4">
+          {obdiLeads.filter(lead => {
+            const matchesSearch = 
+              lead.business_name.toLowerCase().includes(leadSearchQuery.toLowerCase()) ||
+              lead.owner_name.toLowerCase().includes(leadSearchQuery.toLowerCase()) ||
+              lead.address.toLowerCase().includes(leadSearchQuery.toLowerCase());
+            
+            if (!matchesSearch) return false;
+            if (leadStatusFilter !== 'all' && lead.status !== leadStatusFilter) return false;
+            return true;
+          }).length === 0 ? (
+            <View className="p-10 bg-slate-50 border border-dashed border-slate-200 rounded-3xl items-center text-center">
+              <Camera className="w-8 h-8 text-slate-300 mb-2" />
+              <Text className="text-xs font-bold text-slate-400 font-sans">No OBDI leads registered in this status</Text>
+              <Text className="text-[10px] text-slate-400 mt-1 max-w-sm leading-relaxed">
+                Leads are created instantly when customers complete their R159 registration payment in the Business Mode.
+              </Text>
+            </View>
+          ) : (
+            <View className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {obdiLeads.filter(lead => {
+                const matchesSearch = 
+                  lead.business_name.toLowerCase().includes(leadSearchQuery.toLowerCase()) ||
+                  lead.owner_name.toLowerCase().includes(leadSearchQuery.toLowerCase()) ||
+                  lead.address.toLowerCase().includes(leadSearchQuery.toLowerCase());
+                
+                if (!matchesSearch) return false;
+                if (leadStatusFilter !== 'all' && lead.status !== leadStatusFilter) return false;
+                return true;
+              }).map(lead => {
+                const photos = extractPhotoUrls(lead.notes || '');
+                return (
+                  <View key={lead.id} className="p-5 border border-slate-200 hover:border-slate-300 bg-slate-50/20 rounded-3xl space-y-4 shadow-3xs transition-all relative">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="text-left">
+                        <Text className="text-sm font-black text-slate-850 block">{lead.business_name}</Text>
+                        <Text className="text-[10px] text-slate-400 font-sans block mt-0.5">Owner: {lead.owner_name}</Text>
+                      </div>
+                      <span className={`text-[8px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                        lead.status === 'live' ? 'bg-green-50 text-green-600 border-green-200' :
+                        lead.status === 'paid_new' ? 'bg-purple-50 text-purple-600 border-purple-200' :
+                        lead.status === 'visit_needed' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                        lead.status === 'photos_uploaded' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
+                        lead.status === 'ready_to_publish' ? 'bg-violet-50 text-violet-600 border-violet-200' :
+                        lead.status === 'rejected' ? 'bg-red-50 text-red-500 border-red-200' :
+                        'bg-blue-50 text-blue-600 border-blue-200'
+                      }`}>
+                        {lead.status.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    <div className="bg-white p-3 rounded-2xl border border-slate-100 text-xs text-slate-600 space-y-1 text-left">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">
+                        <Smartphone className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Contacts & Coordinates</span>
+                      </div>
+                      <Text className="block mt-1 font-sans">Phone: {lead.phone}</Text>
+                      {lead.email && <Text className="block font-sans">Email: {lead.email}</Text>}
+                      <Text className="block font-sans">Address: {lead.address}</Text>
+                    </div>
+
+                    <div className="p-3 bg-white rounded-2xl border border-slate-100 text-xs text-slate-600 text-left">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans mb-1">
+                        <Info className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Visit Notes & Specials</span>
+                      </div>
+                      <Text className="block leading-relaxed font-sans">{lead.notes || 'No inspection notes added yet.'}</Text>
+                      {lead.specials && (
+                        <div className="mt-2 flex items-center gap-1.5 font-sans font-bold text-amber-700 bg-amber-50/50 p-1.5 rounded-lg border border-amber-100 text-[10px]">
+                          <Tag className="w-3.5 h-3.5" />
+                          <span>Special: {lead.specials}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Photo upload gallery section */}
+                    <div className="space-y-2">
+                      <Text className="text-[9px] font-black uppercase tracking-widest text-slate-400 block font-sans text-left">
+                        Professional Photos ({photos.length})
+                      </Text>
+                      {photos.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {photos.map((url, idx) => (
+                            <div key={idx} className="w-12 h-12 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 relative group">
+                              <img src={url} alt="Lead Media" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <a 
+                                href={url} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[8px] font-black uppercase font-sans"
+                              >
+                                View
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <label className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 active:bg-slate-200 text-slate-600 rounded-xl font-bold text-[10px] shadow-3xs cursor-pointer select-none flex items-center justify-center gap-1.5 transition">
+                          {uploadingPhotoLeadId === lead.id ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-600" />
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Camera className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Upload Photo</span>
+                            </>
+                          )}
+                          <input 
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleUploadLeadPhoto(lead.id, e)}
+                            className="hidden"
+                            disabled={uploadingPhotoLeadId !== null}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 pt-2 border-t border-slate-100">
+                      <button
+                        onClick={() => handleStartEditLead(lead)}
+                        className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black cursor-pointer shadow-3xs transition text-center"
+                      >
+                        Edit / Publish
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLead(lead.id, lead.business_name)}
+                        className="py-1.5 px-3 bg-red-50 hover:bg-red-100 text-red-650 rounded-xl text-[10px] font-black cursor-pointer transition"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* INLINE EDIT MODAL FOR OBDI LEADS */}
+      {editingLeadId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl relative text-left">
+            <button 
+              onClick={() => setEditingLeadId(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1 text-left border-b border-slate-100 pb-2">
+              <Text className="text-base font-black text-slate-900 leading-tight">Edit OBDI Lead</Text>
+              <Text className="text-[11px] text-slate-400 font-sans">Update visit notes, promotional specials, and status.</Text>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Business Name</label>
+                <input 
+                  type="text"
+                  value={leadEditForm.business_name || ''}
+                  onChange={(e) => setLeadEditForm({ ...leadEditForm, business_name: e.target.value })}
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Owner Name</label>
+                  <input 
+                    type="text"
+                    value={leadEditForm.owner_name || ''}
+                    onChange={(e) => setLeadEditForm({ ...leadEditForm, owner_name: e.target.value })}
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Lead Status</label>
+                  <select
+                    value={leadEditForm.status || ''}
+                    onChange={(e) => setLeadEditForm({ ...leadEditForm, status: e.target.value as any })}
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans h-[38px]"
+                  >
+                    <option value="new">new</option>
+                    <option value="paid_new">paid_new (Paid R159)</option>
+                    <option value="visit_needed">visit_needed</option>
+                    <option value="photos_uploaded">photos_uploaded</option>
+                    <option value="ready_to_publish">ready_to_publish</option>
+                    <option value="live">live (Publish to Orbit AI Directory)</option>
+                    <option value="rejected">rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Contact Phone</label>
+                  <input 
+                    type="text"
+                    value={leadEditForm.contact_phone || ''}
+                    onChange={(e) => setLeadEditForm({ ...leadEditForm, contact_phone: e.target.value })}
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Specials (e.g. 50% discount on cocktail)</label>
+                  <input 
+                    type="text"
+                    value={leadEditForm.specials || ''}
+                    onChange={(e) => setLeadEditForm({ ...leadEditForm, specials: e.target.value })}
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Physical Address</label>
+                <input 
+                  type="text"
+                  value={leadEditForm.address || ''}
+                  onChange={(e) => setLeadEditForm({ ...leadEditForm, address: e.target.value })}
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Visit Notes & Media URLs</label>
+                <textarea 
+                  value={leadEditForm.notes || ''}
+                  onChange={(e) => setLeadEditForm({ ...leadEditForm, notes: e.target.value })}
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans h-24 text-left"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button 
+                  onClick={handleSaveEditLead}
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs cursor-pointer shadow-3xs transition text-center"
+                >
+                  Save Lead Details
+                </button>
+                <button 
+                  onClick={() => setEditingLeadId(null)}
                   className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs cursor-pointer transition border border-slate-200"
                 >
                   Cancel

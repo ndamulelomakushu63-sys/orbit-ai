@@ -201,4 +201,23 @@ export interface BusinessPayment {
   createdAt: string;
 }
 
+export interface ObdiLead {
+  id: string;
+  created_at?: string; // mapping DB column
+  business_name: string;
+  owner_name: string;
+  phone: string;
+  email?: string;
+  address: string;
+  notes?: string;
+  status: 'new' | 'paid_new' | 'visit_needed' | 'photos_uploaded' | 'ready_to_publish' | 'live' | 'rejected';
+  paid: boolean;
+  stripe_payment_id?: string;
+  public_slug?: string;
+  ai_description?: string;
+  contact_phone?: string;
+  specials?: string;
+}
+
+
 

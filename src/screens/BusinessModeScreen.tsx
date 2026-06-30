@@ -5,7 +5,8 @@ import {
   Check, CheckCircle, Info, Sparkles, Tag, Heart, Globe, MessageSquare, PlusCircle, Trash2, Edit3, X, RefreshCw
 } from 'lucide-react';
 import { useAppState } from '../services/state';
-import { Business, BusinessRegistration } from '../types';
+import { Business, BusinessRegistration, ObdiLead } from '../types';
+import { dbUpsertObdiLead } from '../services/supabase';
 
 export const BusinessModeScreen: React.FC = () => {
   const { 
@@ -18,7 +19,9 @@ export const BusinessModeScreen: React.FC = () => {
     cardDetails,
     currentUser,
     notifications,
-    setNotifications
+    setNotifications,
+    obdiLeads,
+    setObdiLeads
   } = useAppState();
 
   const [activeTab, setActiveTab] = useState<'explore' | 'register'>('explore');
@@ -88,7 +91,36 @@ export const BusinessModeScreen: React.FC = () => {
       const newRegistrationId = 'reg-' + Date.now();
       const newBusinessId = 'biz-' + Date.now();
 
-      // Create Registration
+      const slug = formData.businessName.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      // Create OBDI Lead record
+      const newLead: ObdiLead = {
+        id: 'lead-' + Date.now(),
+        business_name: formData.businessName,
+        owner_name: formData.ownerName,
+        phone: formData.phoneNumber,
+        email: formData.email || undefined,
+        address: formData.physicalAddress,
+        notes: (formData.additionalNotes || '') + '\nPreferred visit date: ' + formData.preferredVisitDate,
+        status: 'paid_new',
+        paid: true,
+        stripe_payment_id: 'ch_' + Math.random().toString(36).substring(2, 10).toUpperCase(),
+        public_slug: slug,
+        contact_phone: formData.whatsAppNumber || formData.phoneNumber,
+        specials: ''
+      };
+
+      dbUpsertObdiLead(newLead).then(success => {
+        if (success) {
+          console.log("Successfully saved Lead in Supabase: ", newLead);
+        }
+      });
+
+      setObdiLeads(prev => [newLead, ...prev]);
+
+      // Create Registration for legacy support
       const newReg: BusinessRegistration = {
         id: newRegistrationId,
         businessName: formData.businessName,

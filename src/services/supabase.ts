@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   UserProfile, SubscriptionRecord, ReferralRecord, 
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, 
-  AppNotification, SupportTicket, Business, BusinessRegistration 
+  AppNotification, SupportTicket, Business, BusinessRegistration,
+  ObdiLead
 } from '../types';
 
 // Supabase project credentials provided
@@ -610,6 +611,65 @@ export async function dbUploadBusinessPhoto(file: File, filename: string): Promi
     return publicUrlData?.publicUrl || null;
   } catch (err) {
     console.warn("Supabase photo upload failed: ", err);
+    return null;
+  }
+}
+
+// --- 12. OBDI LEADS OPERATIONS ---
+export async function dbFetchObdiLeads(): Promise<ObdiLead[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('obdi_leads')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as ObdiLead[];
+  } catch (err) {
+    console.warn("Supabase obdi_leads fetch failed: ", err);
+    return null;
+  }
+}
+
+export async function dbUpsertObdiLead(lead: ObdiLead): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('obdi_leads')
+      .upsert(lead);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase obdi_lead upsert failed: ", err);
+    return false;
+  }
+}
+
+export async function dbDeleteObdiLead(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('obdi_leads')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase obdi_lead delete failed: ", err);
+    return false;
+  }
+}
+
+export async function dbUploadObdiPhoto(file: File, filename: string): Promise<string | null> {
+  try {
+    const bucket = supabase.storage.from('obdi-photos');
+    const { data, error } = await bucket.upload(filename, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
+    if (error) throw error;
+    if (!data) return null;
+    const { data: publicUrlData } = bucket.getPublicUrl(filename);
+    return publicUrlData?.publicUrl || null;
+  } catch (err) {
+    console.warn("Supabase obdi-photos bucket upload failed: ", err);
     return null;
   }
 }

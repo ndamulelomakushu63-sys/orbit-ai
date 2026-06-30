@@ -3,7 +3,8 @@ import {
   UserProfile, SubscriptionRecord, ReferralRecord, 
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, WithdrawalStatus,
   AIAgent, AppNotification, SupportTicket, CardDetails,
-  Business, BusinessRegistration, BusinessPhoto, Category, Special, BusinessReview, BusinessPayment
+  Business, BusinessRegistration, BusinessPhoto, Category, Special, BusinessReview, BusinessPayment,
+  ObdiLead
 } from '../types';
 import {
   supabase,
@@ -26,7 +27,10 @@ import {
   dbFetchNotifications,
   dbUpsertNotification,
   dbFetchSupportTickets,
-  dbUpsertSupportTicket
+  dbUpsertSupportTicket,
+  dbFetchObdiLeads,
+  dbUpsertObdiLead,
+  dbDeleteObdiLead
 } from './supabase';
 
 interface AppContextType {
@@ -70,6 +74,8 @@ interface AppContextType {
   incrementUsageLimit: (type: 'chat' | 'image' | 'file' | 'camera') => { allowed: boolean; count: number; limit: number };
   limitModalType: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null;
   setLimitModalType: (type: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null) => void;
+  obdiLeads: ObdiLead[];
+  setObdiLeads: React.Dispatch<React.SetStateAction<ObdiLead[]>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -506,6 +512,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return [];
   });
 
+  const [obdiLeads, setObdiLeads] = useState<ObdiLead[]>(() => {
+    const local = localStorage.getItem("orbit_obdi_leads");
+    if (local) return JSON.parse(local);
+    return [];
+  });
+
   // Sync to localStorage
   useEffect(() => { localStorage.setItem("orbit_users", JSON.stringify(users)); }, [users]);
   useEffect(() => { localStorage.setItem("orbit_subscriptions", JSON.stringify(subscriptions)); }, [subscriptions]);
@@ -525,6 +537,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => { localStorage.setItem("orbit_specials", JSON.stringify(specials)); }, [specials]);
   useEffect(() => { localStorage.setItem("orbit_business_reviews", JSON.stringify(businessReviews)); }, [businessReviews]);
   useEffect(() => { localStorage.setItem("orbit_business_payments", JSON.stringify(businessPayments)); }, [businessPayments]);
+  useEffect(() => { localStorage.setItem("orbit_obdi_leads", JSON.stringify(obdiLeads)); }, [obdiLeads]);
 
   // --- SUPABASE SYNC AND STARTUP LOADERS ---
   const [supabaseLoading, setSupabaseLoading] = useState<boolean>(true);
@@ -582,6 +595,11 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const dbTickets = await dbFetchSupportTickets();
         if (dbTickets && dbTickets.length > 0) {
           setSupportTickets(dbTickets);
+        }
+
+        const dbObdiLeads = await dbFetchObdiLeads();
+        if (dbObdiLeads && dbObdiLeads.length > 0) {
+          setObdiLeads(dbObdiLeads);
         }
 
         // Handle current auth session state
@@ -1006,7 +1024,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       categories, setCategories,
       specials, setSpecials,
       businessReviews, setBusinessReviews,
-      businessPayments, setBusinessPayments
+      businessPayments, setBusinessPayments,
+      obdiLeads, setObdiLeads
     }}>
       {children}
     </AppContext.Provider>
