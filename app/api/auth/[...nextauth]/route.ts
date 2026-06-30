@@ -9,25 +9,29 @@ const handler = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
   ],
+  secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async redirect({ url, baseUrl }) {
       const targetBase = process.env.NEXTAUTH_URL || baseUrl;
-      // If redirect URL starts with a slash, prepend the NEXTAUTH_URL / baseUrl
+      
+      // If it is an internal relative URL, append it to the targetBase
       if (url.startsWith("/")) {
         return `${targetBase}${url}`;
       }
-      // If redirect URL has the same origin as NEXTAUTH_URL, allow it
+      
+      // If it is already an absolute URL matching the target base origin, allow it
       try {
         if (new URL(url).origin === new URL(targetBase).origin) {
           return url;
         }
       } catch (e) {
-        // Fallback for invalid URLs
+        // Fallback for invalid url
       }
-      return targetBase;
+      
+      // Force fallback to /dashboard as requested
+      return `${targetBase}/dashboard`;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
 });
 
 export { handler as GET, handler as POST };
