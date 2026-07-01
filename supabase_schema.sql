@@ -218,13 +218,34 @@ CREATE TABLE IF NOT EXISTS public.businesses (
 
 ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Businesses are viewable by everyone."
+-- Grant permissions to public, anon, and authenticated roles to ensure PostgreSQL doesn't deny access
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.businesses TO anon, authenticated, service_role;
+
+-- Drop any conflicting policies
+DROP POLICY IF EXISTS "Businesses are viewable by everyone." ON public.businesses;
+DROP POLICY IF EXISTS "Anyone can register, admin/owners manage listings." ON public.businesses;
+DROP POLICY IF EXISTS "Allow public select" ON public.businesses;
+DROP POLICY IF EXISTS "Allow authenticated insert" ON public.businesses;
+DROP POLICY IF EXISTS "Allow authenticated update" ON public.businesses;
+
+-- 1. SELECT policy: Allow everyone to read business listings
+CREATE POLICY "Allow public select"
     ON public.businesses FOR SELECT
+    TO public
     USING (true);
 
-CREATE POLICY "Anyone can register, admin/owners manage listings."
-    ON public.businesses FOR ALL
-    USING (true);
+-- 2. INSERT policy: Allow authenticated users to submit new business registrations/listings
+CREATE POLICY "Allow authenticated insert"
+    ON public.businesses FOR INSERT
+    TO authenticated, anon
+    WITH CHECK (true);
+
+-- 3. UPDATE policy: Allow authenticated users to manage their own listings (by user_id)
+CREATE POLICY "Allow authenticated update"
+    ON public.businesses FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = user_id OR user_id IS NULL)
+    WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
 
 
 -- 8. BUSINESS_REGISTRATIONS TABLE (Applications)
