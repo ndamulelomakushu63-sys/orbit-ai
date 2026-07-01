@@ -335,3 +335,28 @@ CREATE POLICY "Admin/Support can update tickets."
 -- You can configure policy for public access using SQL or UI:
 -- For example, to allow any user to upload files into the business-photos bucket:
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('business-photos', 'business-photos', true) ON CONFLICT (id) DO NOTHING;
+
+-- 12. USER_LIMITS TABLE
+CREATE TABLE IF NOT EXISTS public.user_limits (
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+    messages_used INT NOT NULL DEFAULT 0,
+    is_pro BOOLEAN NOT NULL DEFAULT FALSE,
+    last_reset TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.user_limits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own limits."
+    ON public.user_limits FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own limits."
+    ON public.user_limits FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own limits."
+    ON public.user_limits FOR UPDATE
+    USING (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_limits TO anon, authenticated, service_role;
+

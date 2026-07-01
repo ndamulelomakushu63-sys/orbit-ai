@@ -404,7 +404,11 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         const dbProfiles = await dbFetchProfiles();
         if (dbProfiles && dbProfiles.length > 0) {
-          setUsers(dbProfiles);
+          setUsers(prev => {
+            const dbUids = new Set(dbProfiles.map(u => u.uid));
+            const localOnly = prev.filter(u => !dbUids.has(u.uid));
+            return [...localOnly, ...dbProfiles];
+          });
           setSupabaseConnected(true);
         }
         
@@ -656,51 +660,57 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // --- STEP 1: CHECK LIMIT BEFORE SENDING ---
     let limitData: any = null;
-    if (currentUser) {
-      try {
-        const { data, error } = await supabase
-          .from("user_limits")
-          .select("*")
-          .eq("user_id", currentUser.uid)
-          .single();
+    let usingLocalLimits = false;
+    const isProUser = currentUser ? (currentUser.plan === UserPlan.PRO || currentUser.subscription_status === "pro_monthly" || currentUser.subscription_status === "pro_yearly") : false;
 
-        if (data) {
-          limitData = data;
-          if (!data.is_pro && data.messages_used >= 15) {
-            alert("You have reached your free limit. Upgrade to Pro.");
-            return;
-          }
-        } else {
-          // If no user limits row exists in Supabase yet, we insert a record
-          const isProUser = currentUser.plan === UserPlan.PRO || currentUser.subscription_status === "pro_monthly" || currentUser.subscription_status === "pro_yearly";
-          const { data: insertedData } = await supabase
+    if (!isProUser) {
+      let currentCount = 0;
+
+      if (currentUser) {
+        try {
+          const { data, error } = await supabase
             .from("user_limits")
-            .insert({
-              user_id: currentUser.uid,
-              messages_used: 0,
-              is_pro: isProUser,
-              last_reset: new Date().toISOString()
-            })
-            .select()
+            .select("*")
+            .eq("user_id", currentUser.uid)
             .single();
-          if (insertedData) {
-            limitData = insertedData;
+
+          if (error) {
+            if (error.code === 'PGRST116') {
+              const { data: insertedData, error: insertError } = await supabase
+                .from("user_limits")
+                .insert({
+                  user_id: currentUser.uid,
+                  messages_used: 0,
+                  is_pro: false,
+                  last_reset: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+              if (insertError) throw insertError;
+              limitData = insertedData;
+              currentCount = 0;
+            } else {
+              throw error;
+            }
+          } else if (data) {
+            limitData = data;
+            currentCount = data.messages_used;
           }
+        } catch (err) {
+          console.warn("Supabase user_limits check failed, falling back to local:", err);
+          usingLocalLimits = true;
+          const updatedUser = checkAndResetLimits(currentUser);
+          currentCount = updatedUser.chat_count_today ?? 0;
         }
-      } catch (err) {
-        console.warn("Supabase user_limits check failed:", err);
-        // Fallback to local limit system if any error occurs
-        const limitCheck = incrementUsageLimit('chat');
-        if (!limitCheck.allowed) {
-          setLimitModalType('chat');
-          return;
-        }
+      } else {
+        usingLocalLimits = true;
+        currentCount = 0;
       }
-    } else {
-      // Fallback to local limit tracking for non-logged in or guest users
-      const limitCheck = incrementUsageLimit('chat');
-      if (!limitCheck.allowed) {
+
+      if (currentCount >= 15) {
         setLimitModalType('chat');
+        alert("You have reached your free limit of 15 messages. Upgrade to Pro.");
         return;
       }
     }
@@ -767,14 +777,32 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }));
 
         // --- STEP 3: INCREMENT USAGE AFTER SUCCESS ---
-        if (currentUser && limitData) {
-          try {
-            await supabase
-              .from("user_limits")
-              .update({ messages_used: limitData.messages_used + 1 })
-              .eq("user_id", currentUser.uid);
-          } catch (err) {
-            console.error("Failed to update message usage in Supabase:", err);
+        if (currentUser && !isProUser) {
+          // Always increment locally to prevent loopholes
+          const updatedUser = { ...checkAndResetLimits(currentUser) };
+          const nextLocalCount = (updatedUser.chat_count_today ?? 0) + 1;
+          updatedUser.chat_count_today = nextLocalCount;
+          setUsers(prev => prev.map(u => u.uid === currentUser.uid ? updatedUser : u));
+          setCurrentUser(updatedUser);
+
+          // Update Supabase if using remote limits
+          if (!usingLocalLimits) {
+            try {
+              const currentDbCount = limitData ? limitData.messages_used : 0;
+              const nextDbCount = currentDbCount + 1;
+              const { error: updateError } = await supabase
+                .from("user_limits")
+                .update({ messages_used: nextDbCount })
+                .eq("user_id", currentUser.uid);
+
+              if (updateError) {
+                console.error("Failed to update message usage in Supabase:", updateError);
+              } else {
+                console.log(`Successfully updated messages_used in user_limits to ${nextDbCount}`);
+              }
+            } catch (err) {
+              console.error("Failed to update message usage in Supabase:", err);
+            }
           }
         }
       } else {
@@ -788,7 +816,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         id: errorMsgId,
         messageId: errorMsgId,
         conversationId: activeConversationId,
-        message: `I was unable to retrieve a response from the Gemini server engine. This usually means the API key is either missing or has expired.\n\n### Error Details\n**Reason:** ${reason}\n\n### Troubleshooting Steps\n1. Check the **Settings > Secrets** panel in the top menu of the AI Studio workspace.\n2. Ensure that there is a secret named **GEMINI_API_KEY** with a valid Google Gemini API key.\n3. If running locally, please add \`GEMINI_API_KEY=your_key\` inside your \`.env\` file and restart your local dev server.\n4. Ensure you are connected to the internet.`,
+        message: `I was unable to retrieve a response from the Gemini server engine. This usually means the API key is either missing or has expired.\n\n### Error Details\n**Reason:** ${reason}\n\n### Troubleshooting Steps\n1. Check the **Settings > Secrets** panel in the top menu of the AI Studio workspace.\n2. Ensure that there is a secret named **GEMINI_API_KEY** with a valid Google Gemini API key.\n3. If running locally, please add \`GEMINI_API_KEY=your_key\` inside your \".env\` file and restart your local dev server.\n4. Ensure you are connected to the internet.`,
         role: "model",
         timestamp: new Date().toISOString(),
         createdAt: new Date().toISOString()
@@ -827,15 +855,15 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return { allowed: true, count: 0, limit: 999999 };
     }
 
-    // Free user logic
-    let updatedUser = checkAndResetLimits(currentUser);
+    // Free user logic - always clone to avoid reference mutation bugs
+    let updatedUser = { ...checkAndResetLimits(currentUser) };
     
     let currentCount = 0;
     let limit = 0;
     
     if (type === 'chat') {
       currentCount = updatedUser.chat_count_today ?? 0;
-      limit = 20;
+      limit = 15;
     } else if (type === 'image') {
       currentCount = updatedUser.image_count_today ?? 0;
       limit = 2;
@@ -852,6 +880,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Ensure we save the updated reset fields if we updated them.
       if (updatedUser.last_reset_time !== currentUser.last_reset_time) {
         setUsers(prev => prev.map(u => u.uid === currentUser.uid ? updatedUser : u));
+        setCurrentUser(updatedUser);
       }
       return { allowed: false, count: currentCount, limit };
     }
@@ -869,6 +898,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     setUsers(prev => prev.map(u => u.uid === currentUser.uid ? updatedUser : u));
+    setCurrentUser(updatedUser);
     return { allowed: true, count: incrementedCount, limit };
   };
 

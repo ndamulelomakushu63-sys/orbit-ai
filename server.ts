@@ -37,16 +37,24 @@ function getGeminiClient(): GoogleGenAI {
 async function generateContentWithRetry(
   ai: GoogleGenAI,
   params: { model: string; contents: any; config?: any },
-  maxRetries = 3,
+  maxRetries = 5,
   initialDelay = 1000
 ): Promise<any> {
   let attempt = 0;
-  let currentModel = params.model;
-  const fallbackModels = ["gemini-3.5-flash", "gemini-3.1-pro-preview"];
+  const originalModel = params.model;
+  // Build a prioritized unique list of fallback/alternative models to try
+  const modelsToTry = [
+    originalModel,
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-flash-latest"
+  ].filter((value, index, self) => self.indexOf(value) === index);
 
   while (attempt < maxRetries) {
+    const currentModel = modelsToTry[attempt % modelsToTry.length];
     try {
-      console.log(`[Gemini Attempt ${attempt + 1}] Requesting model: ${currentModel}`);
+      console.log(`[Gemini Attempt ${attempt + 1}/${maxRetries}] Requesting model: ${currentModel}`);
       const response = await ai.models.generateContent({
         ...params,
         model: currentModel
@@ -55,7 +63,6 @@ async function generateContentWithRetry(
     } catch (error: any) {
       attempt++;
       const errorMessage = error.message || "";
-      console.error(`[Gemini Attempt ${attempt} Error]:`, errorMessage);
 
       const isTransient = 
         errorMessage.includes("503") || 
@@ -66,17 +73,12 @@ async function generateContentWithRetry(
         errorMessage.includes("temporary");
 
       if (isTransient && attempt < maxRetries) {
-        if (fallbackModels.length > 0) {
-          const nextModel = fallbackModels.shift();
-          if (nextModel) {
-            console.log(`Switching model to fallback: ${nextModel} due to transient error on ${currentModel}`);
-            currentModel = nextModel;
-          }
-        }
-        const delay = initialDelay * Math.pow(2, attempt - 1);
-        console.log(`Transient error detected. Retrying in ${delay}ms...`);
+        const nextModel = modelsToTry[attempt % modelsToTry.length];
+        const delay = Math.round(initialDelay * Math.pow(1.5, attempt - 1));
+        console.log(`[Gemini info] Attempt ${attempt} is resolving a temporary model capacity response. Redirecting query to ${nextModel} in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
+        console.log(`[Gemini info] Final dispatch check failed after ${attempt} attempts.`);
         throw error;
       }
     }
