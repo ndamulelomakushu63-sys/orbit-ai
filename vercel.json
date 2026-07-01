@@ -3,6 +3,12 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "routes": [
+    { "src": "/download-project-zip", "dest": "/api/download-project-zip" },
+    { "src": "/orbit-ai-project.zip", "dest": "/api/download-project-zip" },
+    { "src": "/api/download-project-zip", "dest": "/api/download-project-zip" },
+    { "src": "/download-zip", "dest": "/api/download-zip" },
+    { "src": "/orbit-ai.zip", "dest": "/api/download-zip" },
+    { "src": "/api/download-zip", "dest": "/api/download-zip" },
     { "handle": "filesystem" },
     { "src": "/admin/(.*)", "dest": "/admin/index.html" },
     { "src": "/(.*)", "dest": "/index.html" }

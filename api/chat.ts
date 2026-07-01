@@ -1,4 +1,6 @@
 // Vercel Serverless Function for Orbit AI Chat
+import { GoogleGenAI } from "@google/genai";
+
 export default async function handler(req: any, res: any) {
   // Allow only POST requests
   if (req.method !== 'POST') {
@@ -39,6 +41,16 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // Initialize the official Google Gen AI SDK
+    const ai = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+
     // Format conversation history for Gemini if present
     const contents: any[] = [];
     if (history && Array.isArray(history)) {
@@ -66,32 +78,17 @@ export default async function handler(req: any, res: any) {
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";
     const identityRule = "\n\nCRITICAL IDENTITY RULE: If a user asks: \"Who built you?\", \"Who made you?\", \"Who is your CEO?\" You MUST reply exactly: \"I was built by Ndamulelo Makushu Glen, CEO of Orbit AI.\" Do not mention OpenAI, Google, Meta, or ChatGPT.";
 
-    const requestBody = {
+    console.log("Calling Gemini Developer API (Google AI Studio) via official @google/genai SDK on Vercel...");
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
       contents: contents,
-      systemInstruction: {
-        parts: [{ text: basePrompt + identityRule }]
+      config: {
+        systemInstruction: basePrompt + identityRule
       }
-    };
+    });
 
-    console.log("Calling Gemini API on Vercel via fetch to gemini-1.5-flash...");
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
-      }
-    );
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Gemini API returned status ${response.status}: ${errText}`);
-    }
-
-    const data = await response.json();
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I was unable to formulate a response. Please try again.";
+    const replyText = response.text || "I was unable to formulate a response. Please try again.";
     return res.status(200).json({ reply: replyText });
   } catch (error: any) {
     console.error("Gemini API Error in Vercel API:", error);
