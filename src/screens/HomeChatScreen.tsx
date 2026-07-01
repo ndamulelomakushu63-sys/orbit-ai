@@ -211,13 +211,6 @@ export const HomeChatScreen: React.FC = () => {
               </TouchableOpacity>
 
               <TouchableOpacity 
-                onClick={() => { setShowMenu(false); setMobileScreen("business"); }}
-                className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left"
-              >
-                <Text className="text-[16px] font-medium text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">Business Mode</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
                 onClick={() => { setShowMenu(false); handleClearThread(); }}
                 className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left"
               >

@@ -91,7 +91,7 @@ app.get("/robots.txt", (req, res) => {
 // Secure server-side endpoint for Gemini AI chat
 app.post("/api/chat", async (req, res) => {
   try {
-    const { message, history, systemPrompt, businesses } = req.body;
+    const { message, history, systemPrompt } = req.body;
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
@@ -115,12 +115,7 @@ app.post("/api/chat", async (req, res) => {
       parts: [{ text: message }]
     });
 
-    let businessContext = "";
-    if (businesses && Array.isArray(businesses) && businesses.length > 0) {
-      businessContext = "\n\nREGISTERED SOUTH AFRICAN BUSINESSES ON ORBIT AI:\n" + 
-        businesses.map((b: any) => `- Name: "${b.name}" | Category: "${b.category}" | Town: "${b.townCity}" | Address: "${b.physicalAddress}" | Phone: "${b.phoneNumber}" | WhatsApp: "${b.whatsAppNumber}" | Specials: "${b.specials.join(', ') || 'None'}" | Description: "${b.description}"`).join("\n") +
-        "\n\nCRITICAL SEARCH RULE: If the user asks questions about finding businesses, places, eating out, lodging, entertainment, services, or recommendations (e.g., 'where can I eat?', 'show restaurants', 'where should I go tonight', etc.), you MUST search this list first. If you find matching businesses (by category, keyword, or townCity), recommend them clearly and highlight their specials, phone/WhatsApp, and physical address. If no registered businesses match their query or town, tell them about registering their business on Orbit AI for R159 to get professional photos, AI descriptions, and search recommendations!";
-    }
+    const businessContext = "";
 
     console.log("Calling Gemini API with prompt length:", message.length);
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";

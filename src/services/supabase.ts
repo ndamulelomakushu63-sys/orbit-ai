@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   UserProfile, SubscriptionRecord, ReferralRecord, 
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, 
-  AppNotification, SupportTicket, Business, BusinessRegistration,
+  AppNotification, SupportTicket,
   ObdiLead
 } from '../types';
 
@@ -369,143 +369,7 @@ export async function dbUpsertWithdrawal(w: WithdrawalRecord): Promise<boolean> 
   }
 }
 
-// --- 7. BUSINESS DIRECTORY LISTINGS ---
-export async function dbFetchBusinesses(): Promise<Business[] | null> {
-  try {
-    const { data, error } = await supabase
-      .from('businesses')
-      .select('*');
-    if (error) throw error;
-    if (!data) return null;
-    return data.map(item => ({
-      id: item.id,
-      name: item.name,
-      ownerName: item.owner_name,
-      description: item.description,
-      category: item.category,
-      townCity: item.town_city,
-      physicalAddress: item.physical_address,
-      phoneNumber: item.phone_number,
-      whatsAppNumber: item.whatsapp_number || undefined,
-      email: item.email || undefined,
-      openingHours: item.opening_hours || undefined,
-      socialMediaLinks: item.social_media_links || undefined,
-      photos: item.photos || [],
-      specials: item.specials || [],
-      isPublic: item.is_public,
-      isPaid: item.is_paid,
-      createdAt: item.created_at
-    }));
-  } catch (err) {
-    console.warn("Supabase businesses fetch failed: ", err);
-    return null;
-  }
-}
 
-export async function dbUpsertBusiness(b: Business): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('businesses')
-      .upsert({
-        id: b.id,
-        name: b.name,
-        owner_name: b.ownerName,
-        description: b.description,
-        category: b.category,
-        town_city: b.townCity,
-        physical_address: b.physicalAddress,
-        phone_number: b.phoneNumber,
-        whatsapp_number: b.whatsAppNumber,
-        email: b.email,
-        opening_hours: b.openingHours,
-        social_media_links: b.socialMediaLinks || {},
-        photos: b.photos || [],
-        specials: b.specials || [],
-        is_public: b.isPublic,
-        is_paid: b.isPaid,
-        created_at: b.createdAt
-      });
-    if (error) throw error;
-    return true;
-  } catch (err) {
-    console.warn("Supabase business upsert failed: ", err);
-    return false;
-  }
-}
-
-export async function dbDeleteBusiness(id: string): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('businesses')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-    return true;
-  } catch (err) {
-    console.warn("Supabase business delete failed: ", err);
-    return false;
-  }
-}
-
-// --- 8. BUSINESS REGISTRATIONS ---
-export async function dbFetchBusinessRegistrations(): Promise<BusinessRegistration[] | null> {
-  try {
-    const { data, error } = await supabase
-      .from('business_registrations')
-      .select('*');
-    if (error) throw error;
-    if (!data) return null;
-    return data.map(item => ({
-      id: item.id,
-      businessName: item.business_name,
-      ownerName: item.owner_name,
-      phoneNumber: item.phone_number,
-      whatsAppNumber: item.whatsapp_number || undefined,
-      email: item.email || undefined,
-      category: item.category,
-      townCity: item.town_city,
-      physicalAddress: item.physical_address,
-      description: item.description,
-      preferredVisitDate: item.preferred_visit_date,
-      additionalNotes: item.additional_notes || undefined,
-      isPaid: item.is_paid || false,
-      status: item.status,
-      createdAt: item.created_at
-    }));
-  } catch (err) {
-    console.warn("Supabase business registrations fetch failed: ", err);
-    return null;
-  }
-}
-
-export async function dbUpsertBusinessRegistration(reg: BusinessRegistration): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('business_registrations')
-      .upsert({
-        id: reg.id,
-        business_name: reg.businessName,
-        owner_name: reg.ownerName,
-        phone_number: reg.phoneNumber,
-        whatsapp_number: reg.whatsAppNumber,
-        email: reg.email,
-        category: reg.category,
-        town_city: reg.townCity,
-        physical_address: reg.physicalAddress,
-        description: reg.description,
-        preferred_visit_date: reg.preferredVisitDate,
-        additional_notes: reg.additionalNotes,
-        is_paid: reg.isPaid,
-        status: reg.status,
-        created_at: reg.createdAt
-      });
-    if (error) throw error;
-    return true;
-  } catch (err) {
-    console.warn("Supabase business registration upsert failed: ", err);
-    return false;
-  }
-}
 
 // --- 9. NOTIFICATIONS ---
 export async function dbFetchNotifications(userId?: string): Promise<AppNotification[] | null> {
@@ -597,23 +461,7 @@ export async function dbUpsertSupportTicket(t: SupportTicket, userId: string): P
   }
 }
 
-// --- 11. BUCKET MEDIA PHOTO UPLOADS ---
-export async function dbUploadBusinessPhoto(file: File, filename: string): Promise<string | null> {
-  try {
-    const bucket = supabase.storage.from('business-photos');
-    const { data, error } = await bucket.upload(filename, file, {
-      cacheControl: '3600',
-      upsert: true
-    });
-    if (error) throw error;
-    if (!data) return null;
-    const { data: publicUrlData } = bucket.getPublicUrl(filename);
-    return publicUrlData?.publicUrl || null;
-  } catch (err) {
-    console.warn("Supabase photo upload failed: ", err);
-    return null;
-  }
-}
+
 
 // --- 12. OBDI LEADS OPERATIONS ---
 export async function dbFetchObdiLeads(): Promise<ObdiLead[] | null> {
