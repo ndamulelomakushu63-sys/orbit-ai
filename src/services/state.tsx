@@ -654,10 +654,55 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!promptMsg.trim()) return;
     const userMsgText = promptMsg;
 
-    const limitCheck = incrementUsageLimit('chat');
-    if (!limitCheck.allowed) {
-      setLimitModalType('chat');
-      return;
+    // --- STEP 1: CHECK LIMIT BEFORE SENDING ---
+    let limitData: any = null;
+    if (currentUser) {
+      try {
+        const { data, error } = await supabase
+          .from("user_limits")
+          .select("*")
+          .eq("user_id", currentUser.uid)
+          .single();
+
+        if (data) {
+          limitData = data;
+          if (!data.is_pro && data.messages_used >= 15) {
+            alert("You have reached your free limit. Upgrade to Pro.");
+            return;
+          }
+        } else {
+          // If no user limits row exists in Supabase yet, we insert a record
+          const isProUser = currentUser.plan === UserPlan.PRO || currentUser.subscription_status === "pro_monthly" || currentUser.subscription_status === "pro_yearly";
+          const { data: insertedData } = await supabase
+            .from("user_limits")
+            .insert({
+              user_id: currentUser.uid,
+              messages_used: 0,
+              is_pro: isProUser,
+              last_reset: new Date().toISOString()
+            })
+            .select()
+            .single();
+          if (insertedData) {
+            limitData = insertedData;
+          }
+        }
+      } catch (err) {
+        console.warn("Supabase user_limits check failed:", err);
+        // Fallback to local limit system if any error occurs
+        const limitCheck = incrementUsageLimit('chat');
+        if (!limitCheck.allowed) {
+          setLimitModalType('chat');
+          return;
+        }
+      }
+    } else {
+      // Fallback to local limit tracking for non-logged in or guest users
+      const limitCheck = incrementUsageLimit('chat');
+      if (!limitCheck.allowed) {
+        setLimitModalType('chat');
+        return;
+      }
     }
 
     const msgId = "msg-" + Date.now();
@@ -683,6 +728,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const currentAgent = agents.find(a => a.id === activeAgentId);
       const systemPrompt = currentAgent ? currentAgent.systemPrompt : undefined;
 
+      // --- STEP 2: SEND MESSAGE TO GEMINI ---
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -719,6 +765,18 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
           return c;
         }));
+
+        // --- STEP 3: INCREMENT USAGE AFTER SUCCESS ---
+        if (currentUser && limitData) {
+          try {
+            await supabase
+              .from("user_limits")
+              .update({ messages_used: limitData.messages_used + 1 })
+              .eq("user_id", currentUser.uid);
+          } catch (err) {
+            console.error("Failed to update message usage in Supabase:", err);
+          }
+        }
       } else {
         throw new Error(data.error || "Fallback AI error");
       }
