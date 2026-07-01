@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
 import { 
   ArrowLeft, Search, Building, Phone, MapPin, Clock, ExternalLink, 
@@ -59,6 +59,43 @@ export const BusinessModeScreen: React.FC = () => {
     instagram: '',
     tiktok: '',
   });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!currentUser);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (currentUser) {
+        setIsAuthenticated(true);
+        return;
+      }
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setIsAuthenticated(true);
+        } else {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session && session.user) {
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
+        }
+      } catch (err) {
+        setIsAuthenticated(false);
+      }
+    };
+    checkAuth();
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      setFormData(prev => ({
+        ...prev,
+        ownerName: prev.ownerName || currentUser.name || '',
+        email: prev.email || currentUser.email || ''
+      }));
+    }
+  }, [currentUser]);
 
   // Local uploaded photos (with previews, support removal/replace before payment)
   const [localPhotos, setLocalPhotos] = useState<LocalPhoto[]>([]);
@@ -198,11 +235,29 @@ export const BusinessModeScreen: React.FC = () => {
 
     try {
       // 1. Get current authentic user ID
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !user.id) {
+      let userId = '';
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.id) {
+          userId = user.id;
+        } else {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session && session.user) {
+            userId = session.user.id;
+          }
+        }
+      } catch (err) {
+        console.warn("Supabase auth context check failed: ", err);
+      }
+
+      // Fallback to local session currentUser if Supabase session is empty
+      if (!userId && currentUser) {
+        userId = currentUser.uid;
+      }
+
+      if (!userId) {
         throw new Error("User authentication context is required to register. Please log in.");
       }
-      const userId = user.id;
 
       // Generate a valid UUID for the business listing and registration
       const generateUUID = () => {
@@ -697,6 +752,25 @@ export const BusinessModeScreen: React.FC = () => {
               </View>
             )}
           </View>
+        </ScrollView>
+      ) : !isAuthenticated ? (
+        /* PLEASE SIGN IN SCREEN */
+        <ScrollView className="flex-1 bg-slate-50 p-4" contentContainerClassName="flex flex-col items-center justify-center text-center space-y-6 pt-16 pb-16">
+          <div className="w-16 h-16 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shadow-3xs">
+            <Info className="w-8 h-8 text-blue-600" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-black text-slate-900 leading-tight">Authentication Required</h2>
+            <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed font-sans">
+              Please sign in to list and advertise your business in the directory.
+            </p>
+          </div>
+          <TouchableOpacity 
+            onClick={() => setMobileScreen("login")}
+            className="w-full max-w-xs py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md transition select-none flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>Sign In to Continue</span>
+          </TouchableOpacity>
         </ScrollView>
       ) : (
         /* PROFESSIONAL MULTI-STEP BUSINESS REGISTRATION FORM */
