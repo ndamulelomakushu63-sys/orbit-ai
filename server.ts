@@ -99,39 +99,68 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    const ai = getGeminiClient();
-    
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables.");
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not defined in the backend environment variables. Please set it in Vercel/environment settings." 
+      });
+    }
+
     // Format conversation history for Gemini if present
     const contents: any[] = [];
     if (history && Array.isArray(history)) {
       history.forEach((msg: { role: string; text: string }) => {
+        // Map roles to Gemini roles ('user' or 'model')
+        let apiRole = "user";
+        if (msg.role === "model" || msg.role === "assistant") {
+          apiRole = "model";
+        }
         contents.push({
-          role: msg.role === "user" ? "user" : "model",
-          parts: [{ text: msg.text }]
+          role: apiRole,
+          parts: [{ text: msg.text || "" }]
         });
       });
     }
     
-    // Add current user message
-    contents.push({
-      role: "user",
-      parts: [{ text: message }]
-    });
+    // Add current user message if not already the last one
+    const lastContent = contents[contents.length - 1];
+    if (!lastContent || lastContent.role !== "user") {
+      contents.push({
+        role: "user",
+        parts: [{ text: message }]
+      });
+    }
 
-    const businessContext = "";
-
-    console.log("Calling Gemini API with prompt length:", message.length);
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";
     const identityRule = "\n\nCRITICAL IDENTITY RULE: If a user asks: \"Who built you?\", \"Who made you?\", \"Who is your CEO?\" You MUST reply exactly: \"I was built by Ndamulelo Makushu Glen, CEO of Orbit AI.\" Do not mention OpenAI, Google, Meta, or ChatGPT.";
-    const response = await generateContentWithRetry(ai, {
-      model: "gemini-3.5-flash",
-      contents: contents,
-      config: {
-        systemInstruction: basePrompt + identityRule + businessContext,
-      }
-    });
 
-    const replyText = response.text || "I was unable to formulate a response. Please try again.";
+    const requestBody = {
+      contents: contents,
+      systemInstruction: {
+        parts: [{ text: basePrompt + identityRule }]
+      }
+    };
+
+    console.log("Calling Gemini API directly via fetch to gemini-1.5-flash...");
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini API returned status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I was unable to formulate a response. Please try again.";
     return res.json({ reply: replyText });
   } catch (error: any) {
     console.error("Gemini API Error in server:", error);
