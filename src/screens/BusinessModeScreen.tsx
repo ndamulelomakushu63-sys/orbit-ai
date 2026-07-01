@@ -88,9 +88,41 @@ export const BusinessModeScreen: React.FC = () => {
     try {
       // Get authenticated Supabase user ID
       const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id || currentUser?.uid || null;
+      
+      if (!user || !user.id) {
+        alert("Please log in to register your business.");
+        setSubmitting(false);
+        return;
+      }
 
-      const businessId = 'biz-' + Date.now();
+      const userId = user.id;
+
+      // Generate a valid RFC4122 v4 UUID for the business ID
+      const generateUUID = () => {
+        if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+          return window.crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+      };
+
+      const businessId = generateUUID();
+
+      // Helper to verify that every UUID column receives a valid UUID value
+      const isValidUUID = (val: string) => {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(val);
+      };
+
+      if (!isValidUUID(businessId)) {
+        throw new Error(`Invalid UUID generated for business ID: ${businessId}`);
+      }
+      if (!isValidUUID(userId)) {
+        throw new Error(`Invalid UUID found for User ID: ${userId}`);
+      }
 
       // Real Supabase insert only
       const insertData = {
