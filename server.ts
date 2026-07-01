@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import http from "http";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import AdmZip from "adm-zip";
@@ -220,6 +221,137 @@ CRITICAL RULES:
     console.error("Side Hustle Generator API Error:", error);
     return res.status(500).json({ 
       error: "Failed to generate side hustles. Please check your inputs and try again.",
+      details: error.message 
+    });
+  }
+});
+
+// Secure server-side endpoint for Task Mode AI Generation
+app.post("/api/task-generate", async (req, res) => {
+  try {
+    const { taskType, inputs } = req.body;
+    if (!taskType || !inputs) {
+      return res.status(400).json({ error: "Task type and inputs are required" });
+    }
+
+    const ai = getGeminiClient();
+    let prompt = "";
+
+    if (taskType === "cv") {
+      prompt = `Write a professional, high-fidelity curriculum vitae (CV) for the following individual:
+- Full Name: ${inputs.fullName}
+- Key Skills: ${inputs.skills}
+- Work Experience: ${inputs.experience}
+- Education Background: ${inputs.education}
+
+CRITICAL RULES:
+1. Format this professionally with clean spacing and clear layout.
+2. Structure the CV into standard sections:
+   - PROFESSIONAL SUMMARY (a powerful paragraph highlighting their skills and experience)
+   - KEY SKILLS & COMPETENCIES (formatted as bullet points)
+   - PROFESSIONAL WORK EXPERIENCE (ordered chronologically, detailed and professional)
+   - ACADEMIC EDUCATION & TRAINING (detailed qualifications, institutions, and years)
+   - PROFESSIONAL REFERENCES (provide clear placeholder/structured fields like 'Available on request' or formatted reference boxes)
+3. Do NOT include any emojis in the response.
+4. Keep the text professional, concise, and highly employer-friendly.`;
+    } else if (taskType === "business_plan") {
+      prompt = `Write a comprehensive, professional, and structured Business Plan outline for:
+- Business Name: ${inputs.businessName}
+- Industry Sector: ${inputs.industry}
+- Target Audience/Customers: ${inputs.targetAudience}
+- Main Product or Service: ${inputs.productService}
+
+CRITICAL RULES:
+1. Structure the Business Plan with clear headers and professional formatting:
+   - EXECUTIVE SUMMARY (summarizing the venture, target market, and value proposition)
+   - MARKET ANALYSIS & RESEARCH (the industry landscape, competitor gaps, and target demographic details)
+   - MARKETING & SALES STRATEGY (pricing models, customer acquisition channels, and promotions)
+   - OPERATIONAL & MANAGEMENT PLAN (day-to-day operations, technology stack, and roles)
+   - BASIC FINANCIAL OUTLINE (startup cost breakdown, standard revenue channels, and milestone budgets)
+2. Do NOT use emojis.
+3. Keep the content highly strategic, realistic, actionable, and analytical.`;
+    } else if (taskType === "email") {
+      prompt = `Write a professional, ready-to-send professional email based on the following context:
+- Purpose of the Email: ${inputs.purpose}
+- Recipient Type: ${inputs.recipient}
+- Desired Tone: ${inputs.tone}
+
+CRITICAL RULES:
+1. Provide a professional and catchy Subject Line.
+2. Structure it clearly:
+   - Subject Line
+   - Professional Salutation
+   - Well-structured Body paragraphs (introduction, core point/proposal, call-to-action)
+   - Professional Sign-off and placeholder signature blocks
+3. Do NOT use emojis.
+4. Keep the writing polished, grammatically pristine, and natural.`;
+    } else if (taskType === "social_media") {
+      prompt = `Create highly engaging, copy-ready social media posts based on the following:
+- Topic or Product: ${inputs.topic}
+- Target Platforms: ${inputs.platform}
+- Core Message / Offer: ${inputs.message}
+- Tone of Voice: ${inputs.tone}
+
+CRITICAL RULES:
+1. Provide optimized versions for each of the target platforms (e.g., LinkedIn, Instagram, X/Twitter).
+2. For each platform:
+   - Write a compelling hook.
+   - Deliver the key message with appropriate spacing and readability.
+   - End with a clear, specific Call to Action (CTA).
+   - Include 4-6 highly relevant professional hashtags.
+3. Do NOT use emojis.
+4. Ensure the content matches platform-specific best practices (e.g., concise and punchy for X, detailed and professional for LinkedIn).`;
+    } else if (taskType === "summarize") {
+      prompt = `Create a detailed, high-fidelity Executive Summary for the following document:
+- Document File Name: ${inputs.fileName}
+- Document File Size: ${inputs.fileSize}
+- Paste Text Content/Description: ${inputs.pastedText || "Not provided directly, summarize based on the document's profile, name, and main topic."}
+
+CRITICAL RULES:
+1. Structure the summary beautifully and professionally:
+   - DOCUMENT METADATA OVERVIEW (Name, Size, Type)
+   - EXECUTIVE BRIEF (A concise high-level overview of the document's core purpose)
+   - KEY HIGHLIGHTS & INSIGHTS (A clean bulleted list of major findings or critical takeaways)
+   - CORE FINDINGS / DETAILS (A deeper breakdown of the primary themes)
+   - SUMMARY OF RECOMMENDATIONS & ACTION STEPS
+2. Do NOT use emojis.
+3. Keep the tone analytical, objective, and executive-level.`;
+    } else if (taskType === "assignment") {
+      prompt = `Provide a comprehensive academic assignment guide and outline helper for:
+- Assignment Topic/Subject: ${inputs.topic}
+- Assignment Guidelines / Question: ${inputs.guidelines}
+- Additional Context/Source: ${inputs.fileName ? `Reference File: ${inputs.fileName}` : "None"}
+
+CRITICAL RULES:
+1. Structure this helper clearly and educationally:
+   - UNDERSTANDING THE TOPIC (Breakdown of key concepts, definitions, and core theories)
+   - COMPREHENSIVE OUTLINE STRUCTURE (An elegant, detailed step-by-step structure for the essay or paper, including Introduction, main argument body sections, and Conclusion)
+   - ANALYTICAL DEEP-DIVE & CRITICAL ANALYSIS GUIDELINES (How to analyze the prompt, what arguments to present, and potential academic references to research)
+   - DRAFTING GUIDE & PRO-TIPS (How to write academically, avoid logical fallacies, and ensure high-quality structure)
+2. Do NOT use emojis.
+3. Focus purely on robust, legal, and highly academic guidance. Ensure it serves as a highly educational tool, not simple direct plagiarism generation.`;
+    } else {
+      return res.status(400).json({ error: "Invalid task type specified" });
+    }
+
+    console.log("Generating Task Mode output for type:", taskType);
+
+    const basePrompt = "You are the Orbit AI Task Specialist, a highly sophisticated execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You instantly deliver highly structured, beautifully formatted, comprehensive, and complete professional outcomes. You always output cleanly formatted markdown with clear headers and bullet points. Do not use emojis in your response.";
+    
+    const response = await generateContentWithRetry(ai, {
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        systemInstruction: basePrompt,
+      }
+    });
+
+    const replyText = response.text || "I was unable to generate a high-quality result. Please try again.";
+    return res.json({ result: replyText });
+  } catch (error: any) {
+    console.error("Gemini Task API Error in server:", error);
+    return res.status(500).json({ 
+      error: "Failed to generate task output. Please verify inputs and try again.",
       details: error.message 
     });
   }
@@ -498,13 +630,15 @@ async function setupVite() {
   console.log(`isProduction flag: ${isProduction}`);
   console.log("===========================");
 
+  const httpServer = http.createServer(app);
+
   if (!isProduction) {
     console.log("Starting server in DEVELOPMENT mode (Vite middleware)...");
     const { createServer: createViteServer } = await import("vite");
 
     // Mount the standalone Admin app's Vite development server first so it intercepts /admin requests
     const adminVite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
+      server: { middlewareMode: true, hmr: { server: httpServer } },
       appType: "spa",
       base: "/admin/",
       root: path.join(process.cwd(), "orbit-ai-admin")
@@ -512,7 +646,7 @@ async function setupVite() {
     app.use("/admin", adminVite.middlewares);
 
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
+      server: { middlewareMode: true, hmr: { server: httpServer } },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -551,7 +685,7 @@ async function setupVite() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Orbit AI Server running on http://localhost:${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   });

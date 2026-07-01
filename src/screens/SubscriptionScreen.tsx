@@ -297,6 +297,12 @@ export const SubscriptionScreen: React.FC = () => {
                 Priority Responses
               </Text>
             </View>
+            <View className="flex flex-row items-start justify-start gap-2">
+              <span className="text-[#3bb75e] font-extrabold text-sm">✓</span>
+              <Text className="text-[12.5px] text-black font-sans font-medium text-left">
+                Task Mode – Generate CVs, business plans, emails, summaries, and download instant PDFs
+              </Text>
+            </View>
           </View>
 
         </View>

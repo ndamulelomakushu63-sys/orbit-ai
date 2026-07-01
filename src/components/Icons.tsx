@@ -23,6 +23,7 @@ export {
   AlertCircle, 
   Trash2, 
   Copy, 
+  Download,
   Lock, 
   Mail, 
   CreditCard, 

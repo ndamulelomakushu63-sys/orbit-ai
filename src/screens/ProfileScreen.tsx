@@ -3,6 +3,7 @@ import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } fro
 import { ArrowLeft, LogOut, User, Lock, Bell, Shield, ChevronRight } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { UserPlan } from '../types';
+import { BottomNav } from '../components/BottomNav';
 
 export const ProfileScreen: React.FC = () => {
   const { currentUser, setUsers, setMobileScreen, logout } = useAppState();
@@ -200,6 +201,8 @@ export const ProfileScreen: React.FC = () => {
         )}
 
       </ScrollView>
+
+      <BottomNav />
 
     </SafeAreaView>
   );

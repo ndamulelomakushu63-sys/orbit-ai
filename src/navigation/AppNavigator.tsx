@@ -17,6 +17,7 @@ import { PaymentSuccessScreen } from '../screens/PaymentSuccessScreen';
 import { PaymentFailedScreen } from '../screens/PaymentFailedScreen';
 import { SideHustleScreen } from '../screens/SideHustleScreen';
 import { BusinessBuilderScreen } from '../screens/BusinessBuilderScreen';
+import { TaskModeScreen } from '../screens/TaskModeScreen';
 import { PremiumLockScreen } from '../components/PremiumLockScreen';
 
 export const AppNavigator: React.FC = () => {
@@ -38,6 +39,8 @@ export const AppNavigator: React.FC = () => {
       return <ChatHistoryScreen />;
     case "profile":
       return <ProfileScreen />;
+    case "task-mode":
+      return <TaskModeScreen />;
     case "upgrade":
       return <SubscriptionScreen />;
     case "agents":

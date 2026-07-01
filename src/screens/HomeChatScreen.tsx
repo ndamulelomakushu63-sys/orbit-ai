@@ -5,6 +5,7 @@ import { FormattedMessage } from '../components/FormattedMessage';
 import { useAppState } from '../services/state';
 import { UserPlan, ChatMessage } from '../types';
 import { Reply, Trash2, X } from 'lucide-react';
+import { BottomNav } from '../components/BottomNav';
 
 export const HomeChatScreen: React.FC = () => {
   const { 
@@ -208,6 +209,13 @@ export const HomeChatScreen: React.FC = () => {
                 className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left"
               >
                 <Text className="text-[16px] font-medium text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">AI Business Builder</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                onClick={() => { setShowMenu(false); setMobileScreen("task-mode"); }}
+                className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left"
+              >
+                <Text className="text-[16px] font-medium text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">Task Mode</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from './ReactNativeShim';
-import { Sparkles, Award, User, Shield } from './Icons';
+import { Sparkles } from './Icons';
 import { useAppState } from '../services/state';
 
 export const BottomNav: React.FC = () => {
@@ -8,9 +8,6 @@ export const BottomNav: React.FC = () => {
 
   const tabs = [
     { id: 'chat', label: 'Chat', Icon: Sparkles },
-    { id: 'agents', label: 'Agents', Icon: Award },
-    { id: 'profile', label: 'Profile', Icon: User },
-    { id: 'settings', label: 'Settings', Icon: Shield },
   ];
 
   return (
