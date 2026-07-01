@@ -7,12 +7,31 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { message, history, systemPrompt } = req.body;
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        console.warn("Failed to parse request body string:", e);
+      }
+    }
+    const { message, history, systemPrompt } = body || {};
+
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    let apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      apiKey = apiKey.trim();
+      if (apiKey.startsWith('"') && apiKey.endsWith('"')) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+      if (apiKey.startsWith("'") && apiKey.endsWith("'")) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+    }
+
     if (!apiKey) {
       console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables on Vercel.");
       return res.status(500).json({ 

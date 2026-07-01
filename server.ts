@@ -17,7 +17,16 @@ app.use(express.json());
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
   if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY;
+    let key = process.env.GEMINI_API_KEY;
+    if (key) {
+      key = key.trim();
+      if (key.startsWith('"') && key.endsWith('"')) {
+        key = key.slice(1, -1).trim();
+      }
+      if (key.startsWith("'") && key.endsWith("'")) {
+        key = key.slice(1, -1).trim();
+      }
+    }
     if (!key) {
       console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables. Gemini calls will fail.");
     }
@@ -99,7 +108,17 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    let apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      apiKey = apiKey.trim();
+      if (apiKey.startsWith('"') && apiKey.endsWith('"')) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+      if (apiKey.startsWith("'") && apiKey.endsWith("'")) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+    }
+
     if (!apiKey) {
       console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables.");
       return res.status(500).json({ 
