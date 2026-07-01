@@ -76,6 +76,20 @@ interface AppContextType {
   setLimitModalType: (type: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null) => void;
   obdiLeads: ObdiLead[];
   setObdiLeads: React.Dispatch<React.SetStateAction<ObdiLead[]>>;
+  businesses: Business[];
+  setBusinesses: React.Dispatch<React.SetStateAction<Business[]>>;
+  businessRegistrations: BusinessRegistration[];
+  setBusinessRegistrations: React.Dispatch<React.SetStateAction<BusinessRegistration[]>>;
+  businessPhotos: BusinessPhoto[];
+  setBusinessPhotos: React.Dispatch<React.SetStateAction<BusinessPhoto[]>>;
+  categories: Category[];
+  setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
+  specials: Special[];
+  setSpecials: React.Dispatch<React.SetStateAction<Special[]>>;
+  businessReviews: BusinessReview[];
+  setBusinessReviews: React.Dispatch<React.SetStateAction<BusinessReview[]>>;
+  businessPayments: BusinessPayment[];
+  setBusinessPayments: React.Dispatch<React.SetStateAction<BusinessPayment[]>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
