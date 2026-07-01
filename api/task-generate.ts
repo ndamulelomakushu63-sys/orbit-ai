@@ -1,5 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -12,7 +10,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Task type and inputs are required" });
     }
 
-    let apiKey = process.env.GEMINI_API_KEY;
+    let apiKey = process.env.OPENAI_API_KEY;
     if (apiKey) {
       apiKey = apiKey.trim();
       if (apiKey.startsWith('"') && apiKey.endsWith('"')) {
@@ -25,18 +23,9 @@ export default async function handler(req: any, res: any) {
 
     if (!apiKey) {
       return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not defined. Please check your Vercel Environment Variables." 
+        error: "OPENAI_API_KEY is not defined. Please check your Vercel Environment Variables." 
       });
     }
-
-    const ai = new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
 
     let prompt = "";
 
@@ -139,15 +128,29 @@ CRITICAL RULES:
 
     const basePrompt = "You are the Orbit AI Task Specialist, a highly sophisticated execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You instantly deliver highly structured, beautifully formatted, comprehensive, and complete professional outcomes. You always output cleanly formatted markdown with clear headers and bullet points. Do not use emojis in your response.";
     
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: basePrompt,
-      }
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: basePrompt },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.5
+      })
     });
 
-    const replyText = response.text || "I was unable to generate a high-quality result. Please try again.";
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API returned status ${response.status}: ${errText}`);
+    }
+
+    const data: any = await response.json();
+    const replyText = data.choices?.[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.status(200).json({ result: replyText });
   } catch (error: any) {
     console.error("Task Mode Generator Vercel API Error:", error);

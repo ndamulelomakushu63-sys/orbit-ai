@@ -1,5 +1,3 @@
-import { GoogleGenAI, Type } from "@google/genai";
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -20,7 +18,7 @@ export default async function handler(req: any, res: any) {
       laptopAccess 
     } = req.body || {};
 
-    let apiKey = process.env.GEMINI_API_KEY;
+    let apiKey = process.env.OPENAI_API_KEY;
     if (apiKey) {
       apiKey = apiKey.trim();
       if (apiKey.startsWith('"') && apiKey.endsWith('"')) {
@@ -33,18 +31,9 @@ export default async function handler(req: any, res: any) {
 
     if (!apiKey) {
       return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not defined. Please check your Vercel Environment Variables." 
+        error: "OPENAI_API_KEY is not defined. Please check your Vercel Environment Variables." 
       });
     }
-
-    const ai = new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
 
     const prompt = `Generate exactly 5 realistic, educational, legal side hustle ideas matching the following user profile:
 ${name ? `- Name: ${name}` : ""}
@@ -64,45 +53,54 @@ CRITICAL RULES:
 3. Focus strictly on highly realistic, practical, and educational opportunities (e.g., Freelancing, CV Writing, Social Media Management, Online Tutoring, Virtual Assistance, Affiliate Marketing, Small Local Businesses, Content Creation).
 4. Each side hustle idea MUST contain EXACTLY 7 steps to start. Each step must be a complete, highly specific, and actionable instruction.
 5. Provide a tailored "whyMatches" explanation that explicitly references how their listed skills, interests, and device/internet setup match this hustle.
-6. Provide specific helpful resources (like Canva, Upwork, standard search terms, etc.) to learn the hustle.`;
+6. Provide specific helpful resources (like Canva, Upwork, standard search terms, etc.) to learn the hustle.
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You output strictly standard JSON that complies with the schema.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING, description: "Side Hustle Name" },
-              difficulty: { type: Type.STRING, description: "Difficulty level (Easy, Medium, Hard)" },
-              startupCost: { type: Type.STRING, description: "Startup cost estimated with currency (e.g. R0, R200, $50)" },
-              timeRequired: { type: Type.STRING, description: "Hours or time commitment required per week" },
-              whyMatches: { type: Type.STRING, description: "Personalized rationale matching their specific profile" },
-              steps: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Exactly 7 actionable sequential steps to get started"
-              },
-              challenges: { type: Type.STRING, description: "Key realistic challenges or hurdles they will face" },
-              resources: { type: Type.STRING, description: "Helpful free tools, websites, or learning materials" }
-            },
-            required: ["name", "difficulty", "startupCost", "timeRequired", "whyMatches", "steps", "challenges", "resources"]
+Format the response as a valid JSON object containing an "ideas" array of side hustles with the following keys for each:
+- name: (string) Side Hustle Name
+- difficulty: (string) Difficulty level (Easy, Medium, Hard)
+- startupCost: (string) Startup cost estimated with currency (e.g. R0, R200, $50)
+- timeRequired: (string) Hours or time commitment required per week
+- whyMatches: (string) Personalized rationale matching their specific profile
+- steps: (array of strings) Exactly 7 actionable sequential steps to get started
+- challenges: (string) Key realistic challenges or hurdles they will face
+- resources: (string) Helpful free tools, websites, or learning materials`;
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You MUST return a JSON object with an 'ideas' array containing exactly 5 elements matching the requested keys."
+          },
+          {
+            role: "user",
+            content: prompt
           }
-        }
-      }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7
+      })
     });
 
-    const resultText = response.text;
-    if (!resultText) {
-      throw new Error("No response text received from Gemini");
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API returned status ${response.status}: ${errText}`);
     }
 
-    const ideas = JSON.parse(resultText.trim());
-    return res.status(200).json({ ideas });
+    const data: any = await response.json();
+    const resultText = data.choices?.[0]?.message?.content;
+    if (!resultText) {
+      throw new Error("No response text received from OpenAI");
+    }
+
+    const parsedData = JSON.parse(resultText.trim());
+    return res.status(200).json({ ideas: parsedData.ideas || [] });
   } catch (error: any) {
     console.error("Side Hustle Generator Vercel API Error:", error);
     return res.status(500).json({ 

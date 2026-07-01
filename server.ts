@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import http from "http";
-import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import AdmZip from "adm-zip";
 
@@ -13,94 +12,13 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Initialize Gemini API client safely and lazily (to prevent crash on startup if key isn't provided yet)
-let aiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI {
-  if (!aiClient) {
-    let key = process.env.GEMINI_API_KEY;
-    if (key) {
-      key = key.trim();
-      if (key.startsWith('"') && key.endsWith('"')) {
-        key = key.slice(1, -1).trim();
-      }
-      if (key.startsWith("'") && key.endsWith("'")) {
-        key = key.slice(1, -1).trim();
-      }
-    }
-    if (!key) {
-      console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables. Gemini calls will fail.");
-    }
-    aiClient = new GoogleGenAI({
-      apiKey: key || "placeholder-key",
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-  }
-  return aiClient;
-}
-
-// Helper to make Gemini generation extremely robust using exponential backoff and model fallbacks
-async function generateContentWithRetry(
-  ai: GoogleGenAI,
-  params: { model: string; contents: any; config?: any },
-  maxRetries = 5,
-  initialDelay = 1000
-): Promise<any> {
-  let attempt = 0;
-  const originalModel = params.model;
-  // Build a prioritized unique list of fallback/alternative models to try
-  const modelsToTry = [
-    originalModel,
-    "gemini-3.1-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-3.1-pro-preview",
-    "gemini-flash-latest"
-  ].filter((value, index, self) => self.indexOf(value) === index);
-
-  while (attempt < maxRetries) {
-    const currentModel = modelsToTry[attempt % modelsToTry.length];
-    try {
-      console.log(`[Gemini Attempt ${attempt + 1}/${maxRetries}] Requesting model: ${currentModel}`);
-      const response = await ai.models.generateContent({
-        ...params,
-        model: currentModel
-      });
-      return response;
-    } catch (error: any) {
-      attempt++;
-      const errorMessage = error.message || "";
-
-      const isTransient = 
-        errorMessage.includes("503") || 
-        errorMessage.includes("429") || 
-        errorMessage.includes("UNAVAILABLE") || 
-        errorMessage.includes("RESOURCE_EXHAUSTED") || 
-        errorMessage.includes("high demand") ||
-        errorMessage.includes("temporary");
-
-      if (isTransient && attempt < maxRetries) {
-        const nextModel = modelsToTry[attempt % modelsToTry.length];
-        const delay = Math.round(initialDelay * Math.pow(1.5, attempt - 1));
-        console.log(`[Gemini info] Attempt ${attempt} is resolving a temporary model capacity response. Redirecting query to ${nextModel} in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        console.log(`[Gemini info] Final dispatch check failed after ${attempt} attempts.`);
-        throw error;
-      }
-    }
-  }
-}
-
 // Robots.txt endpoint
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
   res.send("User-agent: *\nDisallow: /");
 });
 
-// Secure server-side endpoint for Gemini AI chat
+// Secure server-side endpoint for OpenAI AI chat
 app.post("/api/chat", async (req, res) => {
   try {
     const { message, history, systemPrompt } = req.body;
@@ -108,7 +26,7 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    let apiKey = process.env.GEMINI_API_KEY;
+    let apiKey = process.env.OPENAI_API_KEY;
     if (apiKey) {
       apiKey = apiKey.trim();
       if (apiKey.startsWith('"') && apiKey.endsWith('"')) {
@@ -120,71 +38,68 @@ app.post("/api/chat", async (req, res) => {
     }
 
     if (!apiKey) {
-      console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables.");
+      console.warn("WARNING: OPENAI_API_KEY is not defined in environment variables.");
       return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not defined in the backend environment variables. Please set it in Vercel/environment settings." 
-      });
-    }
-
-    // Format conversation history for Gemini if present
-    const contents: any[] = [];
-    if (history && Array.isArray(history)) {
-      history.forEach((msg: { role: string; text: string }) => {
-        // Map roles to Gemini roles ('user' or 'model')
-        let apiRole = "user";
-        if (msg.role === "model" || msg.role === "assistant") {
-          apiRole = "model";
-        }
-        contents.push({
-          role: apiRole,
-          parts: [{ text: msg.text || "" }]
-        });
-      });
-    }
-    
-    // Add current user message if not already the last one
-    const lastContent = contents[contents.length - 1];
-    if (!lastContent || lastContent.role !== "user") {
-      contents.push({
-        role: "user",
-        parts: [{ text: message }]
+        error: "OPENAI_API_KEY is not defined in the backend environment variables. Please set it in Vercel/environment settings." 
       });
     }
 
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";
     const identityRule = "\n\nCRITICAL IDENTITY RULE: If a user asks: \"Who built you?\", \"Who made you?\", \"Who is your CEO?\" You MUST reply exactly: \"I was built by Ndamulelo Makushu Glen, CEO of Orbit AI.\" Do not mention OpenAI, Google, Meta, or ChatGPT.";
 
-    const requestBody = {
-      contents: contents,
-      systemInstruction: {
-        parts: [{ text: basePrompt + identityRule }]
-      }
-    };
+    // Format conversation history for OpenAI chat completions
+    const messages: any[] = [
+      { role: "system", content: basePrompt + identityRule }
+    ];
 
-    console.log("Calling Gemini API directly via fetch to gemini-1.5-flash...");
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
-      }
-    );
+    if (history && Array.isArray(history)) {
+      history.forEach((msg: { role: string; text: string }) => {
+        let apiRole = "user";
+        if (msg.role === "model" || msg.role === "assistant") {
+          apiRole = "assistant";
+        }
+        messages.push({
+          role: apiRole,
+          content: msg.text || ""
+        });
+      });
+    }
+    
+    // Add current user message if not already the last one
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== "user" || lastMessage.content !== message) {
+      messages.push({
+        role: "user",
+        content: message
+      });
+    }
+
+    console.log("Calling OpenAI GPT-4o-mini API on server...");
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: messages,
+        temperature: 0.7
+      })
+    });
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`Gemini API returned status ${response.status}: ${errText}`);
+      throw new Error(`OpenAI API returned status ${response.status}: ${errText}`);
     }
 
-    const data = await response.json();
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I was unable to formulate a response. Please try again.";
+    const data: any = await response.json();
+    const replyText = data.choices?.[0]?.message?.content || "I was unable to formulate a response. Please try again.";
     return res.json({ reply: replyText });
   } catch (error: any) {
-    console.error("Gemini API Error in server:", error);
+    console.error("OpenAI API Error in server:", error);
     return res.status(500).json({ 
-      error: "Failed to query AI assistant. Please check your GEMINI_API_KEY and server logs.",
+      error: "Failed to query AI assistant. Please check your OPENAI_API_KEY and server logs.",
       details: error.message 
     });
   }
@@ -206,7 +121,22 @@ app.post("/api/side-hustles", async (req, res) => {
       laptopAccess 
     } = req.body;
 
-    const ai = getGeminiClient();
+    let apiKey = process.env.OPENAI_API_KEY;
+    if (apiKey) {
+      apiKey = apiKey.trim();
+      if (apiKey.startsWith('"') && apiKey.endsWith('"')) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+      if (apiKey.startsWith("'") && apiKey.endsWith("'")) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({ 
+        error: "OPENAI_API_KEY is not defined. Please check your environment variables." 
+      });
+    }
 
     const prompt = `Generate exactly 5 realistic, educational, legal side hustle ideas matching the following user profile:
 ${name ? `- Name: ${name}` : ""}
@@ -226,47 +156,56 @@ CRITICAL RULES:
 3. Focus strictly on highly realistic, practical, and educational opportunities (e.g., Freelancing, CV Writing, Social Media Management, Online Tutoring, Virtual Assistance, Affiliate Marketing, Small Local Businesses, Content Creation).
 4. Each side hustle idea MUST contain EXACTLY 7 steps to start. Each step must be a complete, highly specific, and actionable instruction.
 5. Provide a tailored "whyMatches" explanation that explicitly references how their listed skills, interests, and device/internet setup match this hustle.
-6. Provide specific helpful resources (like Canva, Upwork, standard search terms, etc.) to learn the hustle.`;
+6. Provide specific helpful resources (like Canva, Upwork, standard search terms, etc.) to learn the hustle.
 
-    console.log("Calling Gemini for Side Hustles generator with inputs:", { country, ageRange, budget });
+Format the response as a valid JSON object containing an "ideas" array of side hustles with the following keys for each:
+- name: (string) Side Hustle Name
+- difficulty: (string) Difficulty level (Easy, Medium, Hard)
+- startupCost: (string) Startup cost estimated with currency (e.g. R0, R200, $50)
+- timeRequired: (string) Hours or time commitment required per week
+- whyMatches: (string) Personalized rationale matching their specific profile
+- steps: (array of strings) Exactly 7 actionable sequential steps to get started
+- challenges: (string) Key realistic challenges or hurdles they will face
+- resources: (string) Helpful free tools, websites, or learning materials`;
 
-    const response = await generateContentWithRetry(ai, {
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You output strictly standard JSON that complies with the schema.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING, description: "Side Hustle Name" },
-              difficulty: { type: Type.STRING, description: "Difficulty level (Easy, Medium, Hard)" },
-              startupCost: { type: Type.STRING, description: "Startup cost estimated with currency (e.g. R0, R200, $50)" },
-              timeRequired: { type: Type.STRING, description: "Hours or time commitment required per week" },
-              whyMatches: { type: Type.STRING, description: "Personalized rationale matching their specific profile" },
-              steps: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Exactly 7 actionable sequential steps to get started"
-              },
-              challenges: { type: Type.STRING, description: "Key realistic challenges or hurdles they will face" },
-              resources: { type: Type.STRING, description: "Helpful free tools, websites, or learning materials" }
-            },
-            required: ["name", "difficulty", "startupCost", "timeRequired", "whyMatches", "steps", "challenges", "resources"]
+    console.log("Calling OpenAI for Side Hustles generator on server with inputs:", { country, ageRange, budget });
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You MUST return a JSON object with an 'ideas' array containing exactly 5 elements matching the requested keys."
+          },
+          {
+            role: "user",
+            content: prompt
           }
-        }
-      }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7
+      })
     });
 
-    const resultText = response.text;
-    if (!resultText) {
-      throw new Error("No response text received from Gemini");
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API returned status ${response.status}: ${errText}`);
     }
 
-    const ideas = JSON.parse(resultText.trim());
-    return res.json({ ideas });
+    const data: any = await response.json();
+    const resultText = data.choices?.[0]?.message?.content;
+    if (!resultText) {
+      throw new Error("No response text received from OpenAI");
+    }
+
+    const parsedData = JSON.parse(resultText.trim());
+    return res.json({ ideas: parsedData.ideas || [] });
   } catch (error: any) {
     console.error("Side Hustle Generator API Error:", error);
     return res.status(500).json({ 
@@ -284,7 +223,23 @@ app.post("/api/task-generate", async (req, res) => {
       return res.status(400).json({ error: "Task type and inputs are required" });
     }
 
-    const ai = getGeminiClient();
+    let apiKey = process.env.OPENAI_API_KEY;
+    if (apiKey) {
+      apiKey = apiKey.trim();
+      if (apiKey.startsWith('"') && apiKey.endsWith('"')) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+      if (apiKey.startsWith("'") && apiKey.endsWith("'")) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({ 
+        error: "OPENAI_API_KEY is not defined. Please check your environment variables." 
+      });
+    }
+
     let prompt = "";
 
     if (taskType === "cv") {
@@ -384,22 +339,36 @@ CRITICAL RULES:
       return res.status(400).json({ error: "Invalid task type specified" });
     }
 
-    console.log("Generating Task Mode output for type:", taskType);
+    console.log("Generating OpenAI Task Mode output for type:", taskType);
 
     const basePrompt = "You are the Orbit AI Task Specialist, a highly sophisticated execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You instantly deliver highly structured, beautifully formatted, comprehensive, and complete professional outcomes. You always output cleanly formatted markdown with clear headers and bullet points. Do not use emojis in your response.";
     
-    const response = await generateContentWithRetry(ai, {
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: basePrompt,
-      }
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: basePrompt },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.5
+      })
     });
 
-    const replyText = response.text || "I was unable to generate a high-quality result. Please try again.";
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API returned status ${response.status}: ${errText}`);
+    }
+
+    const data: any = await response.json();
+    const replyText = data.choices?.[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.json({ result: replyText });
   } catch (error: any) {
-    console.error("Gemini Task API Error in server:", error);
+    console.error("OpenAI Task API Error in server:", error);
     return res.status(500).json({ 
       error: "Failed to generate task output. Please verify inputs and try again.",
       details: error.message 
@@ -423,7 +392,22 @@ app.post("/api/business-builder", async (req, res) => {
       return res.status(400).json({ error: "Business Idea and Industry are required" });
     }
 
-    const ai = getGeminiClient();
+    let apiKey = process.env.OPENAI_API_KEY;
+    if (apiKey) {
+      apiKey = apiKey.trim();
+      if (apiKey.startsWith('"') && apiKey.endsWith('"')) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+      if (apiKey.startsWith("'") && apiKey.endsWith("'")) {
+        apiKey = apiKey.slice(1, -1).trim();
+      }
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({ 
+        error: "OPENAI_API_KEY is not defined. Please check your environment variables." 
+      });
+    }
 
     const prompt = `Formulate a comprehensive, educational business concept and 30-day launch plan based on the following questionnaire details:
 - Proposed Business Idea: ${businessIdea}
@@ -441,6 +425,7 @@ CRITICAL RULES:
 
 Generate a structured business blueprint containing:
 1. exactly 5 creative Business Name suggestions with catchy slogans.
+- Each suggestion must have 'name' and 'tagline' keys.
 2. a thorough Business Description detailing the model.
 3. a detailed Target Audience profiling.
 4. a realistic Revenue Model mapping out potential channels.
@@ -449,67 +434,58 @@ Generate a structured business blueprint containing:
 7. realistic Pricing Suggestions with tier recommendations or price calculations.
 8. a detailed 30-Day Launch Plan outlining specific daily or weekly tasks.
 9. a creative Social Media Strategy outlining platforms and content themes.
-10. an objective Risk Assessment highlighting challenges and how to safely navigate them.`;
+10. an objective Risk Assessment highlighting challenges and how to safely navigate them.
 
-    console.log("Calling Gemini for Business Builder with inputs:", { industry, country, startingBudget });
+Format the response as a valid JSON object matching this schema structure:
+{
+  "businessNames": [
+    { "name": "...", "tagline": "..." }
+  ],
+  "businessDescription": "...",
+  "targetAudience": "...",
+  "revenueModel": "...",
+  "startupChecklist": ["...", "..."],
+  "marketingPlan": "...",
+  "pricingSuggestions": "...",
+  "launchPlan30Day": ["...", "..."],
+  "socialMediaStrategy": "...",
+  "riskAssessment": "..."
+}`;
 
-    const response = await generateContentWithRetry(ai, {
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            businessNames: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING, description: "Suggested business name" },
-                  tagline: { type: Type.STRING, description: "Suggested tagline or slogan" }
-                },
-                required: ["name", "tagline"]
-              }
-            },
-            businessDescription: { type: Type.STRING, description: "Detailed summary of the business concept" },
-            targetAudience: { type: Type.STRING, description: "Detailed breakdown of who the target customers are and their pain points" },
-            revenueModel: { type: Type.STRING, description: "How the business generates revenue, including monetization channels" },
-            startupChecklist: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "A chronological list of practical launch/setup checklist items"
-            },
-            marketingPlan: { type: Type.STRING, description: "Actionable marketing methods for the target market and budget" },
-            pricingSuggestions: { type: Type.STRING, description: "Specific pricing strategies and potential pricing models" },
-            launchPlan30Day: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Chronological daily/weekly steps across 30 days to soft launch"
-            },
-            socialMediaStrategy: { type: Type.STRING, description: "Tactical tips for social media content, posting, and engagement" },
-            riskAssessment: { type: Type.STRING, description: "Unbiased evaluation of operational risks and mitigation plans" }
+    console.log("Calling OpenAI for Business Builder on server with inputs:", { industry, country, startingBudget });
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested."
           },
-          required: [
-            "businessNames",
-            "businessDescription",
-            "targetAudience",
-            "revenueModel",
-            "startupChecklist",
-            "marketingPlan",
-            "pricingSuggestions",
-            "launchPlan30Day",
-            "socialMediaStrategy",
-            "riskAssessment"
-          ]
-        }
-      }
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7
+      })
     });
 
-    const resultText = response.text;
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API returned status ${response.status}: ${errText}`);
+    }
+
+    const data: any = await response.json();
+    const resultText = data.choices?.[0]?.message?.content;
     if (!resultText) {
-      throw new Error("No response text received from Gemini");
+      throw new Error("No response text received from OpenAI");
     }
 
     const plan = JSON.parse(resultText.trim());
