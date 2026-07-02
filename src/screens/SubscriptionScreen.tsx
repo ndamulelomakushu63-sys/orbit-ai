@@ -56,7 +56,16 @@ export const SubscriptionScreen: React.FC = () => {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to initiate PayFast checkout session");
+          let errorMsg = "Failed to initiate PayFast checkout session";
+          try {
+            const errorData = await response.json();
+            if (errorData && errorData.error) {
+              errorMsg = errorData.error;
+            }
+          } catch (e) {
+            // Ignore JSON parse error
+          }
+          throw new Error(errorMsg);
         }
 
         const data = await response.json();

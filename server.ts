@@ -4,6 +4,7 @@ import fs from "fs";
 import http from "http";
 import dotenv from "dotenv";
 import AdmZip from "adm-zip";
+import crypto from "crypto";
 import { supabase } from "./src/services/supabase";
 
 dotenv.config();
@@ -112,8 +113,18 @@ app.post("/api/payfast/checkout", async (req, res) => {
   try {
     const { userId, plan, email, name } = req.body;
     if (!userId || !plan) {
-      return res.status(400).json({ error: "userId and plan are required" });
+      console.error("[PayFast Checkout] Missing required fields:", { userId, plan });
+      return res.status(400).json({ error: "userId and plan are required fields" });
     }
+
+    // 1. Log and verify Merchant ID and Merchant Key are being read correctly from Environment Variables
+    const merchantId = process.env.PAYFAST_MERCHANT_ID || "10000100";
+    const merchantKey = process.env.PAYFAST_MERCHANT_KEY || "46f0z5809up2u";
+    const passphrase = process.env.PAYFAST_PASSPHRASE;
+
+    console.log("[PayFast Config Debug] PAYFAST_MERCHANT_ID read:", merchantId ? `${merchantId.substring(0, 4)}*** (length: ${merchantId.length})` : "NOT_SET");
+    console.log("[PayFast Config Debug] PAYFAST_MERCHANT_KEY read:", merchantKey ? `${merchantKey.substring(0, 4)}*** (length: ${merchantKey.length})` : "NOT_SET");
+    console.log("[PayFast Config Debug] PAYFAST_PASSPHRASE exists:", passphrase ? "YES" : "NO");
 
     const host = req.get('host');
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -132,9 +143,6 @@ app.post("/api/payfast/checkout", async (req, res) => {
     const nameParts = (name || "Orbit AI User").split(" ");
     const nameFirst = nameParts[0] || "Orbit";
     const nameLast = nameParts.slice(1).join(" ") || "User";
-
-    const merchantId = process.env.PAYFAST_MERCHANT_ID || "10000100";
-    const merchantKey = process.env.PAYFAST_MERCHANT_KEY || "46f0z5809up2u";
 
     const data: Record<string, string> = {
       merchant_id: merchantId,
@@ -160,33 +168,44 @@ app.post("/api/payfast/checkout", async (req, res) => {
     }
     pfParamString = pfParamString.slice(0, -1);
 
-    const passphrase = process.env.PAYFAST_PASSPHRASE;
     if (passphrase) {
       pfParamString += `&passphrase=${passphrase.trim()}`;
     }
 
-    const crypto = await import("crypto");
+    console.log("[PayFast Checkout] Built pfParamString (excluding passphrase):", pfParamString.replace(merchantKey, "MASKED"));
+
+    // Generate MD5 signature using top-level imported crypto
     const signature = crypto.createHash('md5').update(pfParamString).digest('hex');
 
-    // Build redirect URL with URL-encoded parameters
-    const queryParams = new URLSearchParams();
+    // Build redirect URL with URL-encoded parameters (RFC 3986 style encoding)
+    const queryParts: string[] = [];
     for (const key in data) {
-      queryParams.append(key, data[key]);
+      if (data[key] !== undefined && data[key] !== null) {
+        queryParts.push(`${key}=${encodeURIComponent(data[key])}`);
+      }
     }
-    queryParams.append("signature", signature);
+    queryParts.push(`signature=${signature}`);
+    const queryString = queryParts.join("&");
 
-    const isSandbox = merchantId === "10000100";
+    // 2. Select between Sandbox and Live endpoints matching the environment
+    // If merchantId is the default sandbox merchant or sandbox is explicitly configured, use sandbox endpoint.
+    const isSandbox = merchantId === "10000100" || process.env.PAYFAST_SANDBOX === "true";
     const checkoutBaseUrl = isSandbox 
       ? "https://sandbox.payfast.co.za/eng/process" 
       : "https://www.payfast.co.za/eng/process";
 
-    const checkoutUrl = `${checkoutBaseUrl}?${queryParams.toString()}`;
+    const checkoutUrl = `${checkoutBaseUrl}?${queryString}`;
 
-    console.log(`[PayFast Checkout] Initiated for ${userId} (${plan}). Redirecting to: ${checkoutBaseUrl}`);
+    console.log(`[PayFast Checkout] Initiated for User: ${userId}, Plan: ${plan}, Sandbox: ${isSandbox}`);
+    console.log(`[PayFast Checkout] Redirect URL: ${checkoutUrl}`);
+
     res.json({ checkoutUrl });
   } catch (error: any) {
-    console.error("PayFast checkout error:", error);
-    res.status(500).json({ error: error.message || "Failed to initiate PayFast checkout" });
+    // 3. Log the exact backend error details
+    console.error("[PayFast Checkout Error] Exact server failure stack:", error);
+    res.status(500).json({ 
+      error: error.message || "Failed to initiate PayFast checkout session due to server error" 
+    });
   }
 });
 
