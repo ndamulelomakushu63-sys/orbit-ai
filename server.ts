@@ -4,6 +4,7 @@ import fs from "fs";
 import http from "http";
 import dotenv from "dotenv";
 import AdmZip from "adm-zip";
+import { supabase } from "./src/services/supabase";
 
 dotenv.config();
 
@@ -11,6 +12,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Robots.txt endpoint
 app.get("/robots.txt", (req, res) => {
@@ -102,6 +104,216 @@ app.post("/api/chat", async (req, res) => {
       error: "Failed to query AI assistant. Please check your OPENAI_API_KEY and server logs.",
       details: error.message 
     });
+  }
+});
+
+// Real PayFast Payment Initiation Checkout Endpoint
+app.post("/api/payfast/checkout", async (req, res) => {
+  try {
+    const { userId, plan, email, name } = req.body;
+    if (!userId || !plan) {
+      return res.status(400).json({ error: "userId and plan are required" });
+    }
+
+    const host = req.get('host');
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const origin = process.env.APP_URL || `${protocol}://${host}`;
+
+    const returnUrl = `${origin}?payment_success=true`;
+    const cancelUrl = `${origin}?payment_cancelled=true`;
+    const notifyUrl = `${origin}/api/payfast/notify`;
+
+    const amount = plan === "Yearly" || plan === "Annually" ? "1188.00" : "99.99";
+    const itemName = plan === "Yearly" || plan === "Annually" 
+      ? "Orbit AI Pro Yearly" 
+      : "Orbit AI Pro Monthly";
+
+    // Split name into first and last
+    const nameParts = (name || "Orbit AI User").split(" ");
+    const nameFirst = nameParts[0] || "Orbit";
+    const nameLast = nameParts.slice(1).join(" ") || "User";
+
+    const merchantId = process.env.PAYFAST_MERCHANT_ID || "10000100";
+    const merchantKey = process.env.PAYFAST_MERCHANT_KEY || "46f0z5809up2u";
+
+    const data: Record<string, string> = {
+      merchant_id: merchantId,
+      merchant_key: merchantKey,
+      return_url: returnUrl,
+      cancel_url: cancelUrl,
+      notify_url: notifyUrl,
+      name_first: nameFirst,
+      name_last: nameLast,
+      email_address: email || "customer@orbitai.co.za",
+      m_payment_id: userId,
+      amount: amount,
+      item_name: itemName,
+      custom_str1: plan
+    };
+
+    // Construct parameter string for MD5 signature (no URL encoding, empty params excluded)
+    let pfParamString = "";
+    for (const key in data) {
+      if (data.hasOwnProperty(key) && data[key] !== undefined && data[key] !== null && data[key] !== "") {
+        pfParamString += `${key}=${String(data[key]).trim()}&`;
+      }
+    }
+    pfParamString = pfParamString.slice(0, -1);
+
+    const passphrase = process.env.PAYFAST_PASSPHRASE;
+    if (passphrase) {
+      pfParamString += `&passphrase=${passphrase.trim()}`;
+    }
+
+    const crypto = await import("crypto");
+    const signature = crypto.createHash('md5').update(pfParamString).digest('hex');
+
+    // Build redirect URL with URL-encoded parameters
+    const queryParams = new URLSearchParams();
+    for (const key in data) {
+      queryParams.append(key, data[key]);
+    }
+    queryParams.append("signature", signature);
+
+    const isSandbox = merchantId === "10000100";
+    const checkoutBaseUrl = isSandbox 
+      ? "https://sandbox.payfast.co.za/eng/process" 
+      : "https://www.payfast.co.za/eng/process";
+
+    const checkoutUrl = `${checkoutBaseUrl}?${queryParams.toString()}`;
+
+    console.log(`[PayFast Checkout] Initiated for ${userId} (${plan}). Redirecting to: ${checkoutBaseUrl}`);
+    res.json({ checkoutUrl });
+  } catch (error: any) {
+    console.error("PayFast checkout error:", error);
+    res.status(500).json({ error: error.message || "Failed to initiate PayFast checkout" });
+  }
+});
+
+// Real PayFast Instant Transaction Notification (ITN / Webhook) Endpoint
+app.post("/api/payfast/notify", async (req, res) => {
+  try {
+    console.log("=== PAYFAST ITN WEBHOOK RECEIVED ===");
+    console.log("ITN Body:", req.body);
+
+    const pfData = { ...req.body };
+    const pfSignature = pfData.signature;
+    delete pfData.signature;
+
+    // 1. Signature Verification (regenerate signature without URL-encoding, skip blank/undefined keys)
+    let pfParamString = "";
+    // Note: fields should maintain the same sequence for verification as received/defined
+    for (const key in pfData) {
+      if (pfData.hasOwnProperty(key) && pfData[key] !== undefined && pfData[key] !== null && pfData[key] !== "") {
+        pfParamString += `${key}=${String(pfData[key]).trim()}&`;
+      }
+    }
+    pfParamString = pfParamString.slice(0, -1);
+
+    const passphrase = process.env.PAYFAST_PASSPHRASE;
+    if (passphrase) {
+      pfParamString += `&passphrase=${passphrase.trim()}`;
+    }
+
+    const crypto = await import("crypto");
+    const calculatedSignature = crypto.createHash('md5').update(pfParamString).digest('hex');
+
+    if (calculatedSignature !== pfSignature) {
+      console.error("[PayFast ITN] Signature Mismatch! Calculated:", calculatedSignature, "Received:", pfSignature);
+      return res.status(400).send("Signature verification failed");
+    }
+
+    console.log("[PayFast ITN] Signature Verification Succeeded!");
+
+    // 2. Validate against PayFast server (Postback)
+    const isSandbox = pfData.merchant_id === "10000100" || String(process.env.PAYFAST_MERCHANT_ID) === "10000100" || !process.env.PAYFAST_MERCHANT_ID;
+    const validateUrl = isSandbox 
+      ? "https://sandbox.payfast.co.za/eng/query/validate" 
+      : "https://www.payfast.co.za/eng/query/validate";
+
+    const searchParams = new URLSearchParams();
+    for (const key in req.body) {
+      searchParams.append(key, req.body[key]);
+    }
+
+    console.log(`[PayFast ITN] Verifying source with postback to: ${validateUrl}`);
+    const pfResponse = await fetch(validateUrl, {
+      method: "POST",
+      body: searchParams,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      }
+    });
+
+    const pfResultText = (await pfResponse.text()).trim();
+    if (pfResultText !== "VALID") {
+      console.error("[PayFast ITN] Source Validation Failed! Server response:", pfResultText);
+      return res.status(400).send("Source validation failed");
+    }
+
+    console.log("[PayFast ITN] Source Validation Succeeded (VALID)!");
+
+    // 3. Process complete/successful transaction
+    const userId = pfData.m_payment_id;
+    const plan = pfData.custom_str1 || "Monthly";
+    const paymentStatus = pfData.payment_status;
+    const pfPaymentId = pfData.pf_payment_id;
+    const amountGross = Number(pfData.amount_gross || 0);
+
+    if (paymentStatus === "COMPLETE") {
+      console.log(`[PayFast ITN] Payment is COMPLETE. Upgrading user ${userId} to PRO...`);
+      
+      const startDate = new Date().toISOString();
+      const isYearly = plan === "Yearly" || plan === "Annually";
+      const durationDays = isYearly ? 365 : 30;
+      const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+      // Upgrade profile in Supabase
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          plan: "Pro",
+          subscription_status: isYearly ? "pro_yearly" : "pro_monthly",
+          subscription_start_date: startDate,
+          subscription_end_date: endDate,
+          cancelled_at: null,
+          refund_requested: false,
+          refund_request_date: null
+        })
+        .eq('id', userId);
+
+      if (profileError) {
+        console.error("[PayFast ITN] Error upgrading user profile in Supabase:", profileError);
+        throw profileError;
+      }
+
+      // Record subscription log in Supabase
+      const { error: subError } = await supabase
+        .from('subscriptions')
+        .upsert({
+          id: `pf-${pfPaymentId || Date.now()}`,
+          user_id: userId,
+          plan: isYearly ? "Yearly" : "Monthly",
+          amount: amountGross || (isYearly ? 1188.00 : 99.99),
+          status: "Active",
+          renewal_date: endDate,
+          created_at: startDate
+        });
+
+      if (subError) {
+        console.error("[PayFast ITN] Error recording subscription record in Supabase:", subError);
+        throw subError;
+      }
+
+      console.log(`[PayFast ITN] User ${userId} successfully upgraded to PRO!`);
+    } else {
+      console.log(`[PayFast ITN] Payment received but status is: ${paymentStatus}. Leaving plan as is.`);
+    }
+
+    res.sendStatus(200);
+  } catch (error: any) {
+    console.error("[PayFast ITN] Internal Webhook Error:", error);
+    res.status(500).send("Internal webhook error");
   }
 });
 

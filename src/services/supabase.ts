@@ -30,8 +30,8 @@ function getValidKey(key: any, fallback: string): string {
   return fallback;
 }
 
-const rawUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
-const rawKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+const rawUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : undefined);
+const rawKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : undefined);
 
 const supabaseUrl = getValidUrl(rawUrl, DEFAULT_SUPABASE_URL);
 const supabaseAnonKey = getValidKey(rawKey, DEFAULT_SUPABASE_ANON_KEY);

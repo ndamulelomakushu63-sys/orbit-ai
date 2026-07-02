@@ -494,6 +494,57 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
+  // PayFast Query Parameter Listener
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const isSuccess = searchParams.get("payment_success") === "true";
+    const isCancelled = searchParams.get("payment_cancelled") === "true";
+
+    if (isSuccess) {
+      console.log("[PayFast] Successful payment returned. Pulling latest subscription from database...");
+      
+      // Clear URL parameters elegantly
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Force refresh data from Supabase
+      const syncLatestFromSupabase = async () => {
+        try {
+          const dbProfiles = await dbFetchProfiles();
+          if (dbProfiles && dbProfiles.length > 0) {
+            setUsers(prev => {
+              const dbUids = new Set(dbProfiles.map(u => u.uid));
+              const localOnly = prev.filter(u => !dbUids.has(u.uid));
+              return [...localOnly, ...dbProfiles];
+            });
+          }
+          const dbSubs = await dbFetchSubscriptions();
+          if (dbSubs && dbSubs.length > 0) {
+            setSubscriptions(dbSubs);
+          }
+          
+          // Re-evaluate current user profile if session exists
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session && session.user && dbProfiles) {
+            const matchedProfile = dbProfiles.find(u => u.uid === session.user.id);
+            if (matchedProfile) {
+              setCurrentUser(matchedProfile);
+            }
+          }
+          
+          alert("Thank you! Your subscription was upgraded to PRO successfully! All premium features are now unlocked.");
+        } catch (err) {
+          console.error("Failed to sync upgraded payment details:", err);
+        }
+      };
+      
+      // Delay slightly to give the webhook (ITN) a moment to finish its database upsert in the background
+      setTimeout(syncLatestFromSupabase, 1500);
+    } else if (isCancelled) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      alert("Your payment checkout session was cancelled. You have not been charged and remain on the Free plan.");
+    }
+  }, []);
+
   // --- Real-time Upsert Synchronization Hooks ---
   const syncedProfiles = useRef<Set<string>>(new Set());
   const syncedSubscriptions = useRef<Set<string>>(new Set());

@@ -38,10 +38,39 @@ export const SubscriptionScreen: React.FC = () => {
     setSelectedCycle(cycle);
   };
 
-  const handleMainActionClick = () => {
+  const handleMainActionClick = async () => {
     if (currentUser.subscription_status !== "pro_monthly" && currentUser.subscription_status !== "pro_yearly") {
-      // Rule A: Take user to PayStack checkout simulation
-      setShowPaystackModal(true);
+      setPaymentProcessing(true);
+      try {
+        const response = await fetch("/api/payfast/checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            userId: currentUser.uid,
+            plan: selectedCycle === "Annually" ? "Yearly" : "Monthly",
+            email: currentUser.email,
+            name: currentUser.name
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to initiate PayFast checkout session");
+        }
+
+        const data = await response.json();
+        if (data.checkoutUrl) {
+          // Redirect the page to PayFast Checkout
+          window.location.href = data.checkoutUrl;
+        } else {
+          throw new Error("Invalid checkout URL returned from server");
+        }
+      } catch (err: any) {
+        console.error("PayFast redirection error:", err);
+        alert("Payment Error: " + (err.message || "Could not connect to PayFast payment gateway. Please try again."));
+        setPaymentProcessing(false);
+      }
     } else {
       // Rule B: Cancel subscription flow
       setShowCancelConfirmDialog(true);
@@ -91,54 +120,6 @@ export const SubscriptionScreen: React.FC = () => {
 
     setCancelSuccessMessage(msg);
     setShowCancelSuccessDialog(true);
-  };
-
-  const handlePaystackPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPaymentProcessing(true);
-
-    // Simulate Paystack processing latency safely
-    setTimeout(() => {
-      setPaymentProcessing(false);
-      setShowPaystackModal(false);
-
-      const startDate = new Date().toISOString();
-      const durationDays = selectedCycle === "Annually" ? 365 : 30;
-      const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-
-      // Upgrade to PRO
-      setUsers(p => p.map(u => {
-        if (u.uid === currentUser.uid) {
-          return {
-            ...u,
-            plan: UserPlan.PRO,
-            subscription_status: selectedCycle === "Monthly" ? "pro_monthly" : "pro_yearly",
-            subscription_start_date: startDate,
-            subscription_end_date: endDate,
-            cancelled_at: "",
-            refund_requested: false,
-            refund_request_date: ""
-          };
-        }
-        return u;
-      }));
-
-      // Add subscription record
-      const amount = selectedCycle === "Monthly" ? 99.99 : 1188.00;
-      const newSub: SubscriptionRecord = {
-        id: "sub-" + Date.now(),
-        userId: currentUser.uid,
-        plan: selectedCycle === "Monthly" ? "Monthly" : "Yearly",
-        amount,
-        status: "Active",
-        renewalDate: endDate,
-        createdAt: startDate
-      };
-      setSubscriptions(prev => [newSub, ...prev]);
-
-      // Trigger visual confirmation banner
-      setShowSuccessAlert(true);
-    }, 1500);
   };
 
   const targetAmount = selectedCycle === "Monthly" ? "99,99" : "1 188";
@@ -347,131 +328,26 @@ export const SubscriptionScreen: React.FC = () => {
 
       </ScrollView>
 
-      {/* PAYSTACK SECURE BLANKETTE SYSTEM CHECKOUT MODAL */}
-      {showPaystackModal && (
-        <View className="absolute inset-0 bg-neutral-900/60 flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
-          
-          <View className="bg-white rounded-2xl max-w-sm w-full overflow-hidden border border-slate-100 shadow-2xl flex flex-col">
-            
-            {/* PayStack Top Brand Stripe */}
-            <View className="bg-[#3bb75e] p-4 flex flex-row justify-between items-center text-white">
-              <View className="text-left">
-                <Text className="font-black text-[13px] tracking-widest text-white uppercase block text-left">
-                  paystack SECURE CHECKOUT
-                </Text>
-                <Text className="text-[9px] text-green-100 font-bold block text-left mt-0.5">
-                  Orbit Commercial Integration Engine
-                </Text>
-              </View>
-              <TouchableOpacity 
-                onClick={() => setShowPaystackModal(false)}
-                className="w-7 h-7 rounded-full bg-black/10 flex items-center justify-center text-white font-bold cursor-pointer hover:bg-black/25 align-middle"
-              >
-                <Text className="text-white font-bold">✕</Text>
-              </TouchableOpacity>
+      {/* PAYFAST SECURE REDIRECTING LOADING BANNER */}
+      {paymentProcessing && (
+        <View className="absolute inset-0 bg-neutral-900/80 flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+          <View className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 border border-slate-150 shadow-2xl">
+            <View className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto animate-pulse">
+              <Lock className="w-6 h-6 text-red-600 animate-spin" />
             </View>
-
-            {/* Paystack Details Segment */}
-            <form onSubmit={handlePaystackPayment} className="p-5 space-y-4">
-              
-              <View className="flex flex-row justify-between items-center bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-left">
-                <View className="text-left">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block text-left">
-                    Merchant Payer
-                  </Text>
-                  <Text className="text-xs font-bold text-slate-700 block text-left mt-0.5 leading-none">
-                    {paystackEmail}
-                  </Text>
-                </View>
-                <View className="text-right">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block text-right">
-                    Amount Due
-                  </Text>
-                  <Text className="text-lg font-black text-[#3bb75e] block text-right leading-none">
-                    R {targetAmount}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Secure Card input simulation */}
-              <View className="space-y-3.5">
-                
-                <View className="space-y-1 text-left">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1 block text-left">
-                    Card Number
-                  </Text>
-                  <View className="px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl flex flex-row items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-slate-400 shrink-0" />
-                    <TextInput 
-                      value={cardNumber}
-                      onChange={(e: any) => setCardNumber(e.target.value)}
-                      placeholder="e.g. 4000 1234 5678 9010"
-                      maxLength={19}
-                      className="text-xs text-slate-700 outline-none w-full bg-transparent"
-                      required
-                    />
-                  </View>
-                </View>
-
-                <View className="grid grid-cols-2 gap-3 text-left">
-                  
-                  <View className="space-y-1 text-left">
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1 block text-left">
-                      Expiration Code
-                    </Text>
-                    <View className="px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl">
-                      <TextInput 
-                        value={cardExpiry}
-                        onChange={(e: any) => setCardExpiry(e.target.value)}
-                        placeholder="MM / YY"
-                        maxLength={5}
-                        className="text-xs text-slate-700 text-center outline-none w-full bg-transparent"
-                        required
-                      />
-                    </View>
-                  </View>
-
-                  <View className="space-y-1 text-left">
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1 block text-left">
-                      Secure CVV
-                    </Text>
-                    <View className="px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl">
-                      <TextInput 
-                        value={cardCvv}
-                        onChange={(e: any) => setCardCvv(e.target.value)}
-                        placeholder="e.g. 321"
-                        maxLength={3}
-                        type="password"
-                        className="text-xs text-slate-700 text-center outline-none w-full bg-transparent"
-                        required
-                      />
-                    </View>
-                  </View>
-
-                </View>
-
-              </View>
-
-              {/* Secure Paystack Button Submit */}
-              <View className="pt-2">
-                <TouchableOpacity 
-                  type="submit"
-                  disabled={paymentProcessing}
-                  className="w-full py-3.5 bg-[#3bb75e] hover:bg-[#329f4f] text-white rounded-xl flex flex-row items-center justify-center gap-2 shadow-md cursor-pointer transition-colors"
-                >
-                  <Lock className="w-4 h-4 text-white shrink-0" />
-                  <Text className="text-white text-xs font-bold font-sans">
-                    {paymentProcessing ? "Verifying with bank..." : `Pay R ${targetAmount}`}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text className="text-[9px] text-slate-400 leading-normal text-center block">
-                Secured by PayStack. Your connection is encrypted via industry standard tokenized cryptography.
+            <View className="space-y-1.5 text-center">
+              <Text className="text-base font-bold text-slate-900 block text-center">
+                Connecting to PayFast Secure Gateway
               </Text>
-
-            </form>
-
+              <Text className="text-xs text-slate-500 leading-relaxed block text-center">
+                Please wait while we establish a secure connection to process your South African rand upgrade safely. Do not close or refresh this page.
+              </Text>
+            </View>
+            <div className="flex flex-row items-center justify-center gap-1.5 pt-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
           </View>
         </View>
       )}
