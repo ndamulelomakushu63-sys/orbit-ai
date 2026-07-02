@@ -3,6 +3,7 @@ import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } fro
 import { X, Copy, CreditCard, Lock, Sparkles, AlertCircle, Check } from 'lucide-react';
 import { useAppState } from '../services/state';
 import { UserPlan, SubscriptionRecord } from '../types';
+import { supabase } from '../services/supabase';
 
 export const SubscriptionScreen: React.FC = () => {
   const { 
@@ -42,6 +43,34 @@ export const SubscriptionScreen: React.FC = () => {
     if (currentUser.subscription_status !== "pro_monthly" && currentUser.subscription_status !== "pro_yearly") {
       setPaymentProcessing(true);
       try {
+        // 3. If the user is logged in, use their real email from Supabase Auth
+        const { data: { user } } = await supabase.auth.getUser();
+        let email = user?.email || currentUser.email;
+
+        // Ensure we clean email and check if it's missing or invalid
+        if (email) {
+          email = email.trim();
+        }
+
+        const isInvalidEmail = (val: any) => {
+          if (!val || typeof val !== "string") return true;
+          const trimmed = val.trim().toLowerCase();
+          return (
+            trimmed === "" ||
+            trimmed === "null" ||
+            trimmed === "undefined" ||
+            trimmed.includes("null") ||
+            trimmed.includes("undefined") ||
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+          );
+        };
+
+        if (isInvalidEmail(email)) {
+          alert("Please verify your email before purchasing.");
+          setPaymentProcessing(false);
+          return;
+        }
+
         const response = await fetch("/api/payfast/checkout", {
           method: "POST",
           headers: {
@@ -50,7 +79,7 @@ export const SubscriptionScreen: React.FC = () => {
           body: JSON.stringify({
             userId: currentUser.uid,
             plan: selectedCycle === "Annually" ? "Yearly" : "Monthly",
-            email: currentUser.email,
+            email: email,
             name: currentUser.name
           })
         });

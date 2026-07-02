@@ -117,6 +117,30 @@ app.post("/api/payfast/checkout", async (req, res) => {
       return res.status(400).json({ error: "userId and plan are required fields" });
     }
 
+    // Email validation
+    let emailAddress = email;
+    if (emailAddress) {
+      emailAddress = String(emailAddress).trim();
+    }
+
+    const isInvalidEmail = (val: any) => {
+      if (!val || typeof val !== "string") return true;
+      const trimmed = val.trim().toLowerCase();
+      return (
+        trimmed === "" ||
+        trimmed === "null" ||
+        trimmed === "undefined" ||
+        trimmed.includes("null") ||
+        trimmed.includes("undefined") ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+      );
+    };
+
+    if (isInvalidEmail(emailAddress)) {
+      console.error("[PayFast Checkout] Invalid email encountered:", emailAddress);
+      return res.status(400).json({ error: "Please verify your email before purchasing." });
+    }
+
     // 1. Log and verify Merchant ID and Merchant Key are being read correctly from Environment Variables
     const merchantId = process.env.PAYFAST_MERCHANT_ID || "10000100";
     const merchantKey = process.env.PAYFAST_MERCHANT_KEY || "46f0z5809up2u";
@@ -152,12 +176,23 @@ app.post("/api/payfast/checkout", async (req, res) => {
       notify_url: notifyUrl,
       name_first: nameFirst,
       name_last: nameLast,
-      email_address: email || "customer@orbitai.co.za",
+      email_address: emailAddress,
       m_payment_id: userId,
       amount: amount,
       item_name: itemName,
       custom_str1: plan
     };
+
+    // 5. Log the exact payload being sent to PayFast (excluding Merchant Key) so we can inspect:
+    console.log("=== PAYFAST PAYLOAD LOG (server.ts) ===");
+    console.log("email_address:", data.email_address);
+    console.log("amount:", data.amount);
+    console.log("item_name:", data.item_name);
+    console.log("merchant_id:", data.merchant_id);
+    console.log("return_url:", data.return_url);
+    console.log("cancel_url:", data.cancel_url);
+    console.log("notify_url:", data.notify_url);
+    console.log("===========================");
 
     // Construct parameter string for MD5 signature (no URL encoding, empty params excluded)
     let pfParamString = "";
