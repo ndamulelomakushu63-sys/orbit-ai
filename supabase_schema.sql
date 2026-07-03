@@ -198,6 +198,7 @@ CREATE POLICY "Admin can update withdrawals."
 -- 7. BUSINESSES TABLE (Directory Listings)
 CREATE TABLE IF NOT EXISTS public.businesses (
     id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     owner_name TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -396,5 +397,20 @@ CREATE POLICY "Allow management of obdi_leads"
     ON public.obdi_leads FOR ALL
     USING (true)
     WITH CHECK (true);
+
+
+-- 14. PERFORMANCE INDEXES
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_referral_code ON public.profiles(referral_code);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON public.subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON public.conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_id ON public.chat_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer_id ON public.referrals(referrer_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_referred_user_id ON public.referrals(referred_user_id);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON public.withdrawals(user_id);
+CREATE INDEX IF NOT EXISTS idx_businesses_user_id ON public.businesses(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON public.support_tickets(user_id);
+
 
 

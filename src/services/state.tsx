@@ -796,7 +796,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         body: JSON.stringify({
           message: userMsgText,
           history: activeHistory,
-          systemPrompt
+          systemPrompt,
+          userId: currentUser?.uid
         })
       });
 
