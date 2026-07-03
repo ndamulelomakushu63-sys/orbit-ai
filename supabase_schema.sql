@@ -34,6 +34,56 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Safely ensure ALL columns exist on an existing profiles table
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'Free';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'free';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS chat_count_today INT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS image_count_today INT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS file_upload_count_today INT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS camera_upload_count_today INT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_reset_time TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS subscription_end_date TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS refund_requested BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS refund_request_date TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS agent_status BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS balance NUMERIC DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_code TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referred_by TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS active_agent_id TEXT DEFAULT 'assistant';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Safely ensure unique constraints exist on existing profiles table if they don't already
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints tc 
+        JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name 
+        WHERE tc.table_schema = 'public' 
+          AND tc.table_name = 'profiles' 
+          AND ccu.column_name = 'referral_code' 
+          AND tc.constraint_type = 'UNIQUE'
+    ) THEN
+        ALTER TABLE public.profiles ADD CONSTRAINT profiles_referral_code_key UNIQUE (referral_code);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints tc 
+        JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name 
+        WHERE tc.table_schema = 'public' 
+          AND tc.table_name = 'profiles' 
+          AND ccu.column_name = 'email' 
+          AND tc.constraint_type = 'UNIQUE'
+    ) THEN
+        ALTER TABLE public.profiles ADD CONSTRAINT profiles_email_key UNIQUE (email);
+    END IF;
+END $$;
+
 -- Enable RLS on Profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
