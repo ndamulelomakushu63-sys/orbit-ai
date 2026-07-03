@@ -5,7 +5,10 @@ import http from "http";
 import dotenv from "dotenv";
 import AdmZip from "adm-zip";
 import crypto from "crypto";
+import pg from "pg";
 import { supabase } from "./src/services/supabase";
+
+const { Client } = pg;
 
 dotenv.config();
 
@@ -19,6 +22,51 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
   res.send("User-agent: *\nDisallow: /");
+});
+
+// Secure backend Supabase DB setup endpoint
+app.post("/api/setup-db", async (req, res) => {
+  try {
+    const { dbPassword } = req.body;
+    if (!dbPassword) {
+      return res.status(400).json({ error: "Database password is required to run migrations." });
+    }
+
+    const host = "db.ptpnvrgzdnawvvxrkkid.supabase.co";
+    const port = 5432;
+    const user = "postgres";
+    const database = "postgres";
+
+    // Build standard secure SSL connection string for Supabase
+    const connectionString = `postgres://${user}:${encodeURIComponent(dbPassword)}@${host}:${port}/${database}?sslmode=require`;
+
+    const client = new Client({ connectionString });
+    await client.connect();
+
+    console.log("[Setup DB] Connected to Supabase PostgreSQL database successfully.");
+
+    // Read updated schema file
+    const schemaPath = path.join(process.cwd(), "supabase_schema.sql");
+    if (!fs.existsSync(schemaPath)) {
+      await client.end();
+      return res.status(500).json({ error: "schema file not found at " + schemaPath });
+    }
+
+    const sql = fs.readFileSync(schemaPath, "utf8");
+    console.log("[Setup DB] Executing raw SQL migrations script...");
+
+    await client.query(sql);
+    await client.end();
+
+    console.log("[Setup DB] SQL schema migrations executed successfully!");
+    return res.json({ success: true, message: "Tables created and migrations applied successfully!" });
+  } catch (error: any) {
+    console.error("[Setup DB] Error:", error);
+    return res.status(500).json({ 
+      error: "Failed to run migrations on Supabase.", 
+      details: error.message 
+    });
+  }
 });
 
 // Secure server-side endpoint for OpenAI AI chat

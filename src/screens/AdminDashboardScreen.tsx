@@ -4,7 +4,7 @@ import {
   Building, User, Mail, DollarSign, Award, Briefcase, 
   Search, Check, XCircle, Trash2, Shield, Info, Smartphone 
 } from '../components/Icons';
-import { Edit3, Plus, X, MessageSquare, Tag, Camera, Upload, Trash, CheckCircle, RefreshCw } from 'lucide-react';
+import { Edit3, Plus, X, MessageSquare, Tag, Camera, Upload, Trash, CheckCircle, RefreshCw, Lock } from 'lucide-react';
 import { useAppState } from '../services/state';
 import { UserPlan, WithdrawalStatus, UserProfile, WithdrawalRecord, ObdiLead } from '../types';
 import { dbUpsertObdiLead, dbDeleteObdiLead, dbUploadObdiPhoto } from '../services/supabase';
@@ -30,6 +30,44 @@ export const AdminDashboardScreen: React.FC = () => {
   const [leadSearchQuery, setLeadSearchQuery] = useState("");
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>("all");
   const [leadEditForm, setLeadEditForm] = useState<Partial<ObdiLead>>({});
+
+  // DB Migrations state
+  const [dbPassword, setDbPassword] = useState("");
+  const [migrationStatus, setMigrationStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
+  const [migrationError, setMigrationError] = useState("");
+
+  const handleRunMigrations = async () => {
+    if (!dbPassword.trim()) {
+      alert("Please enter your Supabase PostgreSQL database password first!");
+      return;
+    }
+
+    setMigrationStatus("running");
+    setMigrationError("");
+
+    try {
+      const response = await fetch("/api/setup-db", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ dbPassword })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setMigrationStatus("success");
+        alert("Tables created and migrations applied successfully! Your database is now fully prepared.");
+      } else {
+        setMigrationStatus("failed");
+        setMigrationError(data.details || data.error || "An unexpected error occurred during migrations.");
+      }
+    } catch (err: any) {
+      setMigrationStatus("failed");
+      setMigrationError(err.message || "Failed to contact backend server.");
+    }
+  };
 
   // Metrics calculation
   const totalSubscribers = users.filter(u => u.plan === UserPlan.PRO).length;
@@ -207,6 +245,91 @@ export const AdminDashboardScreen: React.FC = () => {
         <span className="text-[10px] bg-green-50 text-green-700 font-black px-2.5 py-1 rounded-full border border-green-100 uppercase tracking-widest font-sans font-mono animate-pulse">
           ● Secure Sync Online
         </span>
+      </View>
+
+      {/* DATABASE SCHEMA SETUP & MIGRATION CARD */}
+      <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-left space-y-4">
+        <div className="flex justify-between items-start flex-wrap gap-4">
+          <div className="space-y-1">
+            <Text className="text-sm font-bold text-white flex items-center gap-2">
+              <Shield className="w-5 h-5 text-amber-500" />
+              <span className="text-white text-sm font-bold">Supabase Database Schema Setup</span>
+            </Text>
+            <Text className="text-[11px] text-slate-400 max-w-2xl leading-relaxed">
+              Execute raw SQL migrations and establish all 13 tables, relationships, triggers, foreign keys, and row-level security (RLS) policies automatically on your connected Supabase cluster (<span className="font-mono text-slate-300">ptpnvrgzdnawvvxrkkid</span>).
+            </Text>
+          </div>
+          {migrationStatus === "success" ? (
+            <span className="text-[9px] bg-emerald-950 text-emerald-400 font-bold px-3 py-1 rounded-full border border-emerald-800 uppercase tracking-widest font-sans">
+              ● Database Synced & Ready
+            </span>
+          ) : (
+            <span className="text-[9px] bg-amber-950/40 text-amber-500 font-bold px-3 py-1 rounded-full border border-amber-900/50 uppercase tracking-widest font-sans">
+              ● Pending Initial Sync
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="flex-1 px-4 py-2 bg-slate-950 border border-slate-800 rounded-2xl flex flex-row items-center gap-2.5">
+            <Lock className="w-4 h-4 text-slate-500" />
+            <input 
+              type="password"
+              placeholder="Enter your Supabase database password..."
+              value={dbPassword}
+              onChange={(e) => setDbPassword(e.target.value)}
+              className="bg-transparent text-xs text-white outline-none w-full border-none p-0"
+              disabled={migrationStatus === "running"}
+            />
+          </div>
+          <button
+            onClick={handleRunMigrations}
+            disabled={migrationStatus === "running"}
+            className={`px-6 py-3 rounded-2xl text-xs font-bold font-sans tracking-wide transition-all uppercase whitespace-nowrap cursor-pointer flex flex-row items-center justify-center gap-2 ${
+              migrationStatus === "running"
+                ? "bg-slate-800 text-slate-500"
+                : migrationStatus === "success"
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-900/20"
+                : "bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-900/20"
+            }`}
+          >
+            {migrationStatus === "running" ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Running migrations...</span>
+              </>
+            ) : migrationStatus === "success" ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span>Re-run migrations</span>
+              </>
+            ) : (
+              <span>Deploy All Tables Now</span>
+            )}
+          </button>
+        </div>
+
+        {migrationStatus === "failed" && (
+          <div className="p-3.5 bg-red-950/30 border border-red-900/50 rounded-2xl text-[11px] text-red-400 font-mono space-y-1">
+            <div className="font-bold flex items-center gap-1.5 text-red-300">
+              <XCircle className="w-4 h-4 text-red-500" />
+              <span>Migration execution failed:</span>
+            </div>
+            <p className="leading-relaxed pl-5 font-mono">{migrationError}</p>
+          </div>
+        )}
+
+        {migrationStatus === "success" && (
+          <div className="p-3.5 bg-emerald-950/30 border border-emerald-900/50 rounded-2xl text-[11px] text-emerald-300 font-sans space-y-1">
+            <div className="font-bold flex items-center gap-1.5 text-emerald-200">
+              <Check className="w-4 h-4 text-emerald-500" />
+              <span>Tables deployed successfully!</span>
+            </div>
+            <p className="leading-relaxed pl-5">
+              All tables, column definitions, relationships, indexes, Row Level Security (RLS) policies, and database triggers have been fully built. You can now operate the system with full remote persistence.
+            </p>
+          </div>
+        )}
       </View>
 
       {/* Grid of four core dynamic KPI indicator widgets */}

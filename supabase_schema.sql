@@ -360,3 +360,41 @@ CREATE POLICY "Users can update their own limits."
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_limits TO anon, authenticated, service_role;
 
+
+-- 13. OBDI LEADS TABLE (Real-time Lead Pipeline)
+CREATE TABLE IF NOT EXISTS public.obdi_leads (
+    id TEXT PRIMARY KEY,
+    business_name TEXT NOT NULL,
+    owner_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    email TEXT,
+    address TEXT NOT NULL,
+    notes TEXT,
+    status TEXT NOT NULL DEFAULT 'new',
+    paid BOOLEAN NOT NULL DEFAULT FALSE,
+    stripe_payment_id TEXT,
+    public_slug TEXT,
+    ai_description TEXT,
+    contact_phone TEXT,
+    specials TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS on obdi_leads
+ALTER TABLE public.obdi_leads ENABLE ROW LEVEL SECURITY;
+
+-- Grant permissions to public, anon, and authenticated roles
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.obdi_leads TO anon, authenticated, service_role;
+
+-- 1. SELECT policy: Allow public select on obdi_leads
+CREATE POLICY "Allow public select on obdi_leads"
+    ON public.obdi_leads FOR SELECT
+    USING (true);
+
+-- 2. INSERT/UPDATE/DELETE policy: Allow authenticated and anonymous users to manage obdi_leads
+CREATE POLICY "Allow management of obdi_leads"
+    ON public.obdi_leads FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+
