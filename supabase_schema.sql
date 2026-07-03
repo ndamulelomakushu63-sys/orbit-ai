@@ -1,8 +1,15 @@
--- ORBIT AI - COMPLETE SUPABASE SCHEMA
--- Paste this script directly into your Supabase SQL Editor to create all required tables,
--- relationships, row-level security (RLS) policies, and storage configuration.
+-- ORBIT AI - IDEMPOTENT SUPABASE SCHEMA MIGRATION
+-- Paste this script directly into your Supabase SQL Editor, or run it via the Admin Dashboard.
+-- It is designed to be 100% idempotent (safe to run multiple times), preserves all existing user data,
+-- avoids duplicate policy errors, and establishes all tables, indexes, and triggers.
 
--- 1. PROFILES TABLE (linked to Supabase auth.users)
+-- Ensure schema permissions are granted
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
+-- ==========================================
+-- 1. PROFILES TABLE & AUTH TRIGGER
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
     name TEXT NOT NULL,
@@ -30,20 +37,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Enable RLS on Profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Profiles Policies
+-- Profiles Policies (Drop first to avoid duplicate policy errors)
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
 CREATE POLICY "Public profiles are viewable by everyone." 
     ON public.profiles FOR SELECT 
     USING (true);
 
+DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
 CREATE POLICY "Users can insert their own profile." 
     ON public.profiles FOR INSERT 
     WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
 CREATE POLICY "Users can update their own profile." 
     ON public.profiles FOR UPDATE 
     USING (auth.uid() = id);
 
--- Trigger to automatically create a profile for new auth users
+-- Trigger function to automatically create a profile for new auth users
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -68,7 +78,10 @@ CREATE TRIGGER on_auth_user_created
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 
+-- ==========================================
 -- 2. SUBSCRIPTIONS TABLE
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.subscriptions (
     id TEXT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -81,16 +94,21 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
 
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own subscriptions." ON public.subscriptions;
 CREATE POLICY "Users can view their own subscriptions."
     ON public.subscriptions FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Service/Admin can insert/update subscriptions." ON public.subscriptions;
 CREATE POLICY "Service/Admin can insert/update subscriptions."
     ON public.subscriptions FOR ALL
     USING (true);
 
 
+-- ==========================================
 -- 3. CONVERSATIONS TABLE
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.conversations (
     id TEXT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -101,16 +119,21 @@ CREATE TABLE IF NOT EXISTS public.conversations (
 
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own conversations." ON public.conversations;
 CREATE POLICY "Users can view their own conversations."
     ON public.conversations FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can manage their own conversations." ON public.conversations;
 CREATE POLICY "Users can manage their own conversations."
     ON public.conversations FOR ALL
     USING (auth.uid() = user_id);
 
 
+-- ==========================================
 -- 4. CHAT_MESSAGES TABLE
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.chat_messages (
     id TEXT PRIMARY KEY,
     conversation_id TEXT REFERENCES public.conversations(id) ON DELETE CASCADE,
@@ -122,6 +145,7 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
 
 ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view messages of their conversations." ON public.chat_messages;
 CREATE POLICY "Users can view messages of their conversations."
     ON public.chat_messages FOR SELECT
     USING (
@@ -132,6 +156,7 @@ CREATE POLICY "Users can view messages of their conversations."
         )
     );
 
+DROP POLICY IF EXISTS "Users can manage messages in their own conversations." ON public.chat_messages;
 CREATE POLICY "Users can manage messages in their own conversations."
     ON public.chat_messages FOR ALL
     USING (
@@ -143,7 +168,10 @@ CREATE POLICY "Users can manage messages in their own conversations."
     );
 
 
+-- ==========================================
 -- 5. REFERRALS TABLE
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.referrals (
     id TEXT PRIMARY KEY,
     referrer_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -156,16 +184,21 @@ CREATE TABLE IF NOT EXISTS public.referrals (
 
 ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view referrals they generated." ON public.referrals;
 CREATE POLICY "Users can view referrals they generated."
     ON public.referrals FOR SELECT
     USING (auth.uid() = referrer_id);
 
+DROP POLICY IF EXISTS "Users can create/update referrals." ON public.referrals;
 CREATE POLICY "Users can create/update referrals."
     ON public.referrals FOR ALL
     USING (true);
 
 
+-- ==========================================
 -- 6. WITHDRAWALS TABLE
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.withdrawals (
     id TEXT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -182,23 +215,28 @@ CREATE TABLE IF NOT EXISTS public.withdrawals (
 
 ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own withdrawals." ON public.withdrawals;
 CREATE POLICY "Users can view their own withdrawals."
     ON public.withdrawals FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can request withdrawals." ON public.withdrawals;
 CREATE POLICY "Users can request withdrawals."
     ON public.withdrawals FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admin can update withdrawals." ON public.withdrawals;
 CREATE POLICY "Admin can update withdrawals."
     ON public.withdrawals FOR ALL
     USING (true);
 
 
+-- ==========================================
 -- 7. BUSINESSES TABLE (Directory Listings)
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.businesses (
     id TEXT PRIMARY KEY,
-    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     owner_name TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -217,6 +255,20 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Idempotent helper to add user_id relation column if not exists
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'user_id'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
 ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
 
 -- Grant permissions to public, anon, and authenticated roles to ensure PostgreSQL doesn't deny access
@@ -232,24 +284,24 @@ DROP POLICY IF EXISTS "Allow authenticated update" ON public.businesses;
 -- 1. SELECT policy: Allow everyone to read business listings
 CREATE POLICY "Allow public select"
     ON public.businesses FOR SELECT
-    TO public
     USING (true);
 
--- 2. INSERT policy: Allow authenticated users to submit new business registrations/listings
+-- 2. INSERT policy: Allow authenticated and anonymous users to submit new business registrations/listings
 CREATE POLICY "Allow authenticated insert"
     ON public.businesses FOR INSERT
-    TO authenticated, anon
     WITH CHECK (true);
 
 -- 3. UPDATE policy: Allow authenticated users to manage their own listings (by user_id)
 CREATE POLICY "Allow authenticated update"
     ON public.businesses FOR UPDATE
-    TO authenticated
     USING (auth.uid() = user_id OR user_id IS NULL)
     WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
 
 
+-- ==========================================
 -- 8. BUSINESS_REGISTRATIONS TABLE (Applications)
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.business_registrations (
     id TEXT PRIMARY KEY,
     business_name TEXT NOT NULL,
@@ -270,20 +322,26 @@ CREATE TABLE IF NOT EXISTS public.business_registrations (
 
 ALTER TABLE public.business_registrations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Public and users can view registrations." ON public.business_registrations;
 CREATE POLICY "Public and users can view registrations."
     ON public.business_registrations FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Users can submit registrations." ON public.business_registrations;
 CREATE POLICY "Users can submit registrations."
     ON public.business_registrations FOR INSERT
     WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Admin/Owners can update registrations." ON public.business_registrations;
 CREATE POLICY "Admin/Owners can update registrations."
     ON public.business_registrations FOR ALL
     USING (true);
 
 
+-- ==========================================
 -- 9. NOTIFICATIONS TABLE
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.notifications (
     id TEXT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -296,16 +354,21 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own notifications." ON public.notifications;
 CREATE POLICY "Users can view their own notifications."
     ON public.notifications FOR SELECT
     USING (auth.uid() = user_id OR user_id IS NULL);
 
+DROP POLICY IF EXISTS "System can manage notifications." ON public.notifications;
 CREATE POLICY "System can manage notifications."
     ON public.notifications FOR ALL
     USING (true);
 
 
+-- ==========================================
 -- 10. SUPPORT_TICKETS TABLE
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.support_tickets (
     id TEXT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -318,26 +381,26 @@ CREATE TABLE IF NOT EXISTS public.support_tickets (
 
 ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own support tickets." ON public.support_tickets;
 CREATE POLICY "Users can view their own support tickets."
     ON public.support_tickets FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can submit support tickets." ON public.support_tickets;
 CREATE POLICY "Users can submit support tickets."
     ON public.support_tickets FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admin/Support can update tickets." ON public.support_tickets;
 CREATE POLICY "Admin/Support can update tickets."
     ON public.support_tickets FOR ALL
     USING (true);
 
 
--- 11. STORAGE BUCKETS FOR PHOTOS & ASSETS
--- Note: Create a public storage bucket named 'business-photos' in your Supabase Dashboard.
--- You can configure policy for public access using SQL or UI:
--- For example, to allow any user to upload files into the business-photos bucket:
--- INSERT INTO storage.buckets (id, name, public) VALUES ('business-photos', 'business-photos', true) ON CONFLICT (id) DO NOTHING;
+-- ==========================================
+-- 11. USER_LIMITS TABLE
+-- ==========================================
 
--- 12. USER_LIMITS TABLE
 CREATE TABLE IF NOT EXISTS public.user_limits (
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
     messages_used INT NOT NULL DEFAULT 0,
@@ -347,14 +410,17 @@ CREATE TABLE IF NOT EXISTS public.user_limits (
 
 ALTER TABLE public.user_limits ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own limits." ON public.user_limits;
 CREATE POLICY "Users can view their own limits."
     ON public.user_limits FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own limits." ON public.user_limits;
 CREATE POLICY "Users can insert their own limits."
     ON public.user_limits FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own limits." ON public.user_limits;
 CREATE POLICY "Users can update their own limits."
     ON public.user_limits FOR UPDATE
     USING (auth.uid() = user_id);
@@ -362,7 +428,10 @@ CREATE POLICY "Users can update their own limits."
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_limits TO anon, authenticated, service_role;
 
 
--- 13. OBDI LEADS TABLE (Real-time Lead Pipeline)
+-- ==========================================
+-- 12. OBDI LEADS TABLE (Real-time Lead Pipeline)
+-- ==========================================
+
 CREATE TABLE IF NOT EXISTS public.obdi_leads (
     id TEXT PRIMARY KEY,
     business_name TEXT NOT NULL,
@@ -388,18 +457,23 @@ ALTER TABLE public.obdi_leads ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.obdi_leads TO anon, authenticated, service_role;
 
 -- 1. SELECT policy: Allow public select on obdi_leads
+DROP POLICY IF EXISTS "Allow public select on obdi_leads" ON public.obdi_leads;
 CREATE POLICY "Allow public select on obdi_leads"
     ON public.obdi_leads FOR SELECT
     USING (true);
 
 -- 2. INSERT/UPDATE/DELETE policy: Allow authenticated and anonymous users to manage obdi_leads
+DROP POLICY IF EXISTS "Allow management of obdi_leads" ON public.obdi_leads;
 CREATE POLICY "Allow management of obdi_leads"
     ON public.obdi_leads FOR ALL
     USING (true)
     WITH CHECK (true);
 
 
--- 14. PERFORMANCE INDEXES
+-- ==========================================
+-- 13. PERFORMANCE INDEXES
+-- ==========================================
+
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_referral_code ON public.profiles(referral_code);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON public.subscriptions(user_id);
@@ -412,5 +486,5 @@ CREATE INDEX IF NOT EXISTS idx_businesses_user_id ON public.businesses(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON public.support_tickets(user_id);
 
-
-
+-- Grants summary confirmation
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
