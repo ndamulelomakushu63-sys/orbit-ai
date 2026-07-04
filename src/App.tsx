@@ -297,15 +297,13 @@ export default function TabsLayout() {
               <span>Mobile Companion</span>
             </button>
             
-            <a 
-              href="/admin"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-2 text-slate-450 hover:text-slate-900 hover:bg-slate-50/80 cursor-pointer"
+            <button 
+              onClick={() => setActiveTab("admin")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-2 cursor-pointer ${activeTab === 'admin' ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/50' : 'text-slate-450 hover:text-slate-900'}`}
             >
               <Shield className="w-4 h-4 text-blue-600" />
               <span>Admin Panel</span>
-            </a>
+            </button>
           </div>
 
           <a 
