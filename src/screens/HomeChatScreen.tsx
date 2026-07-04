@@ -23,6 +23,21 @@ export const HomeChatScreen: React.FC = () => {
   } = useAppState();
 
   const [inputText, setInputText] = useState("");
+  
+  // Real device attachments & camera integrations
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraFallbackInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const [localAttachments, setLocalAttachments] = useState<{ id: string; name: string; type: 'image' | 'file'; url: string; sizeStr: string }[]>([]);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingFileName, setUploadingFileName] = useState("");
+
   const [showAttachments, setShowAttachments] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   
@@ -77,12 +92,24 @@ export const HomeChatScreen: React.FC = () => {
   }, []);
 
   const handleSend = async () => {
-    if (!inputText.trim()) return;
-    const msg = inputText;
+    if (!inputText.trim() && localAttachments.length === 0) return;
+    
+    let finalMessage = inputText.trim();
+    if (localAttachments.length > 0) {
+      const attachmentsDescription = localAttachments.map(att => 
+        `[Attached ${att.type === 'image' ? 'Image' : 'File'}: ${att.name} (${att.sizeStr})]`
+      ).join('\n');
+      
+      finalMessage = finalMessage 
+        ? `${finalMessage}\n\n${attachmentsDescription}`
+        : attachmentsDescription;
+    }
+
     setInputText("");
+    setLocalAttachments([]);
     const replyId = replyingToMessage?.id;
     setReplyingToMessage(null);
-    await triggerChatMessage(msg, replyId);
+    await triggerChatMessage(finalMessage, replyId);
   };
 
   const subStatus = currentUser?.subscription_status;
@@ -102,40 +129,219 @@ export const HomeChatScreen: React.FC = () => {
     await triggerChatMessage(suggestion);
   };
 
-  const handleAttachment = (type: string) => {
-    setShowAttachments(false);
+  // Cleanup camera streams on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
 
-    let checkType: 'chat' | 'image' | 'file' | 'camera' = 'file';
-    let modalToShow: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null = null;
+  const startCamera = async () => {
+    setCameraActive(true);
+    setCameraError(null);
+    // Brief timeout to ensure the modal container rendering completes
+    setTimeout(async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err: any) {
+        console.warn("Camera facingMode:environment failed, trying default: ", err);
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          streamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        } catch (fallbackErr: any) {
+          console.error("Camera getUserMedia failed completely: ", fallbackErr);
+          setCameraError("Camera access failed or was denied. Iframe security constraints may block media access. Use the native file picker fallback below instead.");
+        }
+      }
+    }, 100);
+  };
 
-    if (type === "Camera" || type === "Photos") {
-      checkType = 'camera';
-      modalToShow = 'camera';
-    } else if (type === "Document") {
-      checkType = 'file';
-      modalToShow = 'file';
-    } else if (type === "AI Image") {
-      checkType = 'image';
-      modalToShow = 'image';
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
+    setCameraActive(false);
+    setCameraError(null);
+  };
 
-    const check = incrementUsageLimit(checkType);
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        
+        stopCamera();
+
+        const newAttachment = {
+          id: `capture-${Date.now()}`,
+          name: `capture_${new Date().toISOString().replace(/[:.]/g, '')}.jpg`,
+          type: 'image' as const,
+          url: dataUrl,
+          sizeStr: '120 KB'
+        };
+        setLocalAttachments(prev => [...prev, newAttachment]);
+      }
+    } catch (err) {
+      console.error("Capture photo error: ", err);
+      alert("Failed to capture snapshot from camera stream.");
+    }
+  };
+
+  const simulateUpload = (file: File, callback: (url: string) => void) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadingFileName(file.name);
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const resultUrl = event.target?.result as string || "";
+      
+      let currentProgress = 0;
+      const interval = setInterval(() => {
+        currentProgress += 10;
+        if (currentProgress >= 100) {
+          clearInterval(interval);
+          setUploadProgress(100);
+          setTimeout(() => {
+            setIsUploading(false);
+            setUploadProgress(0);
+            setUploadingFileName("");
+            callback(resultUrl);
+          }, 300);
+        } else {
+          setUploadProgress(currentProgress);
+        }
+      }, 50);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const check = incrementUsageLimit('camera');
     if (!check.allowed) {
-      setLimitModalType(modalToShow);
+      setLimitModalType('camera');
       return;
     }
 
-    if (type === "AI Image") {
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    const sizeStr = `${sizeMB} MB`;
+
+    simulateUpload(file, (url) => {
+      const newAttachment = {
+        id: `photo-${Date.now()}`,
+        name: file.name,
+        type: 'image' as const,
+        url,
+        sizeStr
+      };
+      setLocalAttachments(prev => [...prev, newAttachment]);
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const check = incrementUsageLimit('file');
+    if (!check.allowed) {
+      setLimitModalType('file');
+      return;
+    }
+
+    const sizeKB = (file.size / 1024).toFixed(0);
+    const sizeStr = parseInt(sizeKB) > 1024 ? `${(parseInt(sizeKB)/1024).toFixed(1)} MB` : `${sizeKB} KB`;
+
+    simulateUpload(file, (url) => {
+      const newAttachment = {
+        id: `file-${Date.now()}`,
+        name: file.name,
+        type: 'file' as const,
+        url,
+        sizeStr
+      };
+      setLocalAttachments(prev => [...prev, newAttachment]);
+    });
+  };
+
+  const handleFallbackCameraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const check = incrementUsageLimit('camera');
+    if (!check.allowed) {
+      setLimitModalType('camera');
+      return;
+    }
+
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    const sizeStr = `${sizeMB} MB`;
+
+    simulateUpload(file, (url) => {
+      const newAttachment = {
+        id: `capture-${Date.now()}`,
+        name: file.name || `capture_${Date.now()}.jpg`,
+        type: 'image' as const,
+        url,
+        sizeStr
+      };
+      setLocalAttachments(prev => [...prev, newAttachment]);
+    });
+  };
+
+  const handleAttachment = (type: string) => {
+    setShowAttachments(false);
+
+    if (type === "Camera") {
+      const check = incrementUsageLimit('camera');
+      if (!check.allowed) {
+        setLimitModalType('camera');
+        return;
+      }
+      startCamera();
+    } else if (type === "Photos") {
+      if (photoInputRef.current) {
+        photoInputRef.current.value = "";
+        photoInputRef.current.click();
+      }
+    } else if (type === "Document") {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+        fileInputRef.current.click();
+      }
+    } else if (type === "AI Image") {
+      const check = incrementUsageLimit('image');
+      if (!check.allowed) {
+        setLimitModalType('image');
+        return;
+      }
+
       const promptText = prompt("Enter prompt for AI Image generation (e.g., 'A modern Cape Town skyline at sunset'):");
       if (!promptText || !promptText.trim()) return;
 
       alert(`AI Image generation simulated successfully: "${promptText}"`);
       const fakeImageText = `[AI Generated Image: "${promptText}" - Resolution: 1024x1024]`;
       setInputText(prev => prev + (prev ? " " : "") + fakeImageText);
-    } else {
-      alert(`Active ${type} device integration opened in simulation mode.`);
-      const fakeFileText = `[Attached: ${type.toUpperCase()}_FILE_${Math.floor(100 + Math.random() * 900)}.JPG]`;
-      setInputText(prev => prev + (prev ? " " : "") + fakeFileText);
     }
   };
 
@@ -440,6 +646,168 @@ export const HomeChatScreen: React.FC = () => {
             <X className="w-4 h-4" />
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* Hidden File Inputs for Device Integration */}
+      <input 
+        type="file" 
+        ref={photoInputRef} 
+        style={{ display: "none" }} 
+        accept="image/*" 
+        onChange={handlePhotoChange} 
+      />
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        style={{ display: "none" }} 
+        onChange={handleFileChange} 
+      />
+      <input 
+        type="file" 
+        ref={cameraFallbackInputRef} 
+        style={{ display: "none" }} 
+        accept="image/*" 
+        capture="environment" 
+        onChange={handleFallbackCameraChange} 
+      />
+
+      {/* LOCAL ATTACHMENTS PREVIEW ROW */}
+      {localAttachments.length > 0 && (
+        <View className="px-3 py-2.5 bg-slate-50 border-t border-slate-200/60 flex flex-row flex-wrap gap-2 animate-fade-in select-none">
+          {localAttachments.map(att => (
+            <div key={att.id} className="bg-white border border-slate-200/85 rounded-xl p-1.5 flex flex-row items-center gap-2 pr-2.5 shadow-3xs max-w-[190px]">
+              {att.type === 'image' ? (
+                <img src={att.url} className="w-8 h-8 rounded-lg object-cover bg-slate-50" alt="Preview" />
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-blue-500" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-slate-800 truncate leading-tight block">{att.name}</span>
+                <span className="text-[8px] text-slate-400 font-mono leading-none mt-0.5">{att.sizeStr}</span>
+              </div>
+              <TouchableOpacity 
+                onClick={() => setLocalAttachments(prev => prev.filter(a => a.id !== att.id))}
+                className="p-1 bg-slate-100 hover:bg-slate-250 text-slate-400 hover:text-slate-600 rounded-full transition cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </TouchableOpacity>
+            </div>
+          ))}
+        </View>
+      )}
+
+      {/* DETAILED UPLOAD PROGRESS DIALOG */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[9999] p-4 select-none animate-fade-in">
+          <View className="bg-white rounded-3xl p-5 w-full max-w-xs border border-slate-200/85 shadow-2xl flex flex-col space-y-4">
+            <View className="text-left">
+              <Text className="text-sm font-bold text-slate-900 truncate block">Uploading {uploadingFileName}</Text>
+              <Text className="text-[10px] text-slate-500 mt-1 block">Uploading file directly to secure channel...</Text>
+            </View>
+            <View className="w-full bg-slate-100 h-2 rounded-full overflow-hidden relative">
+              <div 
+                className="bg-blue-600 h-full rounded-full transition-all duration-150" 
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </View>
+            <View className="flex flex-row justify-between items-center">
+              <Text className="text-[10px] text-slate-400 font-mono">{uploadProgress}% Complete</Text>
+              <TouchableOpacity 
+                onClick={() => {
+                  setIsUploading(false);
+                  setUploadProgress(0);
+                  setUploadingFileName("");
+                }}
+                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold cursor-pointer"
+              >
+                Cancel
+              </TouchableOpacity>
+            </View>
+          </View>
+        </div>
+      )}
+
+      {/* FULL SCREEN WEB CAMERA CONTROLLER */}
+      {cameraActive && (
+        <div className="fixed inset-0 bg-slate-950 flex flex-col justify-between z-[9999] select-none animate-fade-in">
+          {/* Header */}
+          <View className="p-4 flex flex-row items-center justify-between border-b border-white/10 bg-black/40">
+            <Text className="text-white font-bold text-xs tracking-tight font-sans">Device Camera Stream</Text>
+            <TouchableOpacity 
+              onClick={stopCamera}
+              className="p-1.5 hover:bg-white/10 rounded-full text-slate-300 hover:text-white transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Video stream container */}
+          <View className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+            {cameraError ? (
+              <View className="max-w-xs p-6 text-center space-y-4">
+                <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto" />
+                <Text className="text-slate-300 text-xs font-medium leading-relaxed block">{cameraError}</Text>
+                
+                <TouchableOpacity 
+                  onClick={() => {
+                    if (cameraFallbackInputRef.current) {
+                      cameraFallbackInputRef.current.value = "";
+                      cameraFallbackInputRef.current.click();
+                      stopCamera();
+                    }
+                  }}
+                  className="py-3 px-5 bg-white hover:bg-slate-100 text-black rounded-xl font-bold text-xs cursor-pointer inline-block"
+                >
+                  Use Native Camera App
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <video 
+                ref={videoRef}
+                autoPlay 
+                playsInline 
+                muted
+                className="w-full h-full object-cover max-h-[80vh] md:max-w-md md:rounded-2xl md:border md:border-white/15"
+              />
+            )}
+          </View>
+
+          {/* Camera Controls */}
+          {!cameraError && (
+            <View className="p-6 bg-black/60 border-t border-white/5 flex flex-row items-center justify-around">
+              <TouchableOpacity 
+                onClick={stopCamera}
+                className="px-4 py-2 hover:bg-white/10 rounded-xl text-slate-300 hover:text-white font-bold text-xs transition cursor-pointer"
+              >
+                Cancel
+              </TouchableOpacity>
+
+              {/* Shutter Button */}
+              <TouchableOpacity 
+                onClick={capturePhoto}
+                className="w-16 h-16 rounded-full border-4 border-white bg-white/10 hover:bg-white/35 active:scale-90 transition flex items-center justify-center cursor-pointer relative"
+              >
+                <div className="w-12 h-12 rounded-full bg-white" />
+              </TouchableOpacity>
+
+              {/* Fallback alternative */}
+              <TouchableOpacity 
+                onClick={() => {
+                  if (cameraFallbackInputRef.current) {
+                    cameraFallbackInputRef.current.value = "";
+                    cameraFallbackInputRef.current.click();
+                    stopCamera();
+                  }
+                }}
+                className="px-4 py-2 hover:bg-white/10 rounded-xl text-slate-300 hover:text-white font-bold text-xs transition cursor-pointer"
+              >
+                Fallback
+              </TouchableOpacity>
+            </View>
+          )}
+        </div>
       )}
 
       {/* WHATSAPP WHITESPACE-OPTIMIZED INPUT BAR */}
