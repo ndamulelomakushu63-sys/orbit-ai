@@ -358,19 +358,6 @@ export default function TabsLayout() {
           </button>
         </div>
       </footer>
-
-      {/* MOBILE ONLY FLOATING DOWNLOAD PROJECT ZIP BUTTON */}
-      <div className="md:hidden fixed bottom-6 right-6 z-50">
-        <a 
-          href="/download-project-zip"
-          download="orbit-ai-project.zip"
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-full shadow-2xl flex items-center justify-center border border-blue-400 transition-all active:scale-95"
-          title="Download Project ZIP"
-        >
-          <Download className="w-6 h-6" />
-        </a>
-      </div>
-
     </div>
   );
 }
