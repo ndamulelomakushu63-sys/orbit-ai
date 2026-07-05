@@ -102,15 +102,15 @@ service cloud.firestore {
     code: `const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const cors = require("cors")({ origin: true });
-const { GoogleGenAI } = require("@google/genai");
+const OpenAI = require("openai");
 
 admin.initializeApp();
 
 /**
- * 1. SECURE GEMINI AI PROXY
- * This Cloud Function securely communicates with Gemini API to keep the API key fully hidden.
+ * 1. SECURE OPENAI AI PROXY
+ * This Cloud Function securely communicates with OpenAI API to keep the API key fully hidden.
  */
-exports.askGemini = functions.https.onRequest((req, res) => {
+exports.askOpenAI = functions.https.onRequest((req, res) => {
   return cors(req, res, async () => {
     try {
       if (req.method !== "POST") {
@@ -147,40 +147,39 @@ exports.askGemini = functions.https.onRequest((req, res) => {
         // e.g., restrict to 10 queries, or prompt for subscription
       }
 
-      // 3. Initialize secure server-side Google GenAI with runtime secret env key
-      const geminiApiKey = process.env.GEMINI_API_KEY || functions.config().gemini.key;
-      const ai = new GoogleGenAI({
-        apiKey: geminiApiKey,
-        httpOptions: {
-          headers: { 'User-Agent': 'aistudio-build' }
-        }
+      // 3. Initialize secure server-side OpenAI with runtime secret env key
+      const openaiApiKey = process.env.OPENAI_API_KEY || functions.config().openai.key;
+      const openai = new OpenAI({
+        apiKey: openaiApiKey,
       });
 
       // 4. Clean conversation formats to match API structure
-      const contents = [];
+      const messages = [{
+        role: "system",
+        content: "You are Orbit AI, an intelligent, modern and premium virtual mobile assistant. Help users clarify their thoughts, code, drafts, and planning. Keep output mobile-friendly."
+      }];
+
       if (history && Array.isArray(history)) {
         history.slice(-10).forEach(msg => {
-          contents.push({
-            role: msg.role === "user" ? "user" : "model",
-            parts: [{ text: msg.message || msg.text }]
+          messages.push({
+            role: msg.role === "user" ? "user" : "assistant",
+            content: msg.message || msg.text || ""
           });
         });
       }
-      contents.push({
+      messages.push({
         role: "user",
-        parts: [{ text: message }]
+        content: message
       });
 
-      // 5. Query model or stream back
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: contents,
-        config: {
-          systemInstruction: "You are Orbit AI, an intelligent, modern and premium virtual mobile assistant. Help users clarify their thoughts, code, drafts, and planning. Keep output mobile-friendly."
-        }
+      // 5. Query model
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: messages,
+        temperature: 0.7
       });
 
-      const reply = response.text || "No answer generated.";
+      const reply = response.choices[0]?.message?.content || "No answer generated.";
 
       // 6. Log dynamic metric for Analytics monitoring
       await admin.firestore().collection("messages").add({
@@ -192,7 +191,7 @@ exports.askGemini = functions.https.onRequest((req, res) => {
 
       return res.status(200).json({ reply });
     } catch (err) {
-      console.error("Cloud function askGemini error: ", err);
+      console.error("Cloud function askOpenAI error: ", err);
       return res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
   });
@@ -342,8 +341,8 @@ export default function ChatScreen() {
       // Retrieve JWT user token for authentication verification
       const userToken = await user.getIdToken();
       
-      // Call Cloud function containing the secure Gemini request
-      const response = await fetch("https://us-central1-orbit-ai-12345.cloudfunctions.net/askGemini", {
+      // Call Cloud function containing the secure OpenAI request
+      const response = await fetch("https://us-central1-orbit-ai-12345.cloudfunctions.net/askOpenAI", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -720,14 +719,14 @@ npm i expo expo-router react-native-gesture-handler @react-native-async-storage/
 \`\`\`
 
 ## 2. Firebase Cloud Functions Deploy
-To safely query Gemini API, deploy the Cloud Function code:
+To safely query OpenAI API, deploy the Cloud Function code:
 \`\`\`bash
 cd functions
 firebase init functions
-# Install Google GenAI on function env
-npm install @google/genai
-# Set your secure Gemini API key config
-firebase functions:config:set gemini.key="YOUR_OFFICIAL_GEMINI_API_KEY_HERE"
+# Install OpenAI on function env
+npm install openai
+# Set your secure OpenAI API key config
+firebase functions:config:set openai.key="YOUR_OFFICIAL_OPENAI_API_KEY_HERE"
 firebase deploy --only functions
 \`\`\`
 

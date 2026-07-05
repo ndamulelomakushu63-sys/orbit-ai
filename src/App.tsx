@@ -345,7 +345,7 @@ export default function TabsLayout() {
 
       {/* FOOTER METRICS AND CONSOLE HARD RESET */}
       <footer className="hidden md:block border-t border-slate-200 bg-white py-8 text-center text-xs text-slate-400 mt-20 space-y-4">
-        <p className="font-medium">&copy; 2026 Orbit AI - Compact Mobile AI Companion. Powered by Google Gemini AI.</p>
+        <p className="font-medium">&copy; 2026 Orbit AI - Compact Mobile AI Companion. Powered by OpenAI.</p>
         <p className="text-[11px] text-slate-350">Designed by Ndamulelo Makushu using premium React Native and Firebase modular components.</p>
         
         <div className="pt-2">
