@@ -10,6 +10,7 @@
     "lint": "echo 'no-op lint'"
   },
   "dependencies": {
+    "@google/genai": "^2.10.0",
     "@supabase/supabase-js": "^2.43.4",
     "@types/pg": "^8.20.0",
     "adm-zip": "^0.5.12",

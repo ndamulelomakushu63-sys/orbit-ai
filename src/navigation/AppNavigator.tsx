@@ -40,6 +40,14 @@ export const AppNavigator: React.FC = () => {
     case "profile":
       return <ProfileScreen />;
     case "task-mode":
+      if (!isPro) {
+        return (
+          <PremiumLockScreen 
+            title="Premium Feature" 
+            description="This feature is available only to Orbit Pro members." 
+          />
+        );
+      }
       return <TaskModeScreen />;
     case "upgrade":
       return <SubscriptionScreen />;
