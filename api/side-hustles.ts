@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -20,20 +20,15 @@ export default async function handler(req: any, res: any) {
       laptopAccess 
     } = req.body || {};
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
       return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not defined. Please check your Vercel Environment Variables." 
+        error: "OPENAI_API_KEY is not defined. Please check your Vercel Environment Variables." 
       });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey: geminiApiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
     });
 
     const prompt = `Generate exactly 5 realistic, educational, legal side hustle ideas matching the following user profile:
@@ -66,19 +61,25 @@ Format the response as a valid JSON object containing an "ideas" array of side h
 - challenges: (string) Key realistic challenges or hurdles they will face
 - resources: (string) Helpful free tools, websites, or learning materials`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You MUST return a JSON object with an 'ideas' array containing exactly 5 elements matching the requested keys.",
-        responseMimeType: "application/json",
-        temperature: 0.7
-      }
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You MUST return a JSON object with an 'ideas' array containing exactly 5 elements matching the requested keys."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7
     });
 
-    const resultText = response.text;
+    const resultText = response.choices[0]?.message?.content;
     if (!resultText) {
-      throw new Error("No response text received from Gemini");
+      throw new Error("No response text received from OpenAI");
     }
 
     const parsedData = JSON.parse(resultText.trim());

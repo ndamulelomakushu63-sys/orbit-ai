@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -20,20 +20,15 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Business Idea and Industry are required" });
     }
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
       return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not defined. Please check your Vercel Environment Variables." 
+        error: "OPENAI_API_KEY is not defined. Please check your Vercel Environment Variables." 
       });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey: geminiApiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
     });
 
     const prompt = `Formulate a comprehensive, educational business concept and 30-day launch plan based on the following questionnaire details:
@@ -79,19 +74,25 @@ Format the response as a valid JSON object matching this schema structure:
   "riskAssessment": "..."
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested.",
-        responseMimeType: "application/json",
-        temperature: 0.7
-      }
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7
     });
 
-    const resultText = response.text;
+    const resultText = response.choices[0]?.message?.content;
     if (!resultText) {
-      throw new Error("No response text received from Gemini");
+      throw new Error("No response text received from OpenAI");
     }
 
     const plan = JSON.parse(resultText.trim());

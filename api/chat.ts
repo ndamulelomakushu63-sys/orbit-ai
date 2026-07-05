@@ -1,6 +1,6 @@
 // Vercel Serverless Function for Orbit AI Chat
 import { supabase } from '../src/services/supabase';
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 
 export default async function handler(req: any, res: any) {
   // Allow only POST requests
@@ -99,21 +99,16 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables on Vercel.");
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      console.warn("WARNING: OPENAI_API_KEY is not defined in environment variables on Vercel.");
       return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not defined in Vercel environment variables." 
+        error: "OPENAI_API_KEY is not defined inside Vercel environment variables." 
       });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey: geminiApiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
     });
 
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";
@@ -121,42 +116,41 @@ export default async function handler(req: any, res: any) {
 
     const systemInstruction = basePrompt + identityRule;
 
-    const contents: any[] = [];
+    const messages: any[] = [
+      { role: "system", content: systemInstruction }
+    ];
 
     if (history && Array.isArray(history)) {
       history.forEach((msg: { role: string; text: string }) => {
         let apiRole = "user";
         if (msg.role === "model" || msg.role === "assistant") {
-          apiRole = "model";
+          apiRole = "assistant";
         }
-        contents.push({
+        messages.push({
           role: apiRole,
-          parts: [{ text: msg.text || "" }]
+          content: msg.text || ""
         });
       });
     }
 
     // Add current user message if not already the last one
-    const lastMessage = contents[contents.length - 1];
-    if (!lastMessage || lastMessage.role !== "user" || (lastMessage.parts && lastMessage.parts[0]?.text !== message)) {
-      contents.push({
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== "user" || lastMessage.content !== message) {
+      messages.push({
         role: "user",
-        parts: [{ text: message }]
+        content: message
       });
     }
 
-    console.log("Calling Gemini 3.5 Flash API on Vercel...");
+    console.log("Calling OpenAI GPT-4o-mini API on Vercel...");
     
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: contents,
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.7
-      }
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: messages,
+      temperature: 0.7
     });
 
-    const replyText = response.text || "I was unable to formulate a response. Please try again.";
+    const replyText = response.choices[0]?.message?.content || "I was unable to formulate a response. Please try again.";
 
     // 5. Increment usage count in database if successfully completed
     if (hasUserId && !isPro) {
@@ -174,9 +168,9 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({ reply: replyText });
   } catch (error: any) {
-    console.error("Gemini API Error in Vercel API:", error);
+    console.error("OpenAI API Error in Vercel API:", error);
     return res.status(500).json({ 
-      error: "Failed to query AI assistant. Please check your GEMINI_API_KEY.",
+      error: "Failed to query AI assistant. Please check your OPENAI_API_KEY.",
       details: error.message 
     });
   }

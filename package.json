@@ -10,7 +10,6 @@
     "lint": "echo 'no-op lint'"
   },
   "dependencies": {
-    "@google/genai": "^2.10.0",
     "@supabase/supabase-js": "^2.43.4",
     "@types/pg": "^8.20.0",
     "adm-zip": "^0.5.12",
@@ -20,6 +19,7 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^0.474.0",
     "motion": "^12.23.24",
+    "openai": "^6.45.0",
     "pg": "^8.22.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

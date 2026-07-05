@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -12,20 +12,15 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Task type and inputs are required" });
     }
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
       return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not defined. Please check your Vercel Environment Variables." 
+        error: "OPENAI_API_KEY is not defined. Please check your Vercel Environment Variables." 
       });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey: geminiApiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
     });
 
     let prompt = "";
@@ -129,16 +124,22 @@ CRITICAL RULES:
 
     const basePrompt = "You are the Orbit AI Task Specialist, a highly sophisticated execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You instantly deliver highly structured, beautifully formatted, comprehensive, and complete professional outcomes. You always output cleanly formatted markdown with clear headers and bullet points. Do not use emojis in your response.";
     
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: basePrompt,
-        temperature: 0.5
-      }
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: basePrompt
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.5
     });
 
-    const replyText = response.text || "I was unable to generate a high-quality result. Please try again.";
+    const replyText = response.choices[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.status(200).json({ result: replyText });
   } catch (error: any) {
     console.error("Task Mode Generator Vercel API Error:", error);

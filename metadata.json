@@ -1,6 +1,6 @@
 {
   "name": "Orbit AI",
-  "description": "An affordable AI assistant powered by the Google Gemini API, featuring real-time chat, a referral agent program, subscriptions, and an admin management dashboard.",
+  "description": "An affordable AI assistant powered by the OpenAI API, featuring real-time chat, a referral agent program, subscriptions, and an admin management dashboard.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

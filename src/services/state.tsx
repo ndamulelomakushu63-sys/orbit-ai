@@ -789,7 +789,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const currentAgent = agents.find(a => a.id === activeAgentId);
       const systemPrompt = currentAgent ? currentAgent.systemPrompt : undefined;
 
-      // --- STEP 2: SEND MESSAGE TO GEMINI ---
+      // --- STEP 2: SEND MESSAGE TO OPENAI ---
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -868,7 +868,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         id: errorMsgId,
         messageId: errorMsgId,
         conversationId: activeConversationId,
-        message: `I was unable to retrieve a response from the Gemini server engine. This usually means the API key is either missing or has expired.\n\n### Error Details\n**Reason:** ${reason}\n\n### Troubleshooting Steps\n1. Check the **Settings > Secrets** panel in the top menu of the AI Studio workspace.\n2. Ensure that there is a secret named **GEMINI_API_KEY** with a valid Google Gemini API key.\n3. If running locally, please add \`GEMINI_API_KEY=your_key\` inside your \".env\` file and restart your local dev server.\n4. Ensure you are connected to the internet.`,
+        message: `I was unable to retrieve a response from the OpenAI server engine. This usually means the API key is either missing or has expired.\n\n### Error Details\n**Reason:** ${reason}\n\n### Troubleshooting Steps\n1. Check the **Settings > Secrets** panel in the top menu of the AI Studio workspace.\n2. Ensure that there is a secret named **OPENAI_API_KEY** with a valid OpenAI API key.\n3. If running locally, please add \`OPENAI_API_KEY=your_key\` inside your \".env\" file and restart your local dev server.\n4. Ensure you are connected to the internet.`,
         role: "model",
         timestamp: new Date().toISOString(),
         createdAt: new Date().toISOString()
