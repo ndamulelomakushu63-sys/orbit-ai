@@ -25,6 +25,13 @@ app.get("/robots.txt", (req, res) => {
   res.send("User-agent: *\nDisallow: /");
 });
 
+// Secure debugging endpoint
+app.get("/api/debug-env", (req, res) => {
+  res.json({
+    process_env_keys: Object.keys(process.env)
+  });
+});
+
 // Secure backend Supabase DB setup endpoint
 app.post("/api/setup-db", async (req, res) => {
   try {
