@@ -142,15 +142,45 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    console.log("Calling OpenAI GPT-4o-mini API on Vercel...");
+    console.log("Calling OpenAI GPT-4o-mini API on Vercel via direct fetch...");
     
-    const response = await openai.chat.completions.create({
+    const url = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiApiKey}`
+    };
+    const bodyPayload = JSON.stringify({
       model: "gpt-4o-mini",
       messages: messages,
       temperature: 0.7
     });
 
-    const replyText = response.choices[0]?.message?.content || "I was unable to formulate a response. Please try again.";
+    const openAiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyPayload
+    });
+
+    console.log(`OpenAI API HTTP Status Code: ${openAiResponse.status}`);
+
+    const responseText = await openAiResponse.text();
+    console.log(`OpenAI API Raw Response Body:`, responseText);
+
+    if (!openAiResponse.ok) {
+      console.error(`OpenAI API request failed on Vercel with status ${openAiResponse.status}`);
+      // Return the exact server response to the frontend
+      return res.status(openAiResponse.status).send(responseText);
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseErr: any) {
+      console.error("Failed to parse OpenAI response as JSON:", parseErr);
+      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+    }
+
+    const replyText = responseData.choices?.[0]?.message?.content || "I was unable to formulate a response. Please try again.";
 
     // 5. Increment usage count in database if successfully completed
     if (hasUserId && !isPro) {
@@ -170,26 +200,9 @@ export default async function handler(req: any, res: any) {
   } catch (error: any) {
     console.error("OpenAI API Error in Vercel API (full details):", error);
     
-    // Log full properties for deep diagnostics
-    if (typeof error === 'object' && error !== null) {
-      try {
-        console.error("Stringified OpenAI API Error details:", JSON.stringify(error, null, 2));
-      } catch (jsonErr) {
-        console.error("Could not stringify OpenAI API error:", jsonErr);
-      }
-    }
-
-    // Extract OpenAI specific error payload
-    const openAiErrorObj = error.error || {};
-    const errCode = openAiErrorObj.code || error.code || "unknown";
-    const errMsg = openAiErrorObj.message || error.message || "An unexpected OpenAI error occurred.";
-    const errType = openAiErrorObj.type || error.type || "unknown";
-
     return res.status(500).json({ 
-      error: errMsg,
-      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
-      code: errCode,
-      type: errType
+      error: error.message || "An unexpected error occurred.",
+      details: String(error)
     });
   }
 }

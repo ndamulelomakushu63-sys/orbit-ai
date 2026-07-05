@@ -181,8 +181,13 @@ export const TaskModeScreen: React.FC = () => {
         })
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP error! Status: ${response.status}`);
+      }
+
       const data = await response.json();
-      if (response.ok && data.result) {
+      if (data.result) {
         setResultText(data.result);
         setActiveStep("result");
       } else {

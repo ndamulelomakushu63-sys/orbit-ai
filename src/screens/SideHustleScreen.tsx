@@ -62,8 +62,13 @@ export const SideHustleScreen: React.FC = () => {
         })
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP error! Status: ${response.status}`);
+      }
+
       const data = await response.json();
-      if (response.ok && data.ideas && Array.isArray(data.ideas)) {
+      if (data.ideas && Array.isArray(data.ideas)) {
         setIdeas(data.ideas);
       } else {
         throw new Error(data.error || 'Failed to generate ideas.');

@@ -203,14 +203,45 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    console.log("Calling OpenAI GPT-4o-mini API on server...");
-    const response = await openai.chat.completions.create({
+    console.log("Calling OpenAI GPT-4o-mini API on server via direct fetch...");
+    
+    const url = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiApiKey}`
+    };
+    const bodyPayload = JSON.stringify({
       model: "gpt-4o-mini",
       messages: messages,
       temperature: 0.7
     });
 
-    const replyText = response.choices[0]?.message?.content || "I was unable to formulate a response. Please try again.";
+    const openAiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyPayload
+    });
+
+    console.log(`OpenAI API HTTP Status Code (Express): ${openAiResponse.status}`);
+
+    const responseText = await openAiResponse.text();
+    console.log(`OpenAI API Raw Response Body (Express):`, responseText);
+
+    if (!openAiResponse.ok) {
+      console.error(`OpenAI API request failed on Express server with status ${openAiResponse.status}`);
+      // Return the exact server response to the frontend
+      return res.status(openAiResponse.status).send(responseText);
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseErr: any) {
+      console.error("Failed to parse OpenAI response as JSON on Express server:", parseErr);
+      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+    }
+
+    const replyText = responseData.choices?.[0]?.message?.content || "I was unable to formulate a response. Please try again.";
 
     // 5. Increment usage count in database if successfully completed
     if (hasUserId && !isPro) {
@@ -229,27 +260,9 @@ app.post("/api/chat", async (req, res) => {
     return res.json({ reply: replyText });
   } catch (error: any) {
     console.error("OpenAI API Error in server (full details):", error);
-    
-    // Log full properties for deep diagnostics
-    if (typeof error === 'object' && error !== null) {
-      try {
-        console.error("Stringified OpenAI API Error details:", JSON.stringify(error, null, 2));
-      } catch (jsonErr) {
-        console.error("Could not stringify OpenAI API error:", jsonErr);
-      }
-    }
-
-    // Extract OpenAI specific error payload
-    const openAiErrorObj = error.error || {};
-    const errCode = openAiErrorObj.code || error.code || "unknown";
-    const errMsg = openAiErrorObj.message || error.message || "An unexpected OpenAI error occurred.";
-    const errType = openAiErrorObj.type || error.type || "unknown";
-
     return res.status(500).json({ 
-      error: errMsg,
-      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
-      code: errCode,
-      type: errType
+      error: error.message || "An unexpected error occurred.",
+      details: String(error)
     });
   }
 });
@@ -576,7 +589,14 @@ Format the response as a valid JSON object containing an "ideas" array of side h
 
     console.log("Calling OpenAI for Side Hustles generator on server with inputs:", { country, ageRange, budget });
 
-    const response = await openai.chat.completions.create({
+    console.log("Calling OpenAI Chat Completion API on Express (Side Hustles) via direct fetch...");
+
+    const url = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiApiKey}`
+    };
+    const bodyPayload = JSON.stringify({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -592,7 +612,31 @@ Format the response as a valid JSON object containing an "ideas" array of side h
       temperature: 0.7
     });
 
-    const resultText = response.choices[0]?.message?.content;
+    const openAiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyPayload
+    });
+
+    console.log(`OpenAI Side Hustles API HTTP Status Code (Express): ${openAiResponse.status}`);
+
+    const responseText = await openAiResponse.text();
+    console.log(`OpenAI Side Hustles API Raw Response Body (Express):`, responseText);
+
+    if (!openAiResponse.ok) {
+      console.error(`OpenAI Side Hustles API request failed on Express with status ${openAiResponse.status}`);
+      return res.status(openAiResponse.status).send(responseText);
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseErr: any) {
+      console.error("Failed to parse OpenAI Side Hustles response as JSON on Express:", parseErr);
+      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+    }
+
+    const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
       throw new Error("No response text received from OpenAI");
     }
@@ -601,25 +645,9 @@ Format the response as a valid JSON object containing an "ideas" array of side h
     return res.json({ ideas: parsedData.ideas || [] });
   } catch (error: any) {
     console.error("Side Hustle Generator API Error (full details):", error);
-    
-    if (typeof error === 'object' && error !== null) {
-      try {
-        console.error("Stringified API Error details in server:", JSON.stringify(error, null, 2));
-      } catch (jsonErr) {
-        console.error("Could not stringify API error:", jsonErr);
-      }
-    }
-
-    const openAiErrorObj = error.error || {};
-    const errCode = openAiErrorObj.code || error.code || "unknown";
-    const errMsg = openAiErrorObj.message || error.message || "Failed to generate side hustles. Please check your inputs and try again.";
-    const errType = openAiErrorObj.type || error.type || "unknown";
-
-    return res.status(500).json({ 
-      error: errMsg,
-      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
-      code: errCode,
-      type: errType
+    return res.status(500).json({
+      error: error.message || "An unexpected error occurred.",
+      details: String(error)
     });
   }
 });
@@ -746,7 +774,14 @@ CRITICAL RULES:
 
     const basePrompt = "You are the Orbit AI Task Specialist, a highly sophisticated execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You instantly deliver highly structured, beautifully formatted, comprehensive, and complete professional outcomes. You always output cleanly formatted markdown with clear headers and bullet points. Do not use emojis in your response.";
     
-    const response = await openai.chat.completions.create({
+    console.log("Calling OpenAI Chat Completion API on Express (Task Generator) via direct fetch...");
+
+    const url = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiApiKey}`
+    };
+    const bodyPayload = JSON.stringify({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -761,29 +796,37 @@ CRITICAL RULES:
       temperature: 0.5
     });
 
-    const replyText = response.choices[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
+    const openAiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyPayload
+    });
+
+    console.log(`OpenAI Task Generator API HTTP Status Code (Express): ${openAiResponse.status}`);
+
+    const responseText = await openAiResponse.text();
+    console.log(`OpenAI Task Generator API Raw Response Body (Express):`, responseText);
+
+    if (!openAiResponse.ok) {
+      console.error(`OpenAI Task Generator API request failed on Express with status ${openAiResponse.status}`);
+      return res.status(openAiResponse.status).send(responseText);
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseErr: any) {
+      console.error("Failed to parse OpenAI Task Generator response as JSON on Express:", parseErr);
+      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+    }
+
+    const replyText = responseData.choices?.[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.json({ result: replyText });
   } catch (error: any) {
     console.error("OpenAI Task API Error in server (full details):", error);
-    
-    if (typeof error === 'object' && error !== null) {
-      try {
-        console.error("Stringified API Error details in server:", JSON.stringify(error, null, 2));
-      } catch (jsonErr) {
-        console.error("Could not stringify API error:", jsonErr);
-      }
-    }
-
-    const openAiErrorObj = error.error || {};
-    const errCode = openAiErrorObj.code || error.code || "unknown";
-    const errMsg = openAiErrorObj.message || error.message || "Failed to generate task output. Please verify inputs and try again.";
-    const errType = openAiErrorObj.type || error.type || "unknown";
-
-    return res.status(500).json({ 
-      error: errMsg,
-      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
-      code: errCode,
-      type: errType
+    return res.status(500).json({
+      error: error.message || "An unexpected error occurred.",
+      details: String(error)
     });
   }
 });
@@ -860,7 +903,14 @@ Format the response as a valid JSON object matching this schema structure:
 
     console.log("Calling OpenAI for Business Builder on server with inputs:", { industry, country, startingBudget });
 
-    const response = await openai.chat.completions.create({
+    console.log("Calling OpenAI Chat Completion API on Express (Business Builder) via direct fetch...");
+
+    const url = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiApiKey}`
+    };
+    const bodyPayload = JSON.stringify({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -876,7 +926,31 @@ Format the response as a valid JSON object matching this schema structure:
       temperature: 0.7
     });
 
-    const resultText = response.choices[0]?.message?.content;
+    const openAiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyPayload
+    });
+
+    console.log(`OpenAI Business Builder API HTTP Status Code (Express): ${openAiResponse.status}`);
+
+    const responseText = await openAiResponse.text();
+    console.log(`OpenAI Business Builder API Raw Response Body (Express):`, responseText);
+
+    if (!openAiResponse.ok) {
+      console.error(`OpenAI Business Builder API request failed on Express with status ${openAiResponse.status}`);
+      return res.status(openAiResponse.status).send(responseText);
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseErr: any) {
+      console.error("Failed to parse OpenAI Business Builder response as JSON on Express:", parseErr);
+      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+    }
+
+    const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
       throw new Error("No response text received from OpenAI");
     }
@@ -885,25 +959,9 @@ Format the response as a valid JSON object matching this schema structure:
     return res.json({ plan });
   } catch (error: any) {
     console.error("Business Builder Generator API Error (full details):", error);
-    
-    if (typeof error === 'object' && error !== null) {
-      try {
-        console.error("Stringified API Error details in server:", JSON.stringify(error, null, 2));
-      } catch (jsonErr) {
-        console.error("Could not stringify API error:", jsonErr);
-      }
-    }
-
-    const openAiErrorObj = error.error || {};
-    const errCode = openAiErrorObj.code || error.code || "unknown";
-    const errMsg = openAiErrorObj.message || error.message || "Failed to generate business plan. Please check your inputs and try again.";
-    const errType = openAiErrorObj.type || error.type || "unknown";
-
-    return res.status(500).json({ 
-      error: errMsg,
-      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
-      code: errCode,
-      type: errType
+    return res.status(500).json({
+      error: error.message || "An unexpected error occurred.",
+      details: String(error)
     });
   }
 });

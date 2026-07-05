@@ -801,9 +801,14 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         })
       });
 
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || `HTTP error! Status: ${res.status}`);
+      }
+
       const data = await res.json();
       
-      if (res.ok && data.reply) {
+      if (data.reply) {
         const replyId = "msg-" + Date.now() + "-reply";
         const modelMsg: ChatMessage = {
           id: replyId,

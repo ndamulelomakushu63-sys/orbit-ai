@@ -83,8 +83,13 @@ export const BusinessBuilderScreen: React.FC = () => {
         })
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP error! Status: ${response.status}`);
+      }
+
       const data = await response.json();
-      if (response.ok && data.plan) {
+      if (data.plan) {
         setPlan(data.plan);
         // Expand top ones by default
         setExpandedCards({

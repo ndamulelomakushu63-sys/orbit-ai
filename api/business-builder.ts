@@ -74,7 +74,14 @@ Format the response as a valid JSON object matching this schema structure:
   "riskAssessment": "..."
 }`;
 
-    const response = await openai.chat.completions.create({
+    console.log("Calling OpenAI Chat Completion API on Vercel (Business Builder) via direct fetch...");
+
+    const url = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiApiKey}`
+    };
+    const bodyPayload = JSON.stringify({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -90,7 +97,31 @@ Format the response as a valid JSON object matching this schema structure:
       temperature: 0.7
     });
 
-    const resultText = response.choices[0]?.message?.content;
+    const openAiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyPayload
+    });
+
+    console.log(`OpenAI Business Builder API HTTP Status Code: ${openAiResponse.status}`);
+
+    const responseText = await openAiResponse.text();
+    console.log(`OpenAI Business Builder API Raw Response Body:`, responseText);
+
+    if (!openAiResponse.ok) {
+      console.error(`OpenAI Business Builder API request failed on Vercel with status ${openAiResponse.status}`);
+      return res.status(openAiResponse.status).send(responseText);
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseErr: any) {
+      console.error("Failed to parse OpenAI Business Builder response as JSON:", parseErr);
+      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+    }
+
+    const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
       throw new Error("No response text received from OpenAI");
     }
@@ -99,25 +130,9 @@ Format the response as a valid JSON object matching this schema structure:
     return res.status(200).json({ plan });
   } catch (error: any) {
     console.error("Business Builder Generator Vercel API Error (full details):", error);
-    
-    if (typeof error === 'object' && error !== null) {
-      try {
-        console.error("Stringified API Error details:", JSON.stringify(error, null, 2));
-      } catch (jsonErr) {
-        console.error("Could not stringify API error:", jsonErr);
-      }
-    }
-
-    const openAiErrorObj = error.error || {};
-    const errCode = openAiErrorObj.code || error.code || "unknown";
-    const errMsg = openAiErrorObj.message || error.message || "Failed to generate business plan. Please try again.";
-    const errType = openAiErrorObj.type || error.type || "unknown";
-
-    return res.status(500).json({ 
-      error: errMsg,
-      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
-      code: errCode,
-      type: errType
+    return res.status(500).json({
+      error: error.message || "An unexpected error occurred.",
+      details: String(error)
     });
   }
 }

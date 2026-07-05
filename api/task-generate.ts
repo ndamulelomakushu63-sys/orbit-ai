@@ -124,7 +124,14 @@ CRITICAL RULES:
 
     const basePrompt = "You are the Orbit AI Task Specialist, a highly sophisticated execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You instantly deliver highly structured, beautifully formatted, comprehensive, and complete professional outcomes. You always output cleanly formatted markdown with clear headers and bullet points. Do not use emojis in your response.";
     
-    const response = await openai.chat.completions.create({
+    console.log("Calling OpenAI Chat Completion API on Vercel (Task Specialist) via direct fetch...");
+
+    const url = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiApiKey}`
+    };
+    const bodyPayload = JSON.stringify({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -139,29 +146,37 @@ CRITICAL RULES:
       temperature: 0.5
     });
 
-    const replyText = response.choices[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
+    const openAiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyPayload
+    });
+
+    console.log(`OpenAI Task Generator API HTTP Status Code: ${openAiResponse.status}`);
+
+    const responseText = await openAiResponse.text();
+    console.log(`OpenAI Task Generator API Raw Response Body:`, responseText);
+
+    if (!openAiResponse.ok) {
+      console.error(`OpenAI Task Generator API request failed on Vercel with status ${openAiResponse.status}`);
+      return res.status(openAiResponse.status).send(responseText);
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseErr: any) {
+      console.error("Failed to parse OpenAI Task Generator response as JSON:", parseErr);
+      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+    }
+
+    const replyText = responseData.choices?.[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.status(200).json({ result: replyText });
   } catch (error: any) {
     console.error("Task Mode Generator Vercel API Error (full details):", error);
-    
-    if (typeof error === 'object' && error !== null) {
-      try {
-        console.error("Stringified API Error details:", JSON.stringify(error, null, 2));
-      } catch (jsonErr) {
-        console.error("Could not stringify API error:", jsonErr);
-      }
-    }
-
-    const openAiErrorObj = error.error || {};
-    const errCode = openAiErrorObj.code || error.code || "unknown";
-    const errMsg = openAiErrorObj.message || error.message || "Failed to generate task output. Please try again.";
-    const errType = openAiErrorObj.type || error.type || "unknown";
-
-    return res.status(500).json({ 
-      error: errMsg,
-      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
-      code: errCode,
-      type: errType
+    return res.status(500).json({
+      error: error.message || "An unexpected error occurred.",
+      details: String(error)
     });
   }
 }
