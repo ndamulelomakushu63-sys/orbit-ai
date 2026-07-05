@@ -168,10 +168,28 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({ reply: replyText });
   } catch (error: any) {
-    console.error("OpenAI API Error in Vercel API:", error);
+    console.error("OpenAI API Error in Vercel API (full details):", error);
+    
+    // Log full properties for deep diagnostics
+    if (typeof error === 'object' && error !== null) {
+      try {
+        console.error("Stringified OpenAI API Error details:", JSON.stringify(error, null, 2));
+      } catch (jsonErr) {
+        console.error("Could not stringify OpenAI API error:", jsonErr);
+      }
+    }
+
+    // Extract OpenAI specific error payload
+    const openAiErrorObj = error.error || {};
+    const errCode = openAiErrorObj.code || error.code || "unknown";
+    const errMsg = openAiErrorObj.message || error.message || "An unexpected OpenAI error occurred.";
+    const errType = openAiErrorObj.type || error.type || "unknown";
+
     return res.status(500).json({ 
-      error: "Failed to query AI assistant. Please check your OPENAI_API_KEY.",
-      details: error.message 
+      error: errMsg,
+      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
+      code: errCode,
+      type: errType
     });
   }
 }

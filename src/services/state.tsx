@@ -864,11 +864,34 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Offline/missing key fallback if API fails
       const reason = e?.message || "Internal Server Communication Error";
       const errorMsgId = "msg-" + Date.now() + "-error";
+      
+      let errorHeading = "I was unable to retrieve a response from the OpenAI server engine.";
+      let troubleshootingText = "";
+
+      const lowerReason = reason.toLowerCase();
+      if (lowerReason.includes("quota") || lowerReason.includes("limit") || lowerReason.includes("exceeded") || lowerReason.includes("billing") || lowerReason.includes("insufficient_quota")) {
+        errorHeading = "The OpenAI API reported that the account has reached its usage limit or has insufficient quota.";
+        troubleshootingText = `### Troubleshooting Steps
+1. Visit the **OpenAI Platform Dashboard** at [https://platform.openai.com/](https://platform.openai.com/).
+2. Check your **Billing** settings to ensure a valid payment method is attached and you have active credits.
+3. Verify your monthly **Usage Limits** are not exceeded.`;
+      } else if (lowerReason.includes("incorrect api key") || lowerReason.includes("invalid") || lowerReason.includes("api_key") || lowerReason.includes("key is missing") || lowerReason.includes("not defined")) {
+        errorHeading = "The OpenAI API reported an invalid or missing API key.";
+        troubleshootingText = `### Troubleshooting Steps
+1. Check the **Settings > Secrets** panel in the top menu of the AI Studio workspace.
+2. Ensure that there is a secret named **OPENAI_API_KEY** with a valid OpenAI API key.
+3. If running locally, please add \`OPENAI_API_KEY=your_key\` inside your \".env\" file and restart your local dev server.`;
+      } else {
+        troubleshootingText = `### Troubleshooting Steps
+1. Verify your network connection and ensure you are connected to the internet.
+2. Verify that **OPENAI_API_KEY** is configured properly in your environment.`;
+      }
+
       const modelErrorMsg: ChatMessage = {
         id: errorMsgId,
         messageId: errorMsgId,
         conversationId: activeConversationId,
-        message: `I was unable to retrieve a response from the OpenAI server engine. This usually means the API key is either missing or has expired.\n\n### Error Details\n**Reason:** ${reason}\n\n### Troubleshooting Steps\n1. Check the **Settings > Secrets** panel in the top menu of the AI Studio workspace.\n2. Ensure that there is a secret named **OPENAI_API_KEY** with a valid OpenAI API key.\n3. If running locally, please add \`OPENAI_API_KEY=your_key\` inside your \".env\" file and restart your local dev server.\n4. Ensure you are connected to the internet.`,
+        message: `${errorHeading}\n\n### Error Details\n**Reason:** ${reason}\n\n${troubleshootingText}`,
         role: "model",
         timestamp: new Date().toISOString(),
         createdAt: new Date().toISOString()

@@ -228,10 +228,28 @@ app.post("/api/chat", async (req, res) => {
 
     return res.json({ reply: replyText });
   } catch (error: any) {
-    console.error("OpenAI API Error in server:", error);
+    console.error("OpenAI API Error in server (full details):", error);
+    
+    // Log full properties for deep diagnostics
+    if (typeof error === 'object' && error !== null) {
+      try {
+        console.error("Stringified OpenAI API Error details:", JSON.stringify(error, null, 2));
+      } catch (jsonErr) {
+        console.error("Could not stringify OpenAI API error:", jsonErr);
+      }
+    }
+
+    // Extract OpenAI specific error payload
+    const openAiErrorObj = error.error || {};
+    const errCode = openAiErrorObj.code || error.code || "unknown";
+    const errMsg = openAiErrorObj.message || error.message || "An unexpected OpenAI error occurred.";
+    const errType = openAiErrorObj.type || error.type || "unknown";
+
     return res.status(500).json({ 
-      error: "Failed to query AI assistant. Please check your OPENAI_API_KEY and server logs.",
-      details: error.message 
+      error: errMsg,
+      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
+      code: errCode,
+      type: errType
     });
   }
 });
@@ -582,10 +600,26 @@ Format the response as a valid JSON object containing an "ideas" array of side h
     const parsedData = JSON.parse(resultText.trim());
     return res.json({ ideas: parsedData.ideas || [] });
   } catch (error: any) {
-    console.error("Side Hustle Generator API Error:", error);
+    console.error("Side Hustle Generator API Error (full details):", error);
+    
+    if (typeof error === 'object' && error !== null) {
+      try {
+        console.error("Stringified API Error details in server:", JSON.stringify(error, null, 2));
+      } catch (jsonErr) {
+        console.error("Could not stringify API error:", jsonErr);
+      }
+    }
+
+    const openAiErrorObj = error.error || {};
+    const errCode = openAiErrorObj.code || error.code || "unknown";
+    const errMsg = openAiErrorObj.message || error.message || "Failed to generate side hustles. Please check your inputs and try again.";
+    const errType = openAiErrorObj.type || error.type || "unknown";
+
     return res.status(500).json({ 
-      error: "Failed to generate side hustles. Please check your inputs and try again.",
-      details: error.message 
+      error: errMsg,
+      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
+      code: errCode,
+      type: errType
     });
   }
 });
@@ -730,10 +764,26 @@ CRITICAL RULES:
     const replyText = response.choices[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.json({ result: replyText });
   } catch (error: any) {
-    console.error("OpenAI Task API Error in server:", error);
+    console.error("OpenAI Task API Error in server (full details):", error);
+    
+    if (typeof error === 'object' && error !== null) {
+      try {
+        console.error("Stringified API Error details in server:", JSON.stringify(error, null, 2));
+      } catch (jsonErr) {
+        console.error("Could not stringify API error:", jsonErr);
+      }
+    }
+
+    const openAiErrorObj = error.error || {};
+    const errCode = openAiErrorObj.code || error.code || "unknown";
+    const errMsg = openAiErrorObj.message || error.message || "Failed to generate task output. Please verify inputs and try again.";
+    const errType = openAiErrorObj.type || error.type || "unknown";
+
     return res.status(500).json({ 
-      error: "Failed to generate task output. Please verify inputs and try again.",
-      details: error.message 
+      error: errMsg,
+      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
+      code: errCode,
+      type: errType
     });
   }
 });
@@ -834,10 +884,26 @@ Format the response as a valid JSON object matching this schema structure:
     const plan = JSON.parse(resultText.trim());
     return res.json({ plan });
   } catch (error: any) {
-    console.error("Business Builder Generator API Error:", error);
+    console.error("Business Builder Generator API Error (full details):", error);
+    
+    if (typeof error === 'object' && error !== null) {
+      try {
+        console.error("Stringified API Error details in server:", JSON.stringify(error, null, 2));
+      } catch (jsonErr) {
+        console.error("Could not stringify API error:", jsonErr);
+      }
+    }
+
+    const openAiErrorObj = error.error || {};
+    const errCode = openAiErrorObj.code || error.code || "unknown";
+    const errMsg = openAiErrorObj.message || error.message || "Failed to generate business plan. Please check your inputs and try again.";
+    const errType = openAiErrorObj.type || error.type || "unknown";
+
     return res.status(500).json({ 
-      error: "Failed to generate business plan. Please check your inputs and try again.",
-      details: error.message 
+      error: errMsg,
+      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
+      code: errCode,
+      type: errType
     });
   }
 });

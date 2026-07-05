@@ -142,10 +142,26 @@ CRITICAL RULES:
     const replyText = response.choices[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.status(200).json({ result: replyText });
   } catch (error: any) {
-    console.error("Task Mode Generator Vercel API Error:", error);
+    console.error("Task Mode Generator Vercel API Error (full details):", error);
+    
+    if (typeof error === 'object' && error !== null) {
+      try {
+        console.error("Stringified API Error details:", JSON.stringify(error, null, 2));
+      } catch (jsonErr) {
+        console.error("Could not stringify API error:", jsonErr);
+      }
+    }
+
+    const openAiErrorObj = error.error || {};
+    const errCode = openAiErrorObj.code || error.code || "unknown";
+    const errMsg = openAiErrorObj.message || error.message || "Failed to generate task output. Please try again.";
+    const errType = openAiErrorObj.type || error.type || "unknown";
+
     return res.status(500).json({ 
-      error: "Failed to generate task output. Please try again.",
-      details: error.message 
+      error: errMsg,
+      details: `OpenAI Error Type: ${errType}, Code: ${errCode}`,
+      code: errCode,
+      type: errType
     });
   }
 }
