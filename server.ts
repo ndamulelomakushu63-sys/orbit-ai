@@ -229,7 +229,8 @@ app.post("/api/chat", async (req, res) => {
 
     if (!openAiResponse.ok) {
       console.error(`OpenAI API request failed on Express server with status ${openAiResponse.status}`);
-      // Return the exact server response to the frontend
+      // Return the exact server response to the frontend with proper content-type
+      res.setHeader('Content-Type', 'application/json');
       return res.status(openAiResponse.status).send(responseText);
     }
 
@@ -625,6 +626,7 @@ Format the response as a valid JSON object containing an "ideas" array of side h
 
     if (!openAiResponse.ok) {
       console.error(`OpenAI Side Hustles API request failed on Express with status ${openAiResponse.status}`);
+      res.setHeader('Content-Type', 'application/json');
       return res.status(openAiResponse.status).send(responseText);
     }
 
@@ -809,6 +811,7 @@ CRITICAL RULES:
 
     if (!openAiResponse.ok) {
       console.error(`OpenAI Task Generator API request failed on Express with status ${openAiResponse.status}`);
+      res.setHeader('Content-Type', 'application/json');
       return res.status(openAiResponse.status).send(responseText);
     }
 
@@ -939,6 +942,7 @@ Format the response as a valid JSON object matching this schema structure:
 
     if (!openAiResponse.ok) {
       console.error(`OpenAI Business Builder API request failed on Express with status ${openAiResponse.status}`);
+      res.setHeader('Content-Type', 'application/json');
       return res.status(openAiResponse.status).send(responseText);
     }
 
