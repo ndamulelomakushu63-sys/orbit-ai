@@ -159,9 +159,10 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Initialize OpenAI client
+    // Initialize OpenAI client with a 6-second timeout safety limit
     const openai = new OpenAI({
       apiKey: openaiApiKey,
+      timeout: 6000
     });
 
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";
