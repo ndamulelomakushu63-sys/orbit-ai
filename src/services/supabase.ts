@@ -30,8 +30,24 @@ function getValidKey(key: any, fallback: string): string {
   return fallback;
 }
 
-const rawUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : undefined);
-const rawKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : undefined);
+let rawUrl: string | undefined;
+let rawKey: string | undefined;
+
+try {
+  // Use a dynamic Function evaluation to hide import.meta from static analysis and bundlers
+  const meta = new Function("return import.meta")();
+  rawUrl = meta?.env?.VITE_SUPABASE_URL;
+  rawKey = meta?.env?.VITE_SUPABASE_ANON_KEY;
+} catch (e) {
+  // Safe fallback if import.meta is not defined in the environment
+}
+
+if (!rawUrl && typeof process !== 'undefined') {
+  rawUrl = process.env?.VITE_SUPABASE_URL;
+}
+if (!rawKey && typeof process !== 'undefined') {
+  rawKey = process.env?.VITE_SUPABASE_ANON_KEY;
+}
 
 const supabaseUrl = getValidUrl(rawUrl, DEFAULT_SUPABASE_URL);
 const supabaseAnonKey = getValidKey(rawKey, DEFAULT_SUPABASE_ANON_KEY);

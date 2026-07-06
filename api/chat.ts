@@ -2,7 +2,26 @@
 import { supabase } from '../src/services/supabase';
 import OpenAI from 'openai';
 
+// Helper to wrap promises with a timeout to prevent Vercel Serverless Function timeouts (FUNCTION_INVOCATION_FAILED)
+function withTimeout<T>(promise: Promise<T>, ms: number = 3000): Promise<T> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Timeout of ${ms}ms exceeded`));
+    }, ms);
+  });
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }),
+    timeoutPromise
+  ]);
+}
+
 export default async function handler(req: any, res: any) {
+  console.log("--- START CHAT ENDPOINT CALL ---");
+  
   // Allow only POST requests
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -20,6 +39,8 @@ export default async function handler(req: any, res: any) {
     }
     const { message, history, systemPrompt, userId } = body || {};
 
+    console.log(`Received request: userId=${userId}, messageLength=${message?.length || 0}`);
+
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
@@ -27,6 +48,7 @@ export default async function handler(req: any, res: any) {
     let isPro = false;
     let limitData: any = null;
     let currentCount = 0;
+    
     const isValidUUID = (id: string) => {
       return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     };
@@ -34,79 +56,101 @@ export default async function handler(req: any, res: any) {
     const hasUserId = userId && typeof userId === "string" && isValidUUID(userId);
 
     if (hasUserId) {
-      // 1. Fetch user profile from Supabase to check plan / subscription status
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("plan, subscription_status")
-        .eq("id", userId)
-        .single();
-
-      if (profile) {
-        isPro = profile.plan === "Pro" || 
-                profile.subscription_status === "pro_monthly" || 
-                profile.subscription_status === "pro_yearly";
-      }
-
-      if (!isPro) {
-        // 2. Fetch or create user_limits record
-        const { data, error } = await supabase
-          .from("user_limits")
-          .select("*")
-          .eq("user_id", userId)
+      try {
+        console.log("Fetching user profile from Supabase...");
+        // 1. Fetch user profile from Supabase to check plan / subscription status
+        const profilePromise = supabase
+          .from("profiles")
+          .select("plan, subscription_status")
+          .eq("id", userId)
           .single();
 
-        if (error) {
-          if (error.code === "PGRST116") {
-            const { data: insertedData } = await supabase
-              .from("user_limits")
-              .insert({
-                user_id: userId,
-                messages_used: 0,
-                is_pro: false,
-                last_reset: new Date().toISOString()
-              })
-              .select()
-              .single();
-            limitData = insertedData;
-            currentCount = 0;
+        const { data: profile, error: profileErr } = await withTimeout(profilePromise, 3000);
+
+        if (profileErr) {
+          console.warn("Supabase profile fetch returned error, falling back:", profileErr);
+        } else if (profile) {
+          isPro = profile.plan === "Pro" || 
+                  profile.subscription_status === "pro_monthly" || 
+                  profile.subscription_status === "pro_yearly";
+        }
+
+        console.log(`User profile check completed. isPro=${isPro}`);
+
+        if (!isPro) {
+          console.log("User is on free plan. Checking limits...");
+          // 2. Fetch or create user_limits record
+          const limitsPromise = supabase
+            .from("user_limits")
+            .select("*")
+            .eq("user_id", userId)
+            .single();
+
+          const { data, error } = await withTimeout(limitsPromise, 3000);
+
+          if (error) {
+            if (error.code === "PGRST116") {
+              console.log("Creating new user_limits record...");
+              const insertPromise = supabase
+                .from("user_limits")
+                .insert({
+                  user_id: userId,
+                  messages_used: 0,
+                  is_pro: false,
+                  last_reset: new Date().toISOString()
+                })
+                .select()
+                .single();
+              const { data: insertedData } = await withTimeout(insertPromise, 3000);
+              limitData = insertedData;
+              currentCount = 0;
+            } else {
+              console.warn("Error fetching user_limits from Supabase:", error);
+            }
           } else {
-            console.warn("Error fetching user_limits from Supabase:", error);
+            limitData = data;
+            currentCount = data?.messages_used || 0;
           }
-        } else {
-          limitData = data;
-          currentCount = data.messages_used;
-        }
 
-        if (limitData) {
-          // 3. Handle daily design limit reset (24 hour check)
-          const lastReset = limitData.last_reset ? new Date(limitData.last_reset).getTime() : 0;
-          const now = Date.now();
-          if (now - lastReset >= 24 * 60 * 60 * 1000) {
-            currentCount = 0;
-            await supabase
-              .from("user_limits")
-              .update({ messages_used: 0, last_reset: new Date().toISOString() })
-              .eq("user_id", userId);
+          if (limitData) {
+            // 3. Handle daily design limit reset (24 hour check)
+            const lastReset = limitData.last_reset ? new Date(limitData.last_reset).getTime() : 0;
+            const now = Date.now();
+            if (now - lastReset >= 24 * 60 * 60 * 1000) {
+              console.log("Daily limit resetting (24 hours elapsed)...");
+              currentCount = 0;
+              const updatePromise = supabase
+                .from("user_limits")
+                .update({ messages_used: 0, last_reset: new Date().toISOString() })
+                .eq("user_id", userId);
+              await withTimeout(updatePromise, 3000);
+            }
+          }
+
+          console.log(`Current messages used: ${currentCount}/15`);
+
+          // 4. Block free users after exactly 15 messages
+          if (currentCount >= 15) {
+            return res.status(403).json({ 
+              error: "You have reached your free limit of 15 messages. Upgrade to Pro." 
+            });
           }
         }
-
-        // 4. Block free users after exactly 15 messages
-        if (currentCount >= 15) {
-          return res.status(403).json({ 
-            error: "You have reached your free limit of 15 messages. Upgrade to Pro." 
-          });
-        }
+      } catch (dbError: any) {
+        console.error("Supabase query failed or timed out in api/chat.ts, defaulting to free/unverified limits:", dbError);
+        // We gracefully fallback so the serverless function does not crash
       }
     }
 
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
-      console.warn("WARNING: OPENAI_API_KEY is not defined in environment variables on Vercel.");
+      console.error("CRITICAL: OPENAI_API_KEY is not defined in environment variables on Vercel.");
       return res.status(500).json({ 
         error: "OPENAI_API_KEY is not defined inside Vercel environment variables." 
       });
     }
 
+    // Initialize the OpenAI SDK purely to verify version/imports correctness
     const openai = new OpenAI({
       apiKey: openaiApiKey,
     });
@@ -142,7 +186,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    console.log("Calling OpenAI GPT-4o-mini API on Vercel via direct fetch...");
+    console.log("Calling OpenAI GPT-4o-mini API...");
     
     const url = "https://api.openai.com/v1/chat/completions";
     const headers = {
@@ -167,8 +211,8 @@ export default async function handler(req: any, res: any) {
     console.log(`OpenAI API Raw Response Body:`, responseText);
 
     if (!openAiResponse.ok) {
-      console.error(`OpenAI API request failed on Vercel with status ${openAiResponse.status}`);
-      // Return the exact server response to the frontend
+      console.error(`OpenAI API request failed with status ${openAiResponse.status}`);
+      // Return the exact error response to the frontend rather than parsing plain text as JSON
       return res.status(openAiResponse.status).send(responseText);
     }
 
@@ -184,25 +228,39 @@ export default async function handler(req: any, res: any) {
 
     // 5. Increment usage count in database if successfully completed
     if (hasUserId && !isPro) {
-      const nextCount = currentCount + 1;
-      await supabase
-        .from("user_limits")
-        .update({ messages_used: nextCount })
-        .eq("user_id", userId);
+      try {
+        console.log("Updating usage counts in Supabase...");
+        const nextCount = currentCount + 1;
+        const updateLimitsPromise = supabase
+          .from("user_limits")
+          .update({ messages_used: nextCount })
+          .eq("user_id", userId);
 
-      await supabase
-        .from("profiles")
-        .update({ chat_count_today: nextCount })
-        .eq("id", userId);
+        const updateProfilePromise = supabase
+          .from("profiles")
+          .update({ chat_count_today: nextCount })
+          .eq("id", userId);
+
+        await Promise.all([
+          withTimeout(updateLimitsPromise, 3000),
+          withTimeout(updateProfilePromise, 3000)
+        ]);
+        console.log("Usage counts successfully updated.");
+      } catch (dbUpdateError) {
+        console.error("Failed to update user limits in Supabase after successful chat:", dbUpdateError);
+      }
     }
 
+    console.log("--- SUCCESSFUL CHAT ENDPOINT CALL ---");
     return res.status(200).json({ reply: replyText });
   } catch (error: any) {
-    console.error("OpenAI API Error in Vercel API (full details):", error);
+    console.error("CRITICAL EXCEPTION IN CHAT ENDPOINT:", error);
+    console.error(error.stack || "No stack trace available");
     
     return res.status(500).json({ 
       error: error.message || "An unexpected error occurred.",
-      details: String(error)
+      details: String(error),
+      stack: error.stack || null
     });
   }
 }
