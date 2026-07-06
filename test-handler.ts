@@ -83,7 +83,26 @@ async function testTaskGenerate() {
   }
 }
 
+async function testChat() {
+  console.log("\n--- Testing chat.ts ---");
+  const mockReq = {
+    method: "POST",
+    body: {
+      message: "Hi",
+      history: [],
+      systemPrompt: "You are a helpful assistant.",
+      userId: "00000000-0000-0000-0000-000000000000"
+    }
+  };
+  try {
+    await chatHandler(mockReq, mockRes);
+  } catch (error: any) {
+    console.error("CRASH IN CHAT:", error.stack || error);
+  }
+}
+
 async function runAll() {
+  await testChat();
   await testSideHustles();
   await testBusinessBuilder();
   await testTaskGenerate();

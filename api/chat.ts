@@ -1,36 +1,48 @@
 // Vercel Serverless Function for Orbit AI Chat
 import '../src/services/env-sanitizer';
 import { supabase } from '../src/services/supabase';
-import { fetchChatCompletion } from '../src/services/ai-helper';
 import OpenAI from 'openai';
 
-// Helper to wrap promises with a timeout to prevent Vercel Serverless Function timeouts (FUNCTION_INVOCATION_FAILED)
-function withTimeout<T>(promise: Promise<T>, ms: number = 3000): Promise<T> {
+// Safe timeout wrapper that catches late-rejections to prevent unhandled promise rejections on Vercel
+function withTimeout<T>(promise: Promise<T> | any, ms: number = 3000): Promise<T> {
+  const nativePromise = Promise.resolve(promise);
   let timeoutId: any;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
       reject(new Error(`Timeout of ${ms}ms exceeded`));
     }, ms);
   });
-  return Promise.race([
-    promise.then((res) => {
-      clearTimeout(timeoutId);
-      return res;
-    }),
+
+  const raced = Promise.race([
+    nativePromise,
     timeoutPromise
   ]);
+
+  // Clean up timeout timer when finished
+  raced.then(
+    () => clearTimeout(timeoutId),
+    () => clearTimeout(timeoutId)
+  );
+
+  // Prevent uncaught background rejection if the timeout fires first
+  nativePromise.catch((err) => {
+    console.warn("[withTimeout] Background promise rejected after timeout/completion:", err);
+  });
+
+  return raced;
 }
 
 export default async function handler(req: any, res: any) {
   console.log("--- START CHAT ENDPOINT CALL ---");
   
-  // Allow only POST requests
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Method ${req.method} not allowed` });
-  }
-
+  // Ensure we always return JSON, even for general uncaught errors
   try {
+    // Allow only POST requests
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', ['POST']);
+      return res.status(405).json({ error: `Method ${req.method} not allowed` });
+    }
+
     let body = req.body;
     if (typeof body === 'string') {
       try {
@@ -60,7 +72,6 @@ export default async function handler(req: any, res: any) {
     if (hasUserId) {
       try {
         console.log("Fetching user profile from Supabase...");
-        // 1. Fetch user profile from Supabase to check plan / subscription status
         const profilePromise = supabase
           .from("profiles")
           .select("plan, subscription_status")
@@ -81,7 +92,6 @@ export default async function handler(req: any, res: any) {
 
         if (!isPro) {
           console.log("User is on free plan. Checking limits...");
-          // 2. Fetch or create user_limits record
           const limitsPromise = supabase
             .from("user_limits")
             .select("*")
@@ -115,7 +125,6 @@ export default async function handler(req: any, res: any) {
           }
 
           if (limitData) {
-            // 3. Handle daily design limit reset (24 hour check)
             const lastReset = limitData.last_reset ? new Date(limitData.last_reset).getTime() : 0;
             const now = Date.now();
             if (now - lastReset >= 24 * 60 * 60 * 1000) {
@@ -131,7 +140,6 @@ export default async function handler(req: any, res: any) {
 
           console.log(`Current messages used: ${currentCount}/15`);
 
-          // 4. Block free users after exactly 15 messages
           if (currentCount >= 15) {
             return res.status(403).json({ 
               error: "You have reached your free limit of 15 messages. Upgrade to Pro." 
@@ -140,7 +148,6 @@ export default async function handler(req: any, res: any) {
         }
       } catch (dbError: any) {
         console.error("Supabase query failed or timed out in api/chat.ts, defaulting to free/unverified limits:", dbError);
-        // We gracefully fallback so the serverless function does not crash
       }
     }
 
@@ -152,7 +159,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Initialize the OpenAI SDK purely to verify version/imports correctness
+    // Initialize OpenAI client
     const openai = new OpenAI({
       apiKey: openaiApiKey,
     });
@@ -188,17 +195,19 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    let responseData;
-    try {
-      responseData = await fetchChatCompletion(messages, 0.7);
-    } catch (apiErr: any) {
-      console.error("AI service call failed in chat handler:", apiErr);
-      return res.status(500).json({ error: { message: apiErr.message || "AI service failed" } });
+    console.log("[api/chat] Calling genuine OpenAI Chat Completion API via SDK...");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+      temperature: 0.7,
+    });
+
+    const replyText = completion.choices?.[0]?.message?.content;
+    if (!replyText) {
+      throw new Error("No response content returned from OpenAI API");
     }
 
-    const replyText = responseData.choices?.[0]?.message?.content || "I was unable to formulate a response. Please try again.";
-
-    // 5. Increment usage count in database if successfully completed
+    // Increment usage count in database if successfully completed
     if (hasUserId && !isPro) {
       try {
         console.log("Updating usage counts in Supabase...");
@@ -225,6 +234,7 @@ export default async function handler(req: any, res: any) {
 
     console.log("--- SUCCESSFUL CHAT ENDPOINT CALL ---");
     return res.status(200).json({ reply: replyText });
+
   } catch (error: any) {
     console.error("CRITICAL EXCEPTION IN CHAT ENDPOINT:", error);
     console.error(error.stack || "No stack trace available");
