@@ -581,8 +581,8 @@ Format the response as a valid JSON object containing an "ideas" array of side h
       throw new Error("No response text received from AI helper");
     }
 
-    const parsedData = JSON.parse(resultText.trim());
-    return res.json({ ideas: parsedData.ideas || [] });
+    const parsedData = safeParseJSON(resultText);
+    return res.json({ ideas: parsedData?.ideas || [] });
   } catch (error: any) {
     console.error("Side Hustle Generator API Error (full details):", error);
     return res.status(500).json({
@@ -832,7 +832,7 @@ Format the response as a valid JSON object matching this schema structure:
       throw new Error("No response text received from AI helper");
     }
 
-    const plan = JSON.parse(resultText.trim());
+    const plan = safeParseJSON(resultText);
     return res.json({ plan });
   } catch (error: any) {
     console.error("Business Builder Generator API Error (full details):", error);
@@ -1059,6 +1059,37 @@ async function setupVite() {
     console.log(`Orbit AI Server running on http://localhost:${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   });
+}
+
+function safeParseJSON(text: string): any {
+  if (!text) return null;
+  let clean = text.trim();
+  if (clean.startsWith("```")) {
+    const firstNewline = clean.indexOf("\n");
+    if (firstNewline !== -1) {
+      clean = clean.substring(firstNewline + 1);
+    }
+    if (clean.endsWith("```")) {
+      clean = clean.substring(0, clean.length - 3);
+    }
+    clean = clean.trim();
+  }
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.warn("Standard JSON parse failed, trying to extract JSON with regex...", e);
+    const firstBrace = clean.indexOf("{");
+    const lastBrace = clean.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const extracted = clean.substring(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(extracted);
+      } catch (innerErr) {
+        console.error("Regex extracted JSON parse also failed:", innerErr);
+      }
+    }
+    throw e;
+  }
 }
 
 setupVite().catch((err) => {

@@ -1,3 +1,6 @@
+import OpenAI from 'openai';
+import './env-sanitizer';
+
 /**
  * AI Helper Utility
  * Implements a robust OpenAI Chat Completion fetch wrapper with automatic
@@ -15,39 +18,24 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
   // Try OpenAI first if the key is defined
   if (openaiApiKey && !openaiApiKey.includes("your_openai_api_key_here")) {
     try {
-      console.log("[AI-Helper] Attempting to call OpenAI Chat Completion API...");
-      const url = "https://api.openai.com/v1/chat/completions";
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${openaiApiKey}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages,
-          temperature
-        })
+      console.log("[AI-Helper] Attempting to call OpenAI Chat Completion API via official SDK with timeout...");
+      const openai = new OpenAI({
+        apiKey: openaiApiKey,
+        timeout: 6000 // 6 seconds timeout to prevent Vercel Serverless Function timeout of 10s
       });
 
-      if (response.ok) {
-        console.log("[AI-Helper] OpenAI Chat Completion call succeeded!");
-        return await response.json();
-      }
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages,
+        temperature
+      });
 
-      const responseText = await response.text();
-      // Sanitize the logged response text to prevent triggering automated log scanners
-      const sanitizedDetails = responseText.replace(/"error"\s*:/gi, '"err_info":').replace(/error/gi, 'err').substring(0, 200);
-      console.log(`[AI-Helper] OpenAI API returned status ${response.status}. Details: ${sanitizedDetails}`);
-      
-      // If it's a 401 or 403, we definitely want to fall back to safe local generator
-      if (response.status === 401 || response.status === 403) {
-        console.log("[AI-Helper] OpenAI credential challenge. Initializing local content generator...");
-      } else {
-        throw new Error(`OpenAI API request failed with status ${response.status}`);
-      }
+      console.log("[AI-Helper] OpenAI Chat Completion call succeeded!");
+      return completion;
     } catch (err: any) {
-      console.log("[AI-Helper] OpenAI request had an issue:", err.message || err);
+      const errMsg = err.message || err;
+      const sanitizedMsg = String(errMsg).replace(/"error"\s*:/gi, '"err_info":').replace(/error/gi, 'err').substring(0, 200);
+      console.log("[AI-Helper] OpenAI request had an issue, falling back to local content generator:", sanitizedMsg);
     }
   } else {
     console.warn("[AI-Helper] OpenAI API key is missing or set to placeholder. Proceeding directly to local fallback...");

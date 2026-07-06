@@ -85,7 +85,7 @@ Format the response as a valid JSON object matching this schema structure:
       throw new Error("No response text received from AI helper");
     }
 
-    const plan = JSON.parse(resultText.trim());
+    const plan = safeParseJSON(resultText);
     return res.status(200).json({ plan });
   } catch (error: any) {
     console.error("Business Builder Generator Vercel API Error (full details):", error);
@@ -93,5 +93,36 @@ Format the response as a valid JSON object matching this schema structure:
       error: error.message || "An unexpected error occurred.",
       details: String(error)
     });
+  }
+}
+
+function safeParseJSON(text: string): any {
+  if (!text) return null;
+  let clean = text.trim();
+  if (clean.startsWith("```")) {
+    const firstNewline = clean.indexOf("\n");
+    if (firstNewline !== -1) {
+      clean = clean.substring(firstNewline + 1);
+    }
+    if (clean.endsWith("```")) {
+      clean = clean.substring(0, clean.length - 3);
+    }
+    clean = clean.trim();
+  }
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.warn("Standard JSON parse failed, trying to extract JSON with regex...", e);
+    const firstBrace = clean.indexOf("{");
+    const lastBrace = clean.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const extracted = clean.substring(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(extracted);
+      } catch (innerErr) {
+        console.error("Regex extracted JSON parse also failed:", innerErr);
+      }
+    }
+    throw e;
   }
 }
