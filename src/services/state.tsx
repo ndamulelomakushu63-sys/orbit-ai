@@ -803,7 +803,18 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText || `HTTP error! Status: ${res.status}`);
+        let errorMessage = errorText;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed.error) {
+            errorMessage = typeof parsed.error === 'object' ? (parsed.error.message || JSON.stringify(parsed.error)) : parsed.error;
+          } else if (parsed.message) {
+            errorMessage = parsed.message;
+          }
+        } catch (e) {
+          // Fall back to original error text
+        }
+        throw new Error(errorMessage || `HTTP error! Status: ${res.status}`);
       }
 
       const data = await res.json();
