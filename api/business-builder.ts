@@ -1,3 +1,5 @@
+import '../src/services/env-sanitizer';
+import { fetchChatCompletion } from '../src/services/ai-helper';
 import OpenAI from 'openai';
 
 export default async function handler(req: any, res: any) {
@@ -19,17 +21,6 @@ export default async function handler(req: any, res: any) {
     if (!businessIdea || !industry) {
       return res.status(400).json({ error: "Business Idea and Industry are required" });
     }
-
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      return res.status(500).json({ 
-        error: "OPENAI_API_KEY is not defined. Please check your Vercel Environment Variables." 
-      });
-    }
-
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-    });
 
     const prompt = `Formulate a comprehensive, educational business concept and 30-day launch plan based on the following questionnaire details:
 - Proposed Business Idea: ${businessIdea}
@@ -74,56 +65,24 @@ Format the response as a valid JSON object matching this schema structure:
   "riskAssessment": "..."
 }`;
 
-    console.log("Calling OpenAI Chat Completion API on Vercel (Business Builder) via direct fetch...");
+    console.log("Calling OpenAI Chat Completion API on Vercel (Business Builder) via AI-Helper...");
 
-    const url = "https://api.openai.com/v1/chat/completions";
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${openaiApiKey}`
-    };
-    const bodyPayload = JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7
-    });
+    const messages = [
+      {
+        role: "system",
+        content: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested."
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ];
 
-    const openAiResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: bodyPayload
-    });
-
-    console.log(`OpenAI Business Builder API HTTP Status Code: ${openAiResponse.status}`);
-
-    const responseText = await openAiResponse.text();
-    console.log(`OpenAI Business Builder API Raw Response Body:`, responseText);
-
-    if (!openAiResponse.ok) {
-      console.error(`OpenAI Business Builder API request failed on Vercel with status ${openAiResponse.status}`);
-      return res.status(openAiResponse.status).send(responseText);
-    }
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseErr: any) {
-      console.error("Failed to parse OpenAI Business Builder response as JSON:", parseErr);
-      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
-    }
+    const responseData = await fetchChatCompletion(messages, 0.7);
 
     const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
-      throw new Error("No response text received from OpenAI");
+      throw new Error("No response text received from AI helper");
     }
 
     const plan = JSON.parse(resultText.trim());

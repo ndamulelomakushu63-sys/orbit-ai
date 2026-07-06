@@ -1,5 +1,7 @@
 // Vercel Serverless Function for Orbit AI Chat
+import '../src/services/env-sanitizer';
 import { supabase } from '../src/services/supabase';
+import { fetchChatCompletion } from '../src/services/ai-helper';
 import OpenAI from 'openai';
 
 // Helper to wrap promises with a timeout to prevent Vercel Serverless Function timeouts (FUNCTION_INVOCATION_FAILED)
@@ -186,42 +188,12 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    console.log("Calling OpenAI GPT-4o-mini API...");
-    
-    const url = "https://api.openai.com/v1/chat/completions";
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${openaiApiKey}`
-    };
-    const bodyPayload = JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: messages,
-      temperature: 0.7
-    });
-
-    const openAiResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: bodyPayload
-    });
-
-    console.log(`OpenAI API HTTP Status Code: ${openAiResponse.status}`);
-
-    const responseText = await openAiResponse.text();
-    console.log(`OpenAI API Raw Response Body:`, responseText);
-
-    if (!openAiResponse.ok) {
-      console.error(`OpenAI API request failed with status ${openAiResponse.status}`);
-      // Return the exact error response to the frontend rather than parsing plain text as JSON
-      return res.status(openAiResponse.status).send(responseText);
-    }
-
     let responseData;
     try {
-      responseData = JSON.parse(responseText);
-    } catch (parseErr: any) {
-      console.error("Failed to parse OpenAI response as JSON:", parseErr);
-      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+      responseData = await fetchChatCompletion(messages, 0.7);
+    } catch (apiErr: any) {
+      console.error("AI service call failed in chat handler:", apiErr);
+      return res.status(500).json({ error: { message: apiErr.message || "AI service failed" } });
     }
 
     const replyText = responseData.choices?.[0]?.message?.content || "I was unable to formulate a response. Please try again.";

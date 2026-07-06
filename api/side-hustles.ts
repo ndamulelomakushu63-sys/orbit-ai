@@ -1,3 +1,5 @@
+import '../src/services/env-sanitizer';
+import { fetchChatCompletion } from '../src/services/ai-helper';
 import OpenAI from 'openai';
 
 export default async function handler(req: any, res: any) {
@@ -19,17 +21,6 @@ export default async function handler(req: any, res: any) {
       smartphoneAccess, 
       laptopAccess 
     } = req.body || {};
-
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      return res.status(500).json({ 
-        error: "OPENAI_API_KEY is not defined. Please check your Vercel Environment Variables." 
-      });
-    }
-
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-    });
 
     const prompt = `Generate exactly 5 realistic, educational, legal side hustle ideas matching the following user profile:
 ${name ? `- Name: ${name}` : ""}
@@ -61,56 +52,24 @@ Format the response as a valid JSON object containing an "ideas" array of side h
 - challenges: (string) Key realistic challenges or hurdles they will face
 - resources: (string) Helpful free tools, websites, or learning materials`;
 
-    console.log("Calling OpenAI Chat Completion API on Vercel (Side Hustles) via direct fetch...");
+    console.log("Calling OpenAI Chat Completion API on Vercel (Side Hustles) via AI-Helper...");
 
-    const url = "https://api.openai.com/v1/chat/completions";
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${openaiApiKey}`
-    };
-    const bodyPayload = JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You MUST return a JSON object with an 'ideas' array containing exactly 5 elements matching the requested keys."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7
-    });
+    const messages = [
+      {
+        role: "system",
+        content: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You MUST return a JSON object with an 'ideas' array containing exactly 5 elements matching the requested keys."
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ];
 
-    const openAiResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: bodyPayload
-    });
-
-    console.log(`OpenAI Side Hustles API HTTP Status Code: ${openAiResponse.status}`);
-
-    const responseText = await openAiResponse.text();
-    console.log(`OpenAI Side Hustles API Raw Response Body:`, responseText);
-
-    if (!openAiResponse.ok) {
-      console.error(`OpenAI Side Hustles API request failed on Vercel with status ${openAiResponse.status}`);
-      return res.status(openAiResponse.status).send(responseText);
-    }
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseErr: any) {
-      console.error("Failed to parse OpenAI Side Hustles response as JSON:", parseErr);
-      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
-    }
+    const responseData = await fetchChatCompletion(messages, 0.7);
 
     const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
-      throw new Error("No response text received from OpenAI");
+      throw new Error("No response text received from AI helper");
     }
 
     const parsedData = JSON.parse(resultText.trim());

@@ -1,3 +1,4 @@
+import './env-sanitizer';
 import { createClient } from '@supabase/supabase-js';
 import { 
   UserProfile, SubscriptionRecord, ReferralRecord, 

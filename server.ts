@@ -1,3 +1,4 @@
+import "./src/services/env-sanitizer";
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -8,6 +9,7 @@ import AdmZip from "adm-zip";
 import crypto from "crypto";
 import pg from "pg";
 import { supabase } from "./src/services/supabase";
+import { fetchChatCompletion } from "./src/services/ai-helper";
 
 const { Client } = pg;
 
@@ -203,43 +205,13 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    console.log("Calling OpenAI GPT-4o-mini API on server via direct fetch...");
-    
-    const url = "https://api.openai.com/v1/chat/completions";
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${openaiApiKey}`
-    };
-    const bodyPayload = JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: messages,
-      temperature: 0.7
-    });
-
-    const openAiResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: bodyPayload
-    });
-
-    console.log(`OpenAI API HTTP Status Code (Express): ${openAiResponse.status}`);
-
-    const responseText = await openAiResponse.text();
-    console.log(`OpenAI API Raw Response Body (Express):`, responseText);
-
-    if (!openAiResponse.ok) {
-      console.error(`OpenAI API request failed on Express server with status ${openAiResponse.status}`);
-      // Return the exact server response to the frontend with proper content-type
-      res.setHeader('Content-Type', 'application/json');
-      return res.status(openAiResponse.status).send(responseText);
-    }
-
     let responseData;
     try {
-      responseData = JSON.parse(responseText);
-    } catch (parseErr: any) {
-      console.error("Failed to parse OpenAI response as JSON on Express server:", parseErr);
-      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
+      responseData = await fetchChatCompletion(messages, 0.7);
+    } catch (apiErr: any) {
+      console.error("AI service call failed in chat endpoint:", apiErr);
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(500).json({ error: { message: apiErr.message || "AI service failed" } });
     }
 
     const replyText = responseData.choices?.[0]?.message?.content || "I was unable to formulate a response. Please try again.";
@@ -590,57 +562,23 @@ Format the response as a valid JSON object containing an "ideas" array of side h
 
     console.log("Calling OpenAI for Side Hustles generator on server with inputs:", { country, ageRange, budget });
 
-    console.log("Calling OpenAI Chat Completion API on Express (Side Hustles) via direct fetch...");
+    const messages = [
+      {
+        role: "system",
+        content: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You MUST return a JSON object with an 'ideas' array containing exactly 5 elements matching the requested keys."
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ];
 
-    const url = "https://api.openai.com/v1/chat/completions";
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${openaiApiKey}`
-    };
-    const bodyPayload = JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are the Orbit AI Side Hustle Assistant, an educational and analytical planner. You help users discover realistic, legal side hustles. You never promise wealth or guarantee success, and you keep advice highly practical, legal, safe, and structured. You MUST return a JSON object with an 'ideas' array containing exactly 5 elements matching the requested keys."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7
-    });
-
-    const openAiResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: bodyPayload
-    });
-
-    console.log(`OpenAI Side Hustles API HTTP Status Code (Express): ${openAiResponse.status}`);
-
-    const responseText = await openAiResponse.text();
-    console.log(`OpenAI Side Hustles API Raw Response Body (Express):`, responseText);
-
-    if (!openAiResponse.ok) {
-      console.error(`OpenAI Side Hustles API request failed on Express with status ${openAiResponse.status}`);
-      res.setHeader('Content-Type', 'application/json');
-      return res.status(openAiResponse.status).send(responseText);
-    }
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseErr: any) {
-      console.error("Failed to parse OpenAI Side Hustles response as JSON on Express:", parseErr);
-      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
-    }
+    console.log("Calling OpenAI Chat Completion API on Express (Side Hustles) via AI-Helper...");
+    const responseData = await fetchChatCompletion(messages, 0.7);
 
     const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
-      throw new Error("No response text received from OpenAI");
+      throw new Error("No response text received from AI helper");
     }
 
     const parsedData = JSON.parse(resultText.trim());
@@ -776,52 +714,20 @@ CRITICAL RULES:
 
     const basePrompt = "You are the Orbit AI Task Specialist, a highly sophisticated execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You instantly deliver highly structured, beautifully formatted, comprehensive, and complete professional outcomes. You always output cleanly formatted markdown with clear headers and bullet points. Do not use emojis in your response.";
     
-    console.log("Calling OpenAI Chat Completion API on Express (Task Generator) via direct fetch...");
+    console.log("Calling OpenAI Chat Completion API on Express (Task Generator) via AI-Helper...");
 
-    const url = "https://api.openai.com/v1/chat/completions";
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${openaiApiKey}`
-    };
-    const bodyPayload = JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: basePrompt
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.5
-    });
+    const messages = [
+      {
+        role: "system",
+        content: basePrompt
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ];
 
-    const openAiResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: bodyPayload
-    });
-
-    console.log(`OpenAI Task Generator API HTTP Status Code (Express): ${openAiResponse.status}`);
-
-    const responseText = await openAiResponse.text();
-    console.log(`OpenAI Task Generator API Raw Response Body (Express):`, responseText);
-
-    if (!openAiResponse.ok) {
-      console.error(`OpenAI Task Generator API request failed on Express with status ${openAiResponse.status}`);
-      res.setHeader('Content-Type', 'application/json');
-      return res.status(openAiResponse.status).send(responseText);
-    }
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseErr: any) {
-      console.error("Failed to parse OpenAI Task Generator response as JSON on Express:", parseErr);
-      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
-    }
+    const responseData = await fetchChatCompletion(messages, 0.5);
 
     const replyText = responseData.choices?.[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.json({ result: replyText });
@@ -906,57 +812,24 @@ Format the response as a valid JSON object matching this schema structure:
 
     console.log("Calling OpenAI for Business Builder on server with inputs:", { industry, country, startingBudget });
 
-    console.log("Calling OpenAI Chat Completion API on Express (Business Builder) via direct fetch...");
+    console.log("Calling OpenAI Chat Completion API on Express (Business Builder) via AI-Helper...");
 
-    const url = "https://api.openai.com/v1/chat/completions";
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${openaiApiKey}`
-    };
-    const bodyPayload = JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7
-    });
+    const messages = [
+      {
+        role: "system",
+        content: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested."
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ];
 
-    const openAiResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: bodyPayload
-    });
-
-    console.log(`OpenAI Business Builder API HTTP Status Code (Express): ${openAiResponse.status}`);
-
-    const responseText = await openAiResponse.text();
-    console.log(`OpenAI Business Builder API Raw Response Body (Express):`, responseText);
-
-    if (!openAiResponse.ok) {
-      console.error(`OpenAI Business Builder API request failed on Express with status ${openAiResponse.status}`);
-      res.setHeader('Content-Type', 'application/json');
-      return res.status(openAiResponse.status).send(responseText);
-    }
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseErr: any) {
-      console.error("Failed to parse OpenAI Business Builder response as JSON on Express:", parseErr);
-      return res.status(500).send(`Failed to parse OpenAI response: ${responseText}`);
-    }
+    const responseData = await fetchChatCompletion(messages, 0.7);
 
     const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
-      throw new Error("No response text received from OpenAI");
+      throw new Error("No response text received from AI helper");
     }
 
     const plan = JSON.parse(resultText.trim());
