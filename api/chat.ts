@@ -196,12 +196,28 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    console.log("[api/chat] Calling genuine OpenAI Chat Completion API via SDK...");
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages,
-      temperature: 0.7,
-    });
+    let completion;
+    try {
+      console.log("[api/chat] Calling genuine OpenAI Chat Completion API via SDK...");
+      completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages,
+        temperature: 0.7,
+      });
+    } catch (apiError: any) {
+      console.error("[api/chat] OpenAI API SDK call failed!");
+      console.error("Error Status:", apiError.status || apiError.statusCode || "N/A");
+      console.error("Error Code:", apiError.code || "N/A");
+      console.error("Error Message:", apiError.message || "N/A");
+      console.error("Full Error Object:", apiError);
+
+      return res.status(apiError.status || 500).json({
+        error: apiError.message || "OpenAI API call failed.",
+        code: apiError.code || null,
+        status: apiError.status || 500,
+        details: String(apiError)
+      });
+    }
 
     const replyText = completion.choices?.[0]?.message?.content;
     if (!replyText) {

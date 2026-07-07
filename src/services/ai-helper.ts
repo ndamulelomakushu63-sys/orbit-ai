@@ -33,9 +33,14 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       console.log("[AI-Helper] OpenAI Chat Completion call succeeded!");
       return completion;
     } catch (err: any) {
-      const errMsg = err.message || err;
-      const sanitizedMsg = String(errMsg).replace(/"error"\s*:/gi, '"err_info":').replace(/error/gi, 'err').substring(0, 200);
-      console.log("[AI-Helper] OpenAI request had an issue, falling back to local content generator:", sanitizedMsg);
+      console.error("[AI-Helper] OpenAI API SDK call failed!");
+      console.error("Error Status:", err.status || err.statusCode || "N/A");
+      console.error("Error Code:", err.code || "N/A");
+      console.error("Error Message:", err.message || "N/A");
+      console.error("Full Error Object:", err);
+      
+      // Propagate the specific OpenAI error so the caller can return the authentic details to the client
+      throw err;
     }
   } else {
     console.warn("[AI-Helper] OpenAI API key is missing or set to placeholder. Proceeding directly to local fallback...");

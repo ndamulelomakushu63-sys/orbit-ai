@@ -209,9 +209,21 @@ app.post("/api/chat", async (req, res) => {
     try {
       responseData = await fetchChatCompletion(messages, 0.7);
     } catch (apiErr: any) {
-      console.error("AI service call failed in chat endpoint:", apiErr);
+      console.error("[server/chat] AI service call failed in chat endpoint!");
+      console.error("Error Status:", apiErr.status || apiErr.statusCode || "N/A");
+      console.error("Error Code:", apiErr.code || "N/A");
+      console.error("Error Message:", apiErr.message || "N/A");
+      console.error("Full Error Object:", apiErr);
+      
       res.setHeader('Content-Type', 'application/json');
-      return res.status(500).json({ error: { message: apiErr.message || "AI service failed" } });
+      return res.status(apiErr.status || 500).json({
+        error: {
+          message: apiErr.message || "AI service failed",
+          code: apiErr.code || null,
+          status: apiErr.status || 500,
+          details: String(apiErr)
+        }
+      });
     }
 
     const replyText = responseData.choices?.[0]?.message?.content || "I was unable to formulate a response. Please try again.";
