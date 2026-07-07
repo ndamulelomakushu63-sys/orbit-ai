@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { supabase } from "../../src/services/supabase";
+import { supabase } from "../../src/services/supabase.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {

@@ -1,11 +1,11 @@
-import './env-sanitizer';
+import './env-sanitizer.js';
 import { createClient } from '@supabase/supabase-js';
 import { 
   UserProfile, SubscriptionRecord, ReferralRecord, 
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, 
   AppNotification, SupportTicket,
   ObdiLead
-} from '../types';
+} from '../types.js';
 
 // Supabase project credentials provided
 const DEFAULT_SUPABASE_URL = "https://ptpnvrgzdnawvvxrkkid.supabase.co";

@@ -1,5 +1,5 @@
-import '../src/services/env-sanitizer';
-import { fetchChatCompletion } from '../src/services/ai-helper';
+import '../src/services/env-sanitizer.js';
+import { fetchChatCompletion } from '../src/services/ai-helper.js';
 import OpenAI from 'openai';
 
 export default async function handler(req: any, res: any) {

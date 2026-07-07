@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import './env-sanitizer';
+import './env-sanitizer.js';
 
 /**
  * AI Helper Utility

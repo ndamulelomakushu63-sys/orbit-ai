@@ -1,6 +1,6 @@
 // Vercel Serverless Function for Orbit AI Chat
-import '../src/services/env-sanitizer';
-import { supabase } from '../src/services/supabase';
+import '../src/services/env-sanitizer.js';
+import { supabase } from '../src/services/supabase.js';
 import OpenAI from 'openai';
 
 // Safe timeout wrapper that catches late-rejections to prevent unhandled promise rejections on Vercel
