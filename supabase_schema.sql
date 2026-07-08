@@ -302,6 +302,10 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     specials TEXT[] DEFAULT '{}'::text[],
     is_public BOOLEAN DEFAULT FALSE,
     is_paid BOOLEAN DEFAULT FALSE,
+    status TEXT DEFAULT 'Pending',
+    payment_status TEXT DEFAULT 'Unpaid',
+    province TEXT,
+    preferred_contact_time TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -316,6 +320,46 @@ BEGIN
           AND column_name = 'user_id'
     ) THEN
         ALTER TABLE public.businesses ADD COLUMN user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'status'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN status TEXT DEFAULT 'Pending';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'payment_status'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN payment_status TEXT DEFAULT 'Unpaid';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'province'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN province TEXT;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'preferred_contact_time'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN preferred_contact_time TEXT;
     END IF;
 END $$;
 

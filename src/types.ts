@@ -143,5 +143,34 @@ export interface ObdiLead {
   specials?: string;
 }
 
+export interface Business {
+  id: string;
+  name: string;
+  ownerName: string;
+  description: string;
+  category: string;
+  townCity: string;
+  physicalAddress: string;
+  phoneNumber: string;
+  whatsappNumber?: string;
+  email?: string;
+  openingHours?: string;
+  socialMediaLinks?: {
+    website?: string;
+    facebook?: string;
+    instagram?: string;
+  };
+  photos?: string[];
+  specials?: string[];
+  isPublic?: boolean;
+  isPaid?: boolean;
+  paymentStatus?: string;
+  status?: string; // 'Pending' | 'Approved' | 'Rejected'
+  createdAt?: string;
+  userId?: string;
+  province?: string;
+  preferredContactTime?: string;
+}
+
 
 

@@ -255,7 +255,7 @@ app.post("/api/chat", async (req, res) => {
 // Real PayFast Payment Initiation Checkout Endpoint
 app.post("/api/payfast/checkout", async (req, res) => {
   try {
-    const { userId, plan, email, name } = req.body;
+    const { userId, plan, email, name, businessId } = req.body;
     if (!userId || !plan) {
       console.error("[PayFast Checkout] Missing required fields:", { userId, plan });
       return res.status(400).json({ error: "userId and plan are required fields" });
@@ -302,10 +302,15 @@ app.post("/api/payfast/checkout", async (req, res) => {
     const cancelUrl = `${origin}?payment_cancelled=true`;
     const notifyUrl = `${origin}/api/payfast/notify`;
 
-    const amount = plan === "Yearly" || plan === "Annually" ? "1188.00" : "99.99";
-    const itemName = plan === "Yearly" || plan === "Annually" 
-      ? "Orbit AI Pro Yearly" 
-      : "Orbit AI Pro Monthly";
+    let amount = "99.99";
+    let itemName = "Orbit AI Pro Monthly";
+    if (plan === "Yearly" || plan === "Annually") {
+      amount = "1188.00";
+      itemName = "Orbit AI Pro Yearly";
+    } else if (plan === "business-registration") {
+      amount = "159.00";
+      itemName = "Orbit AI Business Registration";
+    }
 
     // Split name into first and last
     const nameParts = (name || "Orbit AI User").split(" ");
@@ -326,6 +331,10 @@ app.post("/api/payfast/checkout", async (req, res) => {
       item_name: itemName,
       custom_str1: plan
     };
+
+    if (plan === "business-registration" && businessId) {
+      data.custom_str2 = businessId;
+    }
 
     // 5. Log the exact payload being sent to PayFast (excluding Merchant Key) so we can inspect:
     console.log("=== PAYFAST PAYLOAD LOG (server.ts) ===");
@@ -459,51 +468,73 @@ app.post("/api/payfast/notify", async (req, res) => {
     const amountGross = Number(pfData.amount_gross || 0);
 
     if (paymentStatus === "COMPLETE") {
-      console.log(`[PayFast ITN] Payment is COMPLETE. Upgrading user ${userId} to PRO...`);
-      
-      const startDate = new Date().toISOString();
-      const isYearly = plan === "Yearly" || plan === "Annually";
-      const durationDays = isYearly ? 365 : 30;
-      const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+      if (plan === "business-registration") {
+        const businessId = pfData.custom_str2;
+        console.log(`[PayFast ITN] Payment COMPLETE for Business Registration. Business ID: ${businessId}`);
+        
+        const { error: bizError } = await supabase
+          .from('businesses')
+          .update({
+            is_paid: true,
+            payment_status: "Paid",
+            status: "Pending",
+            created_at: new Date().toISOString()
+          })
+          .eq('id', businessId);
 
-      // Upgrade profile in Supabase
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          plan: "Pro",
-          subscription_status: isYearly ? "pro_yearly" : "pro_monthly",
-          subscription_start_date: startDate,
-          subscription_end_date: endDate,
-          cancelled_at: null,
-          refund_requested: false,
-          refund_request_date: null
-        })
-        .eq('id', userId);
+        if (bizError) {
+          console.error("[PayFast ITN] Error updating business payment status in Supabase:", bizError);
+          throw bizError;
+        }
 
-      if (profileError) {
-        console.error("[PayFast ITN] Error upgrading user profile in Supabase:", profileError);
-        throw profileError;
+        console.log(`[PayFast ITN] Business ${businessId} successfully set to Paid & Pending!`);
+      } else {
+        console.log(`[PayFast ITN] Payment is COMPLETE. Upgrading user ${userId} to PRO...`);
+        
+        const startDate = new Date().toISOString();
+        const isYearly = plan === "Yearly" || plan === "Annually";
+        const durationDays = isYearly ? 365 : 30;
+        const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+        // Upgrade profile in Supabase
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            plan: "Pro",
+            subscription_status: isYearly ? "pro_yearly" : "pro_monthly",
+            subscription_start_date: startDate,
+            subscription_end_date: endDate,
+            cancelled_at: null,
+            refund_requested: false,
+            refund_request_date: null
+          })
+          .eq('id', userId);
+
+        if (profileError) {
+          console.error("[PayFast ITN] Error upgrading user profile in Supabase:", profileError);
+          throw profileError;
+        }
+
+        // Record subscription log in Supabase
+        const { error: subError } = await supabase
+          .from('subscriptions')
+          .upsert({
+            id: `pf-${pfPaymentId || Date.now()}`,
+            user_id: userId,
+            plan: isYearly ? "Yearly" : "Monthly",
+            amount: amountGross || (isYearly ? 1188.00 : 99.99),
+            status: "Active",
+            renewal_date: endDate,
+            created_at: startDate
+          });
+
+        if (subError) {
+          console.error("[PayFast ITN] Error recording subscription record in Supabase:", subError);
+          throw subError;
+        }
+
+        console.log(`[PayFast ITN] User ${userId} successfully upgraded to PRO!`);
       }
-
-      // Record subscription log in Supabase
-      const { error: subError } = await supabase
-        .from('subscriptions')
-        .upsert({
-          id: `pf-${pfPaymentId || Date.now()}`,
-          user_id: userId,
-          plan: isYearly ? "Yearly" : "Monthly",
-          amount: amountGross || (isYearly ? 1188.00 : 99.99),
-          status: "Active",
-          renewal_date: endDate,
-          created_at: startDate
-        });
-
-      if (subError) {
-        console.error("[PayFast ITN] Error recording subscription record in Supabase:", subError);
-        throw subError;
-      }
-
-      console.log(`[PayFast ITN] User ${userId} successfully upgraded to PRO!`);
     } else {
       console.log(`[PayFast ITN] Payment received but status is: ${paymentStatus}. Leaving plan as is.`);
     }

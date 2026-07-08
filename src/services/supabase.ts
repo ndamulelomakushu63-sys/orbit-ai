@@ -4,7 +4,7 @@ import {
   UserProfile, SubscriptionRecord, ReferralRecord, 
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, 
   AppNotification, SupportTicket,
-  ObdiLead
+  ObdiLead, Business
 } from '../types.js';
 
 // Supabase project credentials provided
@@ -549,5 +549,103 @@ export async function dbUploadObdiPhoto(file: File, filename: string): Promise<s
   } catch (err) {
     console.warn("Supabase obdi-photos bucket upload failed: ", err);
     return null;
+  }
+}
+
+// --- 13. BUSINESS MODE OPERATIONS ---
+export function mapDbToBusiness(item: any): Business {
+  return {
+    id: item.id,
+    name: item.name,
+    ownerName: item.owner_name,
+    description: item.description,
+    category: item.category,
+    townCity: item.town_city,
+    physicalAddress: item.physical_address,
+    phoneNumber: item.phone_number,
+    whatsappNumber: item.whatsapp_number || "",
+    email: item.email || "",
+    openingHours: item.opening_hours || "Mon - Fri: 08:00 - 17:00",
+    socialMediaLinks: item.social_media_links || {},
+    photos: item.photos || [],
+    specials: item.specials || [],
+    isPublic: item.is_public || false,
+    isPaid: item.is_paid || false,
+    paymentStatus: item.payment_status || "Unpaid",
+    status: item.status || "Pending",
+    createdAt: item.created_at || "",
+    userId: item.user_id || "",
+    province: item.province || "",
+    preferredContactTime: item.preferred_contact_time || ""
+  };
+}
+
+export function mapBusinessToDb(b: Business): any {
+  return {
+    id: b.id,
+    name: b.name,
+    owner_name: b.ownerName,
+    description: b.description,
+    category: b.category,
+    town_city: b.townCity,
+    physical_address: b.physicalAddress,
+    phone_number: b.phoneNumber,
+    whatsapp_number: b.whatsappNumber || null,
+    email: b.email || null,
+    opening_hours: b.openingHours || 'Mon - Fri: 08:00 - 17:00',
+    social_media_links: b.socialMediaLinks || {},
+    photos: b.photos || [],
+    specials: b.specials || [],
+    is_public: b.isPublic || false,
+    is_paid: b.isPaid || false,
+    payment_status: b.paymentStatus || 'Unpaid',
+    status: b.status || 'Pending',
+    user_id: b.userId || null,
+    province: b.province || null,
+    preferred_contact_time: b.preferredContactTime || null
+  };
+}
+
+export async function dbFetchApprovedBusinesses(): Promise<Business[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('*')
+      .or('status.eq.Approved,status.eq.approved');
+    if (error) throw error;
+    if (!data) return [];
+    return data.map(mapDbToBusiness);
+  } catch (err) {
+    console.warn("Supabase fetch approved businesses failed:", err);
+    return null;
+  }
+}
+
+export async function dbFetchUserBusinesses(userId: string): Promise<Business[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('*')
+      .eq('user_id', userId);
+    if (error) throw error;
+    if (!data) return [];
+    return data.map(mapDbToBusiness);
+  } catch (err) {
+    console.warn("Supabase fetch user businesses failed:", err);
+    return null;
+  }
+}
+
+export async function dbRegisterBusiness(business: Business): Promise<boolean> {
+  try {
+    const dbData = mapBusinessToDb(business);
+    const { error } = await supabase
+      .from('businesses')
+      .upsert(dbData);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase register business failed:", err);
+    return false;
   }
 }
