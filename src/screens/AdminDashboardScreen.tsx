@@ -7,7 +7,7 @@ import {
 import { Edit3, Plus, X, MessageSquare, Tag, Camera, Upload, Trash, CheckCircle, RefreshCw, Lock } from 'lucide-react';
 import { useAppState } from '../services/state';
 import { UserPlan, WithdrawalStatus, UserProfile, WithdrawalRecord, ObdiLead } from '../types';
-import { dbUpsertObdiLead, dbDeleteObdiLead, dbUploadObdiPhoto } from '../services/supabase';
+import { dbUpsertObdiLead, dbDeleteObdiLead, dbUploadObdiPhoto, supabase } from '../services/supabase';
 
 export const AdminDashboardScreen: React.FC = () => {
   const { 
@@ -91,33 +91,133 @@ export const AdminDashboardScreen: React.FC = () => {
   });
 
   // Action: Approve withdrawal
-  const handleApprove = (id: string, withdrawal: WithdrawalRecord) => {
-    setWithdrawals(prev => prev.map(w => {
-      if (w.id === id) return { ...w, status: WithdrawalStatus.APPROVED };
-      return w;
-    }));
-    alert(`EFT payout of R${withdrawal.amount.toFixed(2)} to ${withdrawal.fullName} (${withdrawal.bankName}) was successfully approved!`);
+  const handleApprove = async (id: string, withdrawal: WithdrawalRecord) => {
+    try {
+      // D: Always read the latest balance directly from Supabase before approval operations
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', withdrawal.userId)
+        .single();
+
+      if (profileError) {
+        throw new Error(`Failed to fetch latest balance from Supabase: ${profileError.message}`);
+      }
+
+      const latestBalance = profileData?.balance || 0;
+      console.log(`[Admin Approve] User latest balance on Supabase: R${latestBalance}`);
+
+      // Update the withdrawal request status to 'Approved' in Supabase
+      const { error: updateError } = await supabase
+        .from('withdrawal_requests')
+        .update({ status: WithdrawalStatus.APPROVED })
+        .eq('id', id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Update local state
+      setWithdrawals(prev => prev.map(w => {
+        if (w.id === id) return { ...w, status: WithdrawalStatus.APPROVED };
+        return w;
+      }));
+
+      alert(`EFT payout of R${withdrawal.amount.toFixed(2)} to ${withdrawal.fullName} (${withdrawal.bankName}) was successfully approved!`);
+    } catch (err: any) {
+      console.error("Supabase approval error:", err);
+      alert(`Failed to approve withdrawal: ${err.message || String(err)}`);
+    }
+  };
+
+  // Action: Mark withdrawal as Paid
+  const handleMarkAsPaid = async (id: string, withdrawal: WithdrawalRecord) => {
+    try {
+      const nowStr = new Date().toISOString();
+      const { error: updateError } = await supabase
+        .from('withdrawal_requests')
+        .update({ 
+          status: WithdrawalStatus.PAID,
+          processed_at: nowStr
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Update local state
+      setWithdrawals(prev => prev.map(w => {
+        if (w.id === id) return { ...w, status: WithdrawalStatus.PAID, processedAt: nowStr };
+        return w;
+      }));
+
+      alert(`EFT payout of R${withdrawal.amount.toFixed(2)} to ${withdrawal.fullName} has been successfully marked as Paid!`);
+    } catch (err: any) {
+      console.error("Supabase mark as paid error:", err);
+      alert(`Failed to mark withdrawal as Paid: ${err.message || String(err)}`);
+    }
   };
 
   // Action: Reject withdrawal (refunding wallet balances)
-  const handleReject = (id: string, withdrawal: WithdrawalRecord) => {
-    setWithdrawals(prev => prev.map(w => {
-      if (w.id === id) return { ...w, status: WithdrawalStatus.REJECTED };
-      return w;
-    }));
+  const handleReject = async (id: string, withdrawal: WithdrawalRecord) => {
+    try {
+      // D: Always read the latest balance directly from Supabase before refund/rejection calculations
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', withdrawal.userId)
+        .single();
 
-    // Refund user balance
-    setUsers(prev => prev.map(u => {
-      if (u.uid === withdrawal.userId) {
-        return {
-          ...u,
-          balance: (u.balance || 0) + withdrawal.amount
-        };
+      if (profileError) {
+        throw new Error(`Failed to fetch latest balance from Supabase: ${profileError.message}`);
       }
-      return u;
-    }));
 
-    alert(`EFT payout of R${withdrawal.amount.toFixed(2)} for ${withdrawal.fullName} has been declined. Funds were refunded to their wallet.`);
+      const latestBalance = profileData?.balance || 0;
+      const nextBalance = latestBalance + withdrawal.amount;
+
+      // Update user's balance directly in Supabase profiles table
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({ balance: nextBalance })
+        .eq('id', withdrawal.userId);
+
+      if (profileUpdateError) {
+        throw profileUpdateError;
+      }
+
+      // Update the withdrawal request status to 'Rejected' in Supabase
+      const { error: updateError } = await supabase
+        .from('withdrawal_requests')
+        .update({ status: WithdrawalStatus.REJECTED })
+        .eq('id', id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Update local state for withdrawals
+      setWithdrawals(prev => prev.map(w => {
+        if (w.id === id) return { ...w, status: WithdrawalStatus.REJECTED };
+        return w;
+      }));
+
+      // Update local state for user balance
+      setUsers(prev => prev.map(u => {
+        if (u.uid === withdrawal.userId) {
+          return {
+            ...u,
+            balance: nextBalance
+          };
+        }
+        return u;
+      }));
+
+      alert(`EFT payout of R${withdrawal.amount.toFixed(2)} for ${withdrawal.fullName} has been declined. Funds were refunded to their wallet.`);
+    } catch (err: any) {
+      console.error("Supabase rejection error:", err);
+      alert(`Failed to decline withdrawal: ${err.message || String(err)}`);
+    }
   };
 
   // Action: Toggle pro subscription admin
@@ -497,7 +597,9 @@ export const AdminDashboardScreen: React.FC = () => {
                       w.status === WithdrawalStatus.PENDING 
                         ? 'border-amber-200 bg-amber-50/25' 
                         : w.status === WithdrawalStatus.APPROVED 
-                        ? 'border-slate-150 bg-slate-50/30' 
+                        ? 'border-blue-200 bg-blue-50/20' 
+                        : w.status === WithdrawalStatus.PAID
+                        ? 'border-emerald-200 bg-emerald-50/20'
                         : 'border-red-150 bg-red-50/10'
                     }`}
                   >
@@ -513,13 +615,16 @@ export const AdminDashboardScreen: React.FC = () => {
                       <Text className="block truncate font-mono">Bank: {w.bankName}</Text>
                       <Text className="block truncate font-mono">Acc: {w.accountNumber}</Text>
                       <Text className="block truncate font-mono">Holder: {w.accountHolder}</Text>
+                      {w.branchCode && <Text className="block truncate font-mono">Branch: {w.branchCode}</Text>}
+                      {w.accountType && <Text className="block truncate font-mono">Type: {w.accountType}</Text>}
                     </View>
 
                     <View className="flex flex-row justify-between items-center bg-white px-2 py-1.5 rounded-xl border border-slate-100">
                       <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-widest font-sans">Status:</Text>
                       <span className={`text-[9px] font-black uppercase text-right tracking-wider font-sans ${
                         w.status === WithdrawalStatus.PENDING ? 'text-amber-600'
-                        : w.status === WithdrawalStatus.APPROVED ? 'text-green-600'
+                        : w.status === WithdrawalStatus.APPROVED ? 'text-blue-600'
+                        : w.status === WithdrawalStatus.PAID ? 'text-emerald-600'
                         : 'text-red-500'
                       }`}>
                         {w.status}
@@ -542,6 +647,18 @@ export const AdminDashboardScreen: React.FC = () => {
                         >
                           <XCircle className="w-3 h-3 text-red-500" />
                           <Text className="text-red-600 text-[10px] font-black font-sans leading-none">Reject</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {w.status === WithdrawalStatus.APPROVED && (
+                      <View className="pt-1">
+                        <TouchableOpacity
+                          onClick={() => handleMarkAsPaid(w.id, w)}
+                          className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black flex flex-row items-center justify-center gap-1 shadow-2xs"
+                        >
+                          <CheckCircle className="w-3 h-3 text-white" />
+                          <Text className="text-white text-[10px] font-black font-sans leading-none">Mark as Paid</Text>
                         </TouchableOpacity>
                       </View>
                     )}

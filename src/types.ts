@@ -6,6 +6,7 @@ export enum UserPlan {
 export enum WithdrawalStatus {
   PENDING = "Pending",
   APPROVED = "Approved",
+  PAID = "Paid",
   REJECTED = "Rejected"
 }
 
@@ -84,6 +85,10 @@ export interface WithdrawalRecord {
   amount: number;
   status: WithdrawalStatus;
   timestamp: string;
+  branchCode?: string;
+  accountType?: string;
+  processedAt?: string;
+  adminNotes?: string;
 }
 
 export interface AIAgent {

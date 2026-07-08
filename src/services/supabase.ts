@@ -50,8 +50,14 @@ if (!rawKey && typeof process !== 'undefined') {
   rawKey = process.env?.VITE_SUPABASE_ANON_KEY;
 }
 
-const supabaseUrl = getValidUrl(rawUrl, DEFAULT_SUPABASE_URL);
-const supabaseAnonKey = getValidKey(rawKey, DEFAULT_SUPABASE_ANON_KEY);
+const supabaseUrl = getValidUrl(rawUrl, "");
+const supabaseAnonKey = getValidKey(rawKey, "");
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "CRITICAL CONFIGURATION ERROR: Required Supabase environment variables (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY) are missing, empty, or invalid placeholders. Please set them in your environment configuration before running Orbit AI."
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -338,22 +344,26 @@ export async function dbUpsertReferral(r: ReferralRecord): Promise<boolean> {
 export async function dbFetchWithdrawals(): Promise<WithdrawalRecord[] | null> {
   try {
     const { data, error } = await supabase
-      .from('withdrawals')
+      .from('withdrawal_requests')
       .select('*');
     if (error) throw error;
     if (!data) return null;
     return data.map(item => ({
       id: item.id,
       userId: item.user_id,
-      userName: item.user_name,
-      userEmail: item.user_email,
-      fullName: item.full_name,
-      bankName: item.bank_name,
-      accountNumber: item.account_number,
-      accountHolder: item.account_holder,
+      userName: item.full_name || "",
+      userEmail: item.email || "",
+      fullName: item.full_name || "",
+      bankName: item.bank_name || "",
+      accountNumber: item.account_number || "",
+      accountHolder: item.account_holder || "",
+      branchCode: item.branch_code || "",
+      accountType: item.account_type || "",
+      processedAt: item.processed_at || "",
+      adminNotes: item.admin_notes || "",
       amount: Number(item.amount),
       status: item.status,
-      timestamp: item.timestamp
+      timestamp: item.created_at || item.timestamp || new Date().toISOString()
     }));
   } catch (err) {
     console.warn("Supabase withdrawals fetch failed: ", err);
@@ -364,20 +374,23 @@ export async function dbFetchWithdrawals(): Promise<WithdrawalRecord[] | null> {
 export async function dbUpsertWithdrawal(w: WithdrawalRecord): Promise<boolean> {
   try {
     const { error } = await supabase
-      .from('withdrawals')
+      .from('withdrawal_requests')
       .upsert({
         id: w.id,
         user_id: w.userId,
-        user_name: w.userName,
-        user_email: w.userEmail,
         full_name: w.fullName,
+        email: w.userEmail || "",
         bank_name: w.bankName,
         account_number: w.accountNumber,
         account_holder: w.accountHolder,
+        branch_code: w.branchCode || "",
+        account_type: w.accountType || "",
+        processed_at: w.processedAt || null,
+        admin_notes: w.adminNotes || null,
         amount: w.amount,
         status: w.status,
-        timestamp: w.timestamp
-      });
+        created_at: w.timestamp
+      }, { onConflict: 'id' });
     if (error) throw error;
     return true;
   } catch (err) {

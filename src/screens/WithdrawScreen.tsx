@@ -3,7 +3,10 @@ import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } fro
 import { ArrowLeft, AlertCircle, Building, User, Lock, Send, CheckCircle } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { WithdrawalRecord, WithdrawalStatus } from '../types';
-import { supabase } from '../services/supabase.js';
+import { supabase } from '../services/supabase';
+
+// Configurable minimum withdrawal amount constant
+const MIN_WITHDRAWAL_AMOUNT = 50;
 
 export const WithdrawScreen: React.FC = () => {
   const { currentUser, setUsers, withdrawals, setWithdrawals, setMobileScreen } = useAppState();
@@ -38,8 +41,8 @@ export const WithdrawScreen: React.FC = () => {
     }
 
     const value = parseFloat(amount);
-    if (isNaN(value) || value <= 0) {
-      setError("Please submit a valid cash payout amount starting from R1.00");
+    if (isNaN(value) || value < MIN_WITHDRAWAL_AMOUNT) {
+      setError(`Please submit a valid cash payout amount starting from R${MIN_WITHDRAWAL_AMOUNT}.00`);
       setSuccessMessage("");
       return;
     }
@@ -55,8 +58,45 @@ export const WithdrawScreen: React.FC = () => {
     setLoading(true);
 
     try {
+      // Fetch the latest user profile balance directly from Supabase to prevent race conditions or stale local balance bypasses
+      const { data: profile, error: profileFetchErr } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', currentUser.uid)
+        .single();
+
+      if (profileFetchErr) {
+        throw new Error(`Failed to verify latest wallet balance from database: ${profileFetchErr.message}`);
+      }
+
+      const latestSupabaseBalance = Number(profile?.balance || 0);
+
+      if (value > latestSupabaseBalance) {
+        setError(`Requested amount exceeds your actual available balance of R${latestSupabaseBalance.toFixed(2)}.`);
+        setSuccessMessage("");
+        setLoading(false);
+        return;
+      }
+
+      // B: Prevent duplicate withdrawal requests
+      // Check if user already has an active pending or approved withdrawal request in Supabase
+      const { data: existing, error: checkErr } = await supabase
+        .from('withdrawal_requests')
+        .select('status')
+        .eq('user_id', currentUser.uid)
+        .in('status', ['Pending', 'Approved']);
+
+      if (checkErr) {
+        console.warn("Could not check duplicate requests on Supabase:", checkErr);
+      } else if (existing && existing.length > 0) {
+        setError("An existing withdrawal request is already being processed.");
+        setSuccessMessage("");
+        setLoading(false);
+        return;
+      }
+
       // Save new row into the withdrawal_requests table in Supabase
-      const { error: dbErr } = await supabase
+      const { data: insertData, error: dbErr } = await supabase
         .from('withdrawal_requests')
         .insert({
           user_id: currentUser.uid,
@@ -69,27 +109,41 @@ export const WithdrawScreen: React.FC = () => {
           branch_code: branchCode,
           account_type: accountType,
           status: "Pending"
-        });
+        })
+        .select();
 
       if (dbErr) {
         throw dbErr;
       }
 
+      // A: Update user's balance inside the profiles table in Supabase
+      const nextBal = latestSupabaseBalance - value;
+      const safeNextBal = nextBal < 0 ? 0 : nextBal;
+
+      const { error: profileErr } = await supabase
+        .from('profiles')
+        .update({ balance: safeNextBal })
+        .eq('id', currentUser.uid);
+
+      if (profileErr) {
+        throw profileErr;
+      }
+
       // 1. Subtract balance from current user locally
       setUsers(prev => prev.map(u => {
         if (u.uid === currentUser.uid) {
-          const nextBal = (u.balance || 0) - value;
           return {
             ...u,
-            balance: nextBal < 0 ? 0 : nextBal
+            balance: safeNextBal
           };
         }
         return u;
       }));
 
       // 2. Add a record locally so transaction history still shows up in UI
+      const generatedId = (insertData && insertData[0]?.id) || ("with-" + Date.now());
       const record: WithdrawalRecord = {
-        id: "with-" + Date.now(),
+        id: generatedId,
         userId: currentUser.uid,
         userName: currentUser.name,
         userEmail: currentUser.email,
@@ -99,7 +153,9 @@ export const WithdrawScreen: React.FC = () => {
         accountHolder,
         amount: value,
         status: WithdrawalStatus.PENDING,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        branchCode,
+        accountType
       };
       setWithdrawals(prev => [record, ...prev]);
 
