@@ -26,11 +26,12 @@ import {
 import { 
   dbFetchApprovedBusinesses, 
   dbFetchUserBusinesses, 
-  dbRegisterBusiness,
   dbRegisterBusinessDraft,
   dbFetchUserRegistrations
 } from '../services/supabase';
 import { Business } from '../types';
+import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
+import { BottomNav } from '../components/BottomNav';
 
 export default function BusinessModeScreen() {
   const { currentUser, setMobileScreen } = useAppState();
@@ -215,25 +216,12 @@ export default function BusinessModeScreen() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (formErrors[name]) {
-      setFormErrors(prev => {
-        const copy = { ...prev };
-        delete copy[name];
-        return copy;
-      });
-    }
-  };
-
   const generateUUID = () => {
     return 'biz-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now().toString(36);
   };
 
   // Submit registration form
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRegisterSubmit = async () => {
     if (!currentUser) {
       alert("Please sign in to register a business.");
       return;
@@ -269,7 +257,7 @@ export default function BusinessModeScreen() {
         status: 'pending'
       };
 
-      // Save as draft inside business_registrations (NOT businesses table)
+      // Save as draft inside business_registrations
       const saved = await dbRegisterBusinessDraft(draftRegistration);
       if (!saved) {
         throw new Error("Could not save registration draft. Please try again.");
@@ -318,252 +306,224 @@ export default function BusinessModeScreen() {
   });
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans" id="business-mode-screen">
+    <SafeAreaView className="bg-slate-50 flex flex-col h-full justify-between" id="business-mode-screen">
+      
       {/* HEADER BAR */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center space-x-3">
-          <button 
+      <View className="px-5 py-4 bg-white border-b border-slate-100 flex flex-row items-center justify-between select-none">
+        <View className="flex flex-row items-center gap-3">
+          <TouchableOpacity 
             onClick={() => setMobileScreen('chat')}
-            className="p-1.5 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+            className="p-1.5 hover:bg-slate-50 rounded-full text-slate-600 cursor-pointer"
             id="back-to-home-btn"
           >
-            <ArrowLeft className="w-6 h-6 text-slate-700" />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <Building className="w-5 h-5 text-indigo-600" />
-              Business Mode
-            </h1>
-            <p className="text-xs text-slate-500">Discover or Register Local Businesses</p>
-          </div>
-        </div>
+            <ArrowLeft className="w-5 h-5 text-slate-700" />
+          </TouchableOpacity>
+          <View className="text-left">
+            <Text className="text-base font-extrabold text-slate-900 tracking-tight block">Business Mode</Text>
+            <Text className="text-[10px] text-slate-400 font-medium block">Discover Local Businesses</Text>
+          </View>
+        </View>
 
-        <div className="flex bg-slate-100 rounded-xl p-1">
-          <button 
+        {/* Tab switcher */}
+        <View className="flex flex-row bg-slate-100 p-0.5 rounded-xl border border-slate-200/55">
+          <TouchableOpacity 
             onClick={() => setActiveTab('directory')}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
               activeTab === 'directory' 
-                ? 'bg-white text-indigo-600 shadow-sm' 
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white shadow-2xs border border-slate-200/30' 
+                : ''
             }`}
             id="tab-directory-btn"
           >
-            Directory
-          </button>
-          <button 
+            <Text className={`text-[11px] font-bold font-sans ${activeTab === 'directory' ? 'text-blue-600' : 'text-slate-450'}`}>Directory</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
             onClick={() => {
               setActiveTab('register');
               loadUserBusinesses();
             }}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
               activeTab === 'register' 
-                ? 'bg-white text-indigo-600 shadow-sm' 
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white shadow-2xs border border-slate-200/30' 
+                : ''
             }`}
             id="tab-register-btn"
           >
-            Register
-          </button>
-        </div>
-      </header>
+            <Text className={`text-[11px] font-bold font-sans ${activeTab === 'register' ? 'text-blue-600' : 'text-slate-450'}`}>Register</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 pb-24">
+      {/* MAIN SCROLL AREA */}
+      <ScrollView 
+        className="flex-1 px-4 pt-4"
+        contentContainerClassName="pb-24 space-y-5"
+        showsVerticalScrollIndicator={false}
+      >
         
-        {/* DIRECTORY VIEW */}
+        {/* 1. DIRECTORY SCREEN */}
         {activeTab === 'directory' && (
-          <div className="space-y-6">
+          <View className="space-y-4 text-left">
             
-            {/* HERO INTRODUCTION */}
-            <div className="bg-indigo-900 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-indigo-800/50 to-transparent pointer-events-none" />
-              <div className="relative z-10 max-w-xl">
-                <span className="bg-indigo-500/30 text-indigo-200 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
-                  Verified Local Partners
-                </span>
-                <h2 className="text-2xl md:text-3xl font-extrabold mt-3 tracking-tight">
-                  Connect with Verified Local Businesses
-                </h2>
-                <p className="text-indigo-100 text-sm mt-2 leading-relaxed">
-                  Every business in our directory has been physically visited, interviewed, and hand-verified by the Orbit AI Team. Trust-guaranteed.
-                </p>
-                <button
-                  onClick={() => setActiveTab('register')}
-                  className="mt-4 bg-white text-indigo-900 hover:bg-indigo-50 text-xs font-bold px-4 py-2 rounded-xl transition-all shadow cursor-pointer flex items-center gap-1.5"
-                >
-                  <PlusCircle className="w-4 h-4 text-indigo-600" />
-                  List Your Business for R159
-                </button>
-              </div>
-            </div>
-
-            {/* SEARCH & FILTERS */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-                <input 
-                  type="text"
-                  placeholder="Search business name, category, city..."
+            {/* Search Panel Card */}
+            <View className="bg-white p-5 border border-slate-200/55 rounded-3xl space-y-4 shadow-2xs">
+              <View className="relative flex flex-row items-center bg-slate-50 border border-slate-200/60 rounded-2xl px-3.5 py-2.5">
+                <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2.5" />
+                <TextInput
+                  placeholder="Search name, category, location..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-800 text-sm"
+                  onChangeText={setSearchQuery}
+                  className="flex-1 text-xs bg-transparent outline-none font-sans"
                   id="directory-search-input"
                 />
-              </div>
+              </View>
 
-              {/* HORIZONTAL CATEGORIES SLIDER */}
-              <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none">
+              {/* Horizontal scroll pills */}
+              <View className="flex flex-row overflow-x-auto pb-1 gap-1.5 scrollbar-none">
                 {categories.map((cat) => (
-                  <button
+                  <TouchableOpacity
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
-                    className={`px-3.5 py-1.5 text-xs font-medium rounded-full border whitespace-nowrap transition-all cursor-pointer ${
+                    className={`px-3.5 py-1.5 rounded-full border whitespace-nowrap transition cursor-pointer ${
                       selectedCategory === cat
-                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'bg-slate-50 border-slate-200/60'
                     }`}
                   >
-                    {cat}
-                  </button>
+                    <Text className={`text-[10px] font-bold font-sans tracking-wide ${selectedCategory === cat ? 'text-white' : 'text-slate-500'}`}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
-              </div>
-            </div>
+              </View>
+            </View>
 
-            {/* DIRECTORY GRID */}
+            {/* List Listings */}
             {loadingDirectory ? (
-              <div className="flex flex-col items-center justify-center py-16 space-y-3">
-                <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-slate-500 text-sm font-medium">Loading approved business listings...</p>
-              </div>
+              <View className="py-12 items-center justify-center space-y-3">
+                <View className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <Text className="text-xs text-slate-400 font-medium">Fetching verified directory...</Text>
+              </View>
             ) : filteredBusinesses.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center flex flex-col items-center justify-center space-y-3 shadow-sm">
-                <div className="bg-slate-100 p-4 rounded-full">
-                  <Briefcase className="w-10 h-10 text-slate-400" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800">No Businesses Found</h3>
-                <p className="text-slate-500 text-sm max-w-sm">
-                  We couldn't find any approved businesses matching your search criteria. Be the first to register one!
-                </p>
-                <button
-                  onClick={() => setActiveTab('register')}
-                  className="bg-indigo-600 text-white font-semibold text-xs px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors cursor-pointer"
+              <View className="bg-white rounded-3xl border border-slate-200/55 p-12 items-center justify-center space-y-3 shadow-2xs text-center">
+                <View className="bg-slate-50 p-4 rounded-full border border-slate-100">
+                  <Briefcase className="w-8 h-8 text-slate-400" />
+                </View>
+                <Text className="text-sm font-extrabold text-slate-800 block">No Listings Found</Text>
+                <Text className="text-xs text-slate-400 max-w-[280px] leading-relaxed block">
+                  We couldn't find any approved businesses matching this filter.
+                </Text>
+                <TouchableOpacity
+                  onClick={() => {
+                    setActiveTab('register');
+                    loadUserBusinesses();
+                  }}
+                  className="bg-blue-600 px-4 py-2.5 rounded-xl mt-2 cursor-pointer"
                 >
-                  Register a Business
-                </button>
-              </div>
+                  <Text className="text-white text-xs font-bold font-sans">Register a Business</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <View className="space-y-4">
                 {filteredBusinesses.map((biz) => (
-                  <motion.div
+                  <TouchableOpacity
                     key={biz.id}
                     onClick={() => setSelectedBusiness(biz)}
-                    layoutId={`biz-card-${biz.id}`}
-                    className="bg-white rounded-2xl p-5 border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+                    className="bg-white p-5 border border-slate-200/55 rounded-3xl space-y-4 shadow-2xs text-left cursor-pointer transition hover:border-blue-400"
                   >
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start">
-                        <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          {biz.category}
-                        </span>
-                        <div className="flex items-center space-x-1 text-slate-500 text-xs font-medium">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{biz.townCity}</span>
-                        </div>
-                      </div>
+                    <View className="flex flex-row justify-between items-center">
+                      <View className="bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded-full">
+                        <Text className="text-[9px] font-bold text-blue-600 uppercase tracking-widest">{biz.category}</Text>
+                      </View>
+                      <View className="flex flex-row items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">{biz.townCity}</Text>
+                      </View>
+                    </View>
 
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-800 tracking-tight leading-snug">
-                          {biz.name}
-                        </h3>
-                        <p className="text-slate-500 text-xs mt-1 font-medium">
-                          By {biz.ownerName}
-                        </p>
-                      </div>
+                    <View className="space-y-1">
+                      <Text className="text-sm font-extrabold text-slate-900 leading-tight block">{biz.name}</Text>
+                      <Text className="text-[11px] text-slate-400 font-medium block">Owner: {biz.ownerName}</Text>
+                    </View>
 
-                      <p className="text-slate-600 text-sm line-clamp-2 mt-1 leading-relaxed">
-                        {biz.description}
-                      </p>
-                    </div>
+                    <Text className="text-[11.5px] text-slate-500 leading-relaxed font-sans block line-clamp-3">
+                      {biz.description}
+                    </Text>
 
-                    <div className="border-t border-slate-100 pt-3 mt-4 flex items-center justify-between text-xs text-indigo-600 font-semibold">
-                      <div className="flex items-center gap-1">
-                        <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                        <span className="text-slate-500 font-normal">Verified Directory Member</span>
-                      </div>
-                      <div className="flex items-center gap-0.5">
-                        <span>View Details</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </motion.div>
+                    <View className="border-t border-slate-100 pt-3.5 flex flex-row items-center justify-between">
+                      <View className="flex flex-row items-center gap-1.5">
+                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                        <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Verified Listing</Text>
+                      </View>
+                      <View className="flex flex-row items-center gap-0.5">
+                        <Text className="text-xs font-bold text-blue-600">View Profile</Text>
+                        <ChevronRight className="w-4 h-4 text-blue-600" />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
                 ))}
-              </div>
+              </View>
             )}
-          </div>
+          </View>
         )}
 
-        {/* REGISTRATION & STATUS VIEW */}
+        {/* 2. REGISTRATION & STATUS SCREEN */}
         {activeTab === 'register' && (
-          <div className="space-y-6">
+          <View className="space-y-4 text-left">
             
-            {/* USER'S REGISTERED BUSINESS APPLICATIONS STATUS */}
+            {/* Status list if user has listings */}
             {loadingMyBusinesses ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 flex justify-center items-center">
-                <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mr-2" />
-                <span className="text-slate-500 text-sm">Fetching your applications...</span>
-              </div>
+              <View className="bg-white border border-slate-200/55 rounded-3xl p-6 flex flex-row items-center justify-center shadow-2xs">
+                <View className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2" />
+                <Text className="text-slate-500 text-xs font-medium">Loading your listings...</Text>
+              </View>
             ) : myBusinesses.length > 0 ? (
-              <div className="space-y-4">
-                <h2 className="text-md font-bold text-slate-800 tracking-tight flex items-center gap-1.5 px-1">
-                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                  Your Business Directory Listings
-                </h2>
+              <View className="space-y-4">
+                <Text className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest pl-1 block">Your Registered Listings</Text>
 
-                <div className="space-y-4">
+                <View className="space-y-4">
                   {myBusinesses.map((biz) => (
-                    <div 
-                      key={biz.id}
-                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900 leading-snug">{biz.name}</h3>
-                          <p className="text-xs text-slate-500 mt-0.5">Category: {biz.category} • Location: {biz.townCity}, {biz.province}</p>
-                        </div>
-                        
-                        {/* Status badge and Payment badge */}
-                        <div className="flex items-center space-x-2">
-                          <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
-                            biz.paymentStatus === 'Paid' || biz.isPaid
-                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                              : 'bg-amber-50 border-amber-200 text-amber-700'
-                          }`}>
-                            {biz.paymentStatus === 'Paid' || biz.isPaid ? 'R159 Paid' : 'Unpaid'}
-                          </span>
-                          
-                          <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
-                            biz.status === 'Approved'
-                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                              : biz.status === 'Rejected'
-                              ? 'bg-rose-50 border-rose-200 text-rose-700'
-                              : 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                          }`}>
-                            Status: {biz.status || 'Pending'}
-                          </span>
-                        </div>
-                      </div>
+                    <View key={biz.id} className="bg-white border border-slate-200/55 rounded-3xl p-5 shadow-2xs space-y-4 text-left">
+                      <View className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+                        <View className="text-left">
+                          <Text className="text-sm font-extrabold text-slate-900 leading-tight block">{biz.name}</Text>
+                          <Text className="text-[10.5px] text-slate-400 mt-1 block">Category: {biz.category} • Location: {biz.townCity}, {biz.province}</Text>
+                        </View>
 
-                      {/* Payment Prompt if Unpaid */}
+                        <View className="flex flex-row items-center gap-2">
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                            biz.paymentStatus === 'Paid' || biz.isPaid
+                              ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                              : 'bg-amber-50 border-amber-100 text-amber-600'
+                          }`}>
+                            {biz.paymentStatus === 'Paid' || biz.isPaid ? 'Paid' : 'Unpaid'}
+                          </span>
+
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                            biz.status === 'Approved'
+                              ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                              : biz.status === 'Rejected'
+                              ? 'bg-rose-50 border-rose-100 text-rose-600'
+                              : 'bg-blue-50 border-blue-100 text-blue-600'
+                          }`}>
+                            {biz.status || 'Pending'}
+                          </span>
+                        </View>
+                      </View>
+
+                      {/* Payment required block */}
                       {(!biz.isPaid && biz.paymentStatus !== 'Paid') && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <div className="flex gap-2">
+                        <View className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+                          <View className="flex flex-row gap-2.5 items-start">
                             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-sm font-bold text-amber-800">Payment Required</p>
-                              <p className="text-xs text-amber-700">Please complete your R159 registration payment to start processing your listing.</p>
-                            </div>
-                          </div>
-                          <button
+                            <View className="flex-1 text-left">
+                              <Text className="text-xs font-bold text-amber-800 block">Listing Fee Required</Text>
+                              <Text className="text-[11px] text-amber-700 leading-normal block">
+                                Complete your secure R159 registration payment to initiate verification.
+                              </Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity
                             onClick={async () => {
                               try {
                                 const uid = currentUser?.uid || currentUser?.id;
@@ -582,479 +542,439 @@ export default function BusinessModeScreen() {
                                 if (!res.ok) throw new Error(data.error);
                                 window.location.href = data.checkoutUrl;
                               } catch (e: any) {
-                                alert("Failed to initiate payment: " + e.message);
+                                alert("Failed to open gateway: " + e.message);
                               }
                             }}
-                            className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer"
+                            className="w-full bg-amber-600 py-2.5 rounded-xl text-center cursor-pointer"
                           >
-                            Pay R159 Now
-                          </button>
-                        </div>
+                            <Text className="text-white text-xs font-bold">Pay R159 Now</Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
 
-                      {/* Display the beautiful specific success message if status is Pending and payment is successful */}
+                      {/* Verification status block */}
                       {(biz.status === 'Pending' && (biz.isPaid || biz.paymentStatus === 'Paid')) && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4.5 space-y-3 text-slate-700 text-sm leading-relaxed">
-                          <p className="font-bold text-indigo-800 flex items-center gap-1.5">
-                            <Clock className="w-4 h-4" />
-                            Application Pending Verification
-                          </p>
-                          <div className="space-y-2 text-xs md:text-sm">
-                            <p>Thank you for registering your business with Orbit AI.</p>
-                            <p>Your payment has been received successfully.</p>
-                            <p>Our Business Team will contact you shortly to schedule a visit.</p>
-                            <p className="font-semibold pt-1">During our visit we will:</p>
-                            <ul className="list-disc pl-5 space-y-1 text-slate-600">
-                              <li>Meet you</li>
-                              <li>Take professional business photos</li>
-                              <li>Interview you</li>
-                              <li>Write an attractive business description</li>
-                              <li>Verify your business information</li>
-                            </ul>
-                            <p className="font-medium text-slate-700 pt-1">After approval your business will become visible inside Orbit AI Business Mode.</p>
-                          </div>
-                        </div>
+                        <View className="bg-slate-50 border border-slate-100 rounded-2xl p-4.5 space-y-3 text-left">
+                          <View className="flex flex-row items-center gap-1.5 text-blue-600 font-bold">
+                            <Clock className="w-4 h-4 text-blue-600" />
+                            <Text className="text-xs font-extrabold text-blue-700">Verification Pending</Text>
+                          </View>
+                          <View className="space-y-2">
+                            <Text className="text-xs text-slate-600 block leading-normal">
+                              Our Business Team has received your submission and will contact you shortly to schedule a visit.
+                            </Text>
+                            <Text className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block pt-1">During our physical visit we will:</Text>
+                            <View className="space-y-1.5 pl-1.5">
+                              <Text className="text-[11px] text-slate-500 block">• Meet you and take professional photos of your shop/activity</Text>
+                              <Text className="text-[11px] text-slate-500 block">• Interview you regarding services and background</Text>
+                              <Text className="text-[11px] text-slate-500 block">• Compose an attractive promotional description</Text>
+                              <Text className="text-[11px] text-slate-500 block">• Hand-verify coordinate markers and physical information</Text>
+                            </View>
+                            <Text className="text-[11px] font-medium text-slate-600 block pt-1">
+                              Once approved, your listing becomes instantly discoverable inside the local directory!
+                            </Text>
+                          </View>
+                        </View>
                       )}
 
-                      {/* If approved, let them view how it looks or edit details */}
+                      {/* Live listing actions */}
                       {biz.status === 'Approved' && (
-                        <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="w-5 h-5 text-emerald-600" />
-                            <p className="text-sm font-semibold text-emerald-800">Your business directory listing is live on Orbit AI!</p>
-                          </div>
-                          <button
+                        <View className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 flex flex-row items-center justify-between">
+                          <View className="flex flex-row items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-emerald-500" />
+                            <Text className="text-xs font-bold text-emerald-800">Listing is currently Live</Text>
+                          </View>
+                          <TouchableOpacity
                             onClick={() => setSelectedBusiness(biz)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer flex items-center gap-1"
+                            className="bg-blue-600 px-3 py-1.5 rounded-lg flex flex-row items-center gap-1 cursor-pointer"
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                            Preview Page
-                          </button>
-                        </div>
+                            <Eye className="w-3.5 h-3.5 text-white" />
+                            <Text className="text-white text-[10px] font-bold">Preview Listing</Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
-
-                      {biz.status === 'Rejected' && (
-                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3">
-                          <AlertCircle className="w-5 h-5 text-rose-600" />
-                          <div>
-                            <p className="text-sm font-bold text-rose-800 font-sans">Listing Rejected</p>
-                            <p className="text-xs text-rose-700">Your application was not approved. Please contact support if you believe this is an error.</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    </View>
                   ))}
-                </div>
+                </View>
 
-                <div className="pt-2 flex justify-center">
-                  <button
-                    onClick={() => setMyBusinesses([])} // Triggers showing the form by clearing local listing list temporarily
-                    className="border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                <View className="pt-2 flex flex-row justify-center">
+                  <TouchableOpacity
+                    onClick={() => setMyBusinesses([])}
+                    className="border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 rounded-xl flex flex-row items-center gap-1.5 shadow-2xs"
                   >
-                    <PlusCircle className="w-4 h-4 text-indigo-600" />
-                    Register Another Business
-                  </button>
-                </div>
-              </div>
+                    <PlusCircle className="w-4 h-4 text-blue-600" />
+                    <Text className="text-slate-700 text-xs font-bold">Register Another Business</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             ) : (
-              /* REGISTRATION FORM (STEP 1) */
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm max-w-2xl mx-auto">
-                <div className="border-b border-slate-100 pb-4 mb-6">
-                  <h2 className="text-xl font-bold text-slate-950 flex items-center gap-1.5">
-                    <Building className="w-5 h-5 text-indigo-600" />
-                    Business Directory Application
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Fill out the registration details. Listing fee is a one-time <strong className="text-indigo-600 font-bold">R159</strong> which covers physical visit, verification, copywriting and listing hosting.
-                  </p>
-                </div>
+              /* REGISTRATION FORM */
+              <View className="bg-white p-5 border border-slate-200/55 rounded-3xl space-y-5 shadow-2xs text-left">
+                <View className="border-b border-slate-100 pb-3">
+                  <Text className="text-sm font-extrabold text-slate-900 block">Business Directory Application</Text>
+                  <Text className="text-[11px] text-slate-450 mt-1 block leading-relaxed">
+                    Fill out the verification metrics below. The listing fee is a one-time <strong className="text-blue-600 font-bold">R159</strong> covering the visit, verification, photography, and hosting.
+                  </Text>
+                </View>
 
                 {formStep === 1 ? (
-                  <form onSubmit={handleRegisterSubmit} className="space-y-5">
+                  <View className="space-y-4">
                     
-                    {/* Section: General Info */}
-                    <div>
-                      <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
-                        1. Business Identity
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Business Name *</label>
-                          <input 
-                            type="text" 
-                            name="businessName"
-                            value={formData.businessName}
-                            onChange={handleInputChange}
-                            placeholder="e.g. Cape Town Artisan Bakers"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                          {formErrors.businessName && <span className="text-rose-600 text-[10px]">{formErrors.businessName}</span>}
-                        </div>
+                    {/* Section 1: Identity */}
+                    <View className="space-y-3 pt-1">
+                      <Text className="text-[10px] font-bold text-blue-600 uppercase tracking-widest block">1. Business Identity</Text>
+                      
+                      <View className="space-y-1.5">
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Business Name *</Text>
+                        <TextInput
+                          placeholder="e.g. Cape Town Artisan Bakers"
+                          value={formData.businessName}
+                          onChangeText={(t) => setFormData(p => ({ ...p, businessName: t }))}
+                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                        />
+                        {formErrors.businessName && <Text className="text-red-500 text-[10px] pl-1 block">{formErrors.businessName}</Text>}
+                      </View>
 
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Owner Name *</label>
-                          <input 
-                            type="text" 
-                            name="ownerName"
-                            value={formData.ownerName}
-                            onChange={handleInputChange}
-                            placeholder="e.g. John Doe"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                          {formErrors.ownerName && <span className="text-rose-600 text-[10px]">{formErrors.ownerName}</span>}
-                        </div>
+                      <View className="space-y-1.5">
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Owner Name *</Text>
+                        <TextInput
+                          placeholder="e.g. John Doe"
+                          value={formData.ownerName}
+                          onChangeText={(t) => setFormData(p => ({ ...p, ownerName: t }))}
+                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                        />
+                        {formErrors.ownerName && <Text className="text-red-500 text-[10px] pl-1 block">{formErrors.ownerName}</Text>}
+                      </View>
 
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Business Category *</label>
-                          <select 
-                            name="category"
+                      <View className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <View className="space-y-1.5 text-left">
+                          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Category *</Text>
+                          <select
                             value={formData.category}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm bg-white"
+                            onChange={(e) => setFormData(p => ({ ...p, category: e.target.value }))}
+                            className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans cursor-pointer"
                           >
                             {formCategories.map(cat => (
                               <option key={cat} value={cat}>{cat}</option>
                             ))}
                           </select>
-                        </div>
+                        </View>
 
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Team Visit Contact Time</label>
-                          <select 
-                            name="preferredContactTime"
+                        <View className="space-y-1.5 text-left">
+                          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Preferred Team Visit Time</Text>
+                          <select
                             value={formData.preferredContactTime}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm bg-white"
+                            onChange={(e) => setFormData(p => ({ ...p, preferredContactTime: e.target.value }))}
+                            className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-450 focus:bg-white font-sans cursor-pointer"
                           >
                             <option value="Morning (08:00 - 12:00)">Morning (08:00 - 12:00)</option>
                             <option value="Afternoon (12:00 - 17:00)">Afternoon (12:00 - 17:00)</option>
                             <option value="Weekend (Saturday)">Weekend (Saturday)</option>
                           </select>
-                        </div>
-                      </div>
-                    </div>
+                        </View>
+                      </View>
+                    </View>
 
-                    {/* Section: Contact Details */}
-                    <div className="pt-2">
-                      <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
-                        2. Contact Details
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address *</label>
-                          <input 
-                            type="email" 
-                            name="emailAddress"
-                            value={formData.emailAddress}
-                            onChange={handleInputChange}
-                            placeholder="owner@mybusiness.co.za"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                          {formErrors.emailAddress && <span className="text-rose-600 text-[10px]">{formErrors.emailAddress}</span>}
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number *</label>
-                          <input 
-                            type="tel" 
-                            name="phoneNumber"
-                            value={formData.phoneNumber}
-                            onChange={handleInputChange}
-                            placeholder="e.g. +27 82 123 4567"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                          {formErrors.phoneNumber && <span className="text-rose-600 text-[10px]">{formErrors.phoneNumber}</span>}
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">WhatsApp Number (Optional)</label>
-                          <input 
-                            type="tel" 
-                            name="whatsappNumber"
-                            value={formData.whatsappNumber}
-                            onChange={handleInputChange}
-                            placeholder="e.g. +27 82 123 4567"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section: Location */}
-                    <div className="pt-2">
-                      <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
-                        3. Location & Address
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="sm:col-span-3">
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Physical Address *</label>
-                          <input 
-                            type="text" 
-                            name="physicalAddress"
-                            value={formData.physicalAddress}
-                            onChange={handleInputChange}
-                            placeholder="123 Main Road, Sea Point"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                          {formErrors.physicalAddress && <span className="text-rose-600 text-[10px]">{formErrors.physicalAddress}</span>}
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">City / Town *</label>
-                          <input 
-                            type="text" 
-                            name="city"
-                            value={formData.city}
-                            onChange={handleInputChange}
-                            placeholder="Cape Town"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                          {formErrors.city && <span className="text-rose-600 text-[10px]">{formErrors.city}</span>}
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Province *</label>
-                          <input 
-                            type="text" 
-                            name="province"
-                            value={formData.province}
-                            onChange={handleInputChange}
-                            placeholder="Western Cape"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                          {formErrors.province && <span className="text-rose-600 text-[10px]">{formErrors.province}</span>}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section: Social Links */}
-                    <div className="pt-2">
-                      <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
-                        4. Online Presence (Optional)
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Website URL</label>
-                          <input 
-                            type="url" 
-                            name="website"
-                            value={formData.website}
-                            onChange={handleInputChange}
-                            placeholder="https://mybusiness.com"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Facebook URL</label>
-                          <input 
-                            type="url" 
-                            name="facebook"
-                            value={formData.facebook}
-                            onChange={handleInputChange}
-                            placeholder="https://facebook.com/mybusiness"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Instagram URL</label>
-                          <input 
-                            type="url" 
-                            name="instagram"
-                            value={formData.instagram}
-                            onChange={handleInputChange}
-                            placeholder="https://instagram.com/mybusiness"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section: Description */}
-                    <div className="pt-2">
-                      <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
-                        5. Business Description
-                      </h3>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Short Description *</label>
-                        <textarea 
-                          name="description"
-                          value={formData.description}
-                          onChange={handleInputChange}
-                          rows={3}
-                          placeholder="Tell us what you sell, what services you offer, or what makes your business unique."
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-sm"
+                    {/* Section 2: Contact Details */}
+                    <View className="space-y-3 pt-2">
+                      <Text className="text-[10px] font-bold text-blue-600 uppercase tracking-widest block">2. Contact Details</Text>
+                      
+                      <View className="space-y-1.5">
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Email Address *</Text>
+                        <TextInput
+                          placeholder="owner@mybusiness.co.za"
+                          value={formData.emailAddress}
+                          onChangeText={(t) => setFormData(p => ({ ...p, emailAddress: t }))}
+                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                          keyboardType="email-address"
                         />
-                        {formErrors.description && <span className="text-rose-600 text-[10px]">{formErrors.description}</span>}
-                      </div>
-                    </div>
+                        {formErrors.emailAddress && <Text className="text-red-500 text-[10px] pl-1 block">{formErrors.emailAddress}</Text>}
+                      </View>
 
-                    {/* Submit Button */}
-                    <button
-                      type="submit"
+                      <View className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <View className="space-y-1.5">
+                          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Phone Number *</Text>
+                          <TextInput
+                            placeholder="e.g. +27 82 123 4567"
+                            value={formData.phoneNumber}
+                            onChangeText={(t) => setFormData(p => ({ ...p, phoneNumber: t }))}
+                            className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                            keyboardType="phone-pad"
+                          />
+                          {formErrors.phoneNumber && <Text className="text-red-500 text-[10px] pl-1 block">{formErrors.phoneNumber}</Text>}
+                        </View>
+
+                        <View className="space-y-1.5">
+                          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">WhatsApp Number</Text>
+                          <TextInput
+                            placeholder="e.g. +27 82 123 4567"
+                            value={formData.whatsappNumber}
+                            onChangeText={(t) => setFormData(p => ({ ...p, whatsappNumber: t }))}
+                            className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                            keyboardType="phone-pad"
+                          />
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Section 3: Location */}
+                    <View className="space-y-3 pt-2">
+                      <Text className="text-[10px] font-bold text-blue-600 uppercase tracking-widest block">3. Location & Address</Text>
+                      
+                      <View className="space-y-1.5">
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Physical Address *</Text>
+                        <TextInput
+                          placeholder="123 Main Road, Sea Point"
+                          value={formData.physicalAddress}
+                          onChangeText={(t) => setFormData(p => ({ ...p, physicalAddress: t }))}
+                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                        />
+                        {formErrors.physicalAddress && <Text className="text-red-500 text-[10px] pl-1 block">{formErrors.physicalAddress}</Text>}
+                      </View>
+
+                      <View className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <View className="space-y-1.5">
+                          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">City / Town *</Text>
+                          <TextInput
+                            placeholder="Cape Town"
+                            value={formData.city}
+                            onChangeText={(t) => setFormData(p => ({ ...p, city: t }))}
+                            className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                          />
+                          {formErrors.city && <Text className="text-red-500 text-[10px] pl-1 block">{formErrors.city}</Text>}
+                        </View>
+
+                        <View className="space-y-1.5">
+                          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Province *</Text>
+                          <TextInput
+                            placeholder="Western Cape"
+                            value={formData.province}
+                            onChangeText={(t) => setFormData(p => ({ ...p, province: t }))}
+                            className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                          />
+                          {formErrors.province && <Text className="text-red-500 text-[10px] pl-1 block">{formErrors.province}</Text>}
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Section 4: Social */}
+                    <View className="space-y-3 pt-2">
+                      <Text className="text-[10px] font-bold text-blue-600 uppercase tracking-widest block">4. Online Presence (Optional)</Text>
+                      <View className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <View className="space-y-1">
+                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Website URL</Text>
+                          <TextInput
+                            placeholder="https://..."
+                            value={formData.website}
+                            onChangeText={(t) => setFormData(p => ({ ...p, website: t }))}
+                            className="w-full text-xs p-3 bg-slate-50 border border-slate-200/60 rounded-xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                          />
+                        </View>
+                        <View className="space-y-1">
+                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Facebook</Text>
+                          <TextInput
+                            placeholder="https://..."
+                            value={formData.facebook}
+                            onChangeText={(t) => setFormData(p => ({ ...p, facebook: t }))}
+                            className="w-full text-xs p-3 bg-slate-50 border border-slate-200/60 rounded-xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                          />
+                        </View>
+                        <View className="space-y-1">
+                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Instagram</Text>
+                          <TextInput
+                            placeholder="https://..."
+                            value={formData.instagram}
+                            onChangeText={(t) => setFormData(p => ({ ...p, instagram: t }))}
+                            className="w-full text-xs p-3 bg-slate-50 border border-slate-200/60 rounded-xl outline-none focus:border-blue-400 focus:bg-white font-sans"
+                          />
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Section 5: Description */}
+                    <View className="space-y-3 pt-2">
+                      <Text className="text-[10px] font-bold text-blue-600 uppercase tracking-widest block">5. Business Description</Text>
+                      <View className="space-y-1.5">
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Short Description *</Text>
+                        <TextInput
+                          multiline
+                          numberOfLines={3}
+                          placeholder="What services or products do you offer? Tell local partners about your work."
+                          value={formData.description}
+                          onChangeText={(t) => setFormData(p => ({ ...p, description: t }))}
+                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans block"
+                        />
+                        {formErrors.description && <Text className="text-red-500 text-[10px] pl-1 block">{formErrors.description}</Text>}
+                      </View>
+                    </View>
+
+                    {/* Submit action */}
+                    <TouchableOpacity
+                      onClick={handleRegisterSubmit}
                       disabled={isSubmitting}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3 px-4 rounded-xl shadow transition-all cursor-pointer text-center text-sm"
+                      className={`w-full py-4 rounded-full flex flex-row items-center justify-center mt-4 cursor-pointer select-none ${
+                        isSubmitting ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-750 active:scale-98'
+                      }`}
                       id="submit-registration-btn"
                     >
-                      {isSubmitting ? 'Registering Draft...' : 'Proceed to Pay R159'}
-                    </button>
-                  </form>
+                      <Text className="text-white font-bold text-xs font-sans">
+                        {isSubmitting ? 'Registering Draft...' : 'Proceed to Pay R159'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
-                  /* STEP 2: REDIRECTING TO PAYFAST */
-                  <div className="py-12 text-center space-y-4 flex flex-col items-center">
-                    <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                    <h3 className="text-lg font-bold text-slate-800">Redirecting to PayFast Secure Gateway</h3>
-                    <p className="text-slate-500 text-sm max-w-sm">
-                      Please do not close this window. We are opening PayFast to process your secure local payment of R159.00.
-                    </p>
-                    <a 
-                      href={checkoutUrl}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer inline-block"
+                  <View className="py-10 items-center justify-center space-y-4 text-center">
+                    <View className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <Text className="text-sm font-extrabold text-slate-800 block">Connecting to PayFast Gateway</Text>
+                    <Text className="text-xs text-slate-400 max-w-[280px] leading-relaxed block">
+                      Please hold on. We are generating your secure local PayFast payment window of R159.00.
+                    </Text>
+                    <TouchableOpacity
+                      onClick={() => { window.location.href = checkoutUrl; }}
+                      className="bg-blue-50 border border-blue-250 px-4 py-2 rounded-xl mt-2 cursor-pointer"
                     >
-                      Click here if not redirected automatically
-                    </a>
-                  </div>
+                      <Text className="text-blue-700 text-xs font-bold font-sans">Click here if not redirected automatically</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
-              </div>
+              </View>
             )}
-          </div>
+          </View>
         )}
-      </main>
+      </ScrollView>
 
-      {/* DETAIL MODAL FOR BUSINESS DIRECTORY MEMBERS */}
+      {/* DETAIL OVERLAY */}
       <AnimatePresence>
         {selectedBusiness && (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 flex items-center justify-center p-4">
+          <View className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              layoutId={`biz-card-${selectedBusiness.id}`}
-              className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]"
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="bg-white rounded-[32px] max-w-[380px] w-full overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] text-left"
             >
-              {/* Modal header with image background placeholders */}
-              <div className="relative h-44 bg-indigo-900 text-white p-6 flex flex-col justify-end">
-                <button
+              {/* Header */}
+              <View className="relative bg-slate-900 text-white p-5 flex flex-col justify-end min-h-[140px]">
+                <TouchableOpacity
                   onClick={() => setSelectedBusiness(null)}
-                  className="absolute top-4 right-4 bg-black/30 hover:bg-black/50 p-1.5 rounded-full text-white cursor-pointer"
+                  className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 p-1.5 rounded-full text-white cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
-                </button>
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent pointer-events-none" />
+                  <X className="w-4 h-4 text-white" />
+                </TouchableOpacity>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
                 
-                <div className="relative z-10 space-y-1">
-                  <span className="bg-indigo-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    {selectedBusiness.category}
-                  </span>
-                  <h2 className="text-2xl font-extrabold tracking-tight leading-none pt-1">
-                    {selectedBusiness.name}
-                  </h2>
-                  <p className="text-slate-300 text-xs flex items-center gap-1 font-medium">
-                    <MapPin className="w-3.5 h-3.5" />
-                    {selectedBusiness.townCity}, {selectedBusiness.province || 'South Africa'}
-                  </p>
-                </div>
-              </div>
+                <View className="relative z-10 space-y-1 text-left">
+                  <View className="bg-blue-600 self-start px-2 py-0.5 rounded-full">
+                    <Text className="text-[8px] font-bold text-white uppercase tracking-widest">{selectedBusiness.category}</Text>
+                  </View>
+                  <Text className="text-lg font-extrabold tracking-tight leading-snug block pt-1 text-white">{selectedBusiness.name}</Text>
+                  <View className="flex flex-row items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-300" />
+                    <Text className="text-slate-300 text-xs font-medium block">
+                      {selectedBusiness.townCity}, {selectedBusiness.province || 'South Africa'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
 
-              {/* Modal body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Body */}
+              <ScrollView className="flex-1 p-5" contentContainerClassName="space-y-5 pb-6">
                 
-                {/* Description */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">About Business</h4>
-                  <p className="text-slate-700 text-sm leading-relaxed">{selectedBusiness.description}</p>
-                </div>
+                <View className="space-y-1.5 text-left">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">About Business</Text>
+                  <Text className="text-xs text-slate-600 leading-relaxed block">{selectedBusiness.description}</Text>
+                </View>
 
-                {/* Directory Owner */}
-                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <div>
-                    <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Owner / Founder</h5>
-                    <p className="text-slate-800 text-sm font-semibold mt-0.5">{selectedBusiness.ownerName}</p>
-                  </div>
-                  <div>
-                    <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Opening Hours</h5>
-                    <p className="text-slate-800 text-sm font-semibold mt-0.5">{selectedBusiness.openingHours || 'Mon - Fri: 08:00 - 17:00'}</p>
-                  </div>
-                </div>
+                <View className="grid grid-cols-2 gap-3.5 bg-slate-50 p-3.5 border border-slate-100 rounded-2xl">
+                  <View className="text-left">
+                    <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Owner / Founder</Text>
+                    <Text className="text-xs text-slate-800 font-extrabold mt-0.5 block">{selectedBusiness.ownerName}</Text>
+                  </View>
+                  <View className="text-left">
+                    <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Opening Hours</Text>
+                    <Text className="text-xs text-slate-800 font-extrabold mt-0.5 block">{selectedBusiness.openingHours || 'Mon - Fri: 08:00 - 17:00'}</Text>
+                  </View>
+                </View>
 
-                {/* Verification Badge */}
-                <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50/50 border border-emerald-100 rounded-2xl text-xs text-emerald-800">
-                  <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <div>
-                    <p className="font-bold">Orbit AI Verified Business</p>
-                    <p className="text-[10px] text-emerald-700">All coordinates, contact metrics and ownership identities have been visited and verified by our staff.</p>
-                  </div>
-                </div>
+                {/* Verification block */}
+                <View className="flex flex-row gap-2.5 px-3.5 py-3 bg-emerald-50/50 border border-emerald-100 rounded-2xl items-start">
+                  <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <View className="flex-1 text-left">
+                    <Text className="text-[10.5px] font-extrabold text-emerald-800 block">Orbit AI Verified Listing</Text>
+                    <Text className="text-[9.5px] text-emerald-700 leading-normal block">
+                      Identity metrics, location indexes, and trade coordinates have been physically inspected and verified.
+                    </Text>
+                  </View>
+                </View>
 
-                {/* Contact and address fields */}
-                <div className="space-y-3.5">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact & Location</h4>
+                {/* Contacts list */}
+                <View className="space-y-3 pt-1 text-left">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Contact & Connect</Text>
                   
-                  <div className="flex items-start space-x-3 text-slate-700">
-                    <MapPin className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">Physical Address</p>
-                      <p className="text-sm font-medium text-slate-800 mt-0.5">{selectedBusiness.physicalAddress}</p>
-                    </div>
-                  </div>
+                  <View className="flex flex-row items-start gap-2.5">
+                    <MapPin className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <View className="text-left">
+                      <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Physical Address</Text>
+                      <Text className="text-xs text-slate-700 font-medium block mt-0.5">{selectedBusiness.physicalAddress}</Text>
+                    </View>
+                  </View>
 
-                  <div className="flex items-start space-x-3 text-slate-700">
-                    <Phone className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">Phone Connection</p>
-                      <a href={`tel:${selectedBusiness.phoneNumber}`} className="text-sm font-semibold text-indigo-600 hover:underline inline-block mt-0.5">
+                  <View className="flex flex-row items-start gap-2.5">
+                    <Phone className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <View className="text-left">
+                      <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Phone Number</Text>
+                      <a href={`tel:${selectedBusiness.phoneNumber}`} className="text-xs font-bold text-blue-600 hover:underline block mt-0.5">
                         {selectedBusiness.phoneNumber}
                       </a>
-                    </div>
-                  </div>
+                    </View>
+                  </View>
 
                   {selectedBusiness.email && (
-                    <div className="flex items-start space-x-3 text-slate-700">
-                      <Mail className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500">Email Address</p>
-                        <a href={`mailto:${selectedBusiness.email}`} className="text-sm font-semibold text-indigo-600 hover:underline inline-block mt-0.5">
+                    <View className="flex flex-row items-start gap-2.5">
+                      <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <View className="text-left">
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email Address</Text>
+                        <a href={`mailto:${selectedBusiness.email}`} className="text-xs font-bold text-blue-600 hover:underline block mt-0.5">
                           {selectedBusiness.email}
                         </a>
-                      </div>
-                    </div>
+                      </View>
+                    </View>
                   )}
 
                   {selectedBusiness.whatsappNumber && (
-                    <div className="flex items-start space-x-3 text-slate-700">
-                      <MessageSquare className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500">WhatsApp Chat</p>
+                    <View className="flex flex-row items-start gap-2.5">
+                      <MessageSquare className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <View className="text-left">
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">WhatsApp Chat</Text>
                         <a 
                           href={`https://wa.me/${selectedBusiness.whatsappNumber.replace(/[^0-9]/g, '')}`} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="text-sm font-semibold text-indigo-600 hover:underline inline-flex items-center gap-1 mt-0.5"
+                          className="text-xs font-bold text-blue-600 hover:underline inline-flex items-center gap-1 mt-0.5"
                         >
-                          Chat on WhatsApp
-                          <ExternalLink className="w-3.5 h-3.5" />
+                          <Text className="text-xs font-bold text-blue-600">Chat on WhatsApp</Text>
+                          <ExternalLink className="w-3 h-3 text-blue-600" />
                         </a>
-                      </div>
-                    </div>
+                      </View>
+                    </View>
                   )}
-                </div>
+                </View>
 
                 {/* Social media connections */}
                 {selectedBusiness.socialMediaLinks && (Object.values(selectedBusiness.socialMediaLinks).some(link => !!link)) && (
-                  <div className="space-y-3.5">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Social Channels & Links</h4>
-                    <div className="flex flex-wrap gap-2">
+                  <View className="space-y-3.5 pt-1 text-left">
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Social Media</Text>
+                    <View className="flex flex-row flex-wrap gap-2">
                       {selectedBusiness.socialMediaLinks.website && (
                         <a 
                           href={selectedBusiness.socialMediaLinks.website} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="flex items-center space-x-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-xs px-3.5 py-2 rounded-xl border border-slate-200 transition-all font-medium cursor-pointer"
+                          className="flex flex-row items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] px-3 py-1.5 rounded-xl border border-slate-200 transition font-bold"
                         >
-                          <Globe className="w-4 h-4 text-slate-500" />
+                          <Globe className="w-3.5 h-3.5 text-slate-500" />
                           <span>Website</span>
-                          <ExternalLink className="w-3 h-3" />
+                          <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       )}
                       
@@ -1063,11 +983,11 @@ export default function BusinessModeScreen() {
                           href={selectedBusiness.socialMediaLinks.facebook} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="flex items-center space-x-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-xs px-3.5 py-2 rounded-xl border border-slate-200 transition-all font-medium cursor-pointer"
+                          className="flex flex-row items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] px-3 py-1.5 rounded-xl border border-slate-200 transition font-bold"
                         >
-                          <Facebook className="w-4 h-4 text-slate-500" />
+                          <Facebook className="w-3.5 h-3.5 text-slate-500" />
                           <span>Facebook</span>
-                          <ExternalLink className="w-3 h-3" />
+                          <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       )}
 
@@ -1076,80 +996,85 @@ export default function BusinessModeScreen() {
                           href={selectedBusiness.socialMediaLinks.instagram} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="flex items-center space-x-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-xs px-3.5 py-2 rounded-xl border border-slate-200 transition-all font-medium cursor-pointer"
+                          className="flex flex-row items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] px-3 py-1.5 rounded-xl border border-slate-200 transition font-bold"
                         >
-                          <Instagram className="w-4 h-4 text-slate-500" />
+                          <Instagram className="w-3.5 h-3.5 text-slate-500" />
                           <span>Instagram</span>
-                          <ExternalLink className="w-3 h-3" />
+                          <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       )}
-                    </div>
-                  </div>
+                    </View>
+                  </View>
                 )}
-              </div>
+              </ScrollView>
 
-              {/* Close Button at bottom */}
-              <div className="p-4 border-t border-slate-100 bg-slate-50 text-center">
-                <button
+              <View className="p-4 bg-slate-50 border-t border-slate-100">
+                <TouchableOpacity
                   onClick={() => setSelectedBusiness(null)}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl cursor-pointer"
+                  className="w-full bg-slate-900 py-3 rounded-xl text-center cursor-pointer"
                 >
-                  Close Business Page
-                </button>
-              </div>
+                  <Text className="text-white text-xs font-bold font-sans">Close Profile</Text>
+                </TouchableOpacity>
+              </View>
             </motion.div>
-          </div>
+          </View>
         )}
       </AnimatePresence>
 
       {/* SUCCESS CONFIRMATION MODAL */}
       <AnimatePresence>
         {showSuccessModal && (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 flex items-center justify-center p-4" id="success-confirmation-overlay">
+          <View className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" id="success-confirmation-overlay">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-center space-y-6"
+              className="bg-white rounded-3xl max-w-[360px] w-full p-6 shadow-2xl border border-slate-100 text-center space-y-5"
             >
-              <div className="mx-auto bg-emerald-100 text-emerald-600 p-4 rounded-full w-16 h-16 flex items-center justify-center">
-                <CheckCircle className="w-8 h-8" />
-              </div>
+              <View className="mx-auto bg-emerald-100 text-emerald-600 p-3.5 rounded-full w-12 h-12 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
+              </View>
               
-              <div className="space-y-4">
-                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Payment Complete</h3>
+              <View className="space-y-3.5 text-center">
+                <Text className="text-base font-extrabold text-slate-900 block">Payment Complete</Text>
                 
-                {/* Specific exact verification text required by prompt */}
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-left text-xs md:text-sm text-slate-700 leading-relaxed space-y-3 font-medium">
-                  <p>Thank you for registering your business with Orbit AI.</p>
-                  <p>Your payment has been received successfully.</p>
-                  <p>Our Business Team will contact you shortly to schedule a visit.</p>
-                  <p className="font-bold text-slate-900 pt-1">During our visit we will:</p>
-                  <ul className="list-disc pl-5 space-y-1 text-slate-600 font-normal">
-                    <li>Meet you</li>
-                    <li>Take professional business photos</li>
-                    <li>Interview you</li>
-                    <li>Write an attractive business description</li>
-                    <li>Verify your business information</li>
-                  </ul>
-                  <p className="font-semibold text-indigo-600 pt-1">After approval your business will become visible inside Orbit AI Business Mode.</p>
-                </div>
-              </div>
+                <View className="bg-slate-50 border border-slate-250/60 rounded-2xl p-4.5 text-left space-y-2.5">
+                  <Text className="text-xs text-slate-600 block leading-normal font-medium">Thank you for registering your business with Orbit AI.</Text>
+                  <Text className="text-xs text-slate-600 block leading-normal font-medium">Your payment has been received successfully.</Text>
+                  <Text className="text-xs text-slate-600 block leading-normal font-medium">Our Business Team will contact you shortly to schedule a visit.</Text>
+                  
+                  <Text className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block pt-1">During our physical visit we will:</Text>
+                  <View className="space-y-1 pl-1">
+                    <Text className="text-[10.5px] text-slate-500 block">• Meet you</Text>
+                    <Text className="text-[10.5px] text-slate-500 block">• Take professional business photos</Text>
+                    <Text className="text-[10.5px] text-slate-500 block">• Interview you</Text>
+                    <Text className="text-[10.5px] text-slate-500 block">• Write an attractive business description</Text>
+                    <Text className="text-[10.5px] text-slate-500 block">• Verify your business information</Text>
+                  </View>
+                  <Text className="text-[10.5px] font-bold text-blue-600 block pt-1">
+                    After approval your business will become visible inside Orbit AI Business Mode.
+                  </Text>
+                </View>
+              </View>
 
-              <button
+              <TouchableOpacity
                 onClick={() => {
                   setShowSuccessModal(false);
                   loadUserBusinesses();
                 }}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow cursor-pointer text-sm"
+                className="w-full bg-blue-600 py-3 rounded-xl text-center shadow cursor-pointer"
                 id="close-success-modal-btn"
               >
-                Got It
-              </button>
+                <Text className="text-white text-xs font-bold font-sans">Got It</Text>
+              </TouchableOpacity>
             </motion.div>
-          </div>
+          </View>
         )}
       </AnimatePresence>
-    </div>
+
+      {/* BOTTOM NAV TABS WRAPPER */}
+      <BottomNav />
+
+    </SafeAreaView>
   );
 }
