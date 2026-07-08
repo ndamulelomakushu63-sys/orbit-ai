@@ -32,10 +32,10 @@ const MOCK_BUSINESSES: Business[] = [
     id: "mock-1",
     name: "Lindiwe's Hair & Beauty Salon",
     ownerName: "Lindiwe Mazibuko",
-    description: "Professional braiding, hair styling, cosmetics and luxury beauty treatments in the heart of Chicota village. Book your appointment today for a premium, friendly experience.",
+    description: "Professional braiding, hair styling, cosmetics and luxury beauty treatments in the heart of Tshikota village. Book your appointment today for a premium, friendly experience.",
     category: "Health & Beauty",
-    townCity: "Chicota, Louis Trichardt",
-    physicalAddress: "Main Road, Chicota Village",
+    townCity: "Tshikota, Louis Trichardt",
+    physicalAddress: "Main Road, Tshikota Village",
     phoneNumber: "+27 82 555 0192",
     whatsappNumber: "+27 82 555 0192",
     email: "lindiwe.beauty@gmail.com",
@@ -396,7 +396,7 @@ export default function BusinessModeScreen() {
 
   const LOCATIONS = [
     'All',
-    'Chicota',
+    'Tshikota',
     'Louis Trichardt',
     'Thohoyandou',
     'Giyani',
