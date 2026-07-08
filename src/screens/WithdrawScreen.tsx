@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
-import { ArrowLeft, AlertCircle, Building, User, Lock, Send } from '../components/Icons';
+import { ArrowLeft, AlertCircle, Building, User, Lock, Send, CheckCircle } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { WithdrawalRecord, WithdrawalStatus } from '../types';
+import { supabase } from '../services/supabase.js';
 
 export const WithdrawScreen: React.FC = () => {
   const { currentUser, setUsers, withdrawals, setWithdrawals, setMobileScreen } = useAppState();
@@ -12,34 +13,81 @@ export const WithdrawScreen: React.FC = () => {
   const [accountNumber, setAccountNumber] = useState("");
   const [accountHolder, setAccountHolder] = useState("");
   const [amount, setAmount] = useState("");
+  const [branchCode, setBranchCode] = useState("");
+  const [accountType, setAccountType] = useState("Savings");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleWithdraw = (e?: React.FormEvent) => {
+  const handleWithdraw = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!currentUser) return;
 
-    if (!fullName.trim() || !accountNumber.trim() || !accountHolder.trim() || !amount.trim()) {
+    if (
+      !fullName.trim() ||
+      !bankName.trim() ||
+      !accountNumber.trim() ||
+      !accountHolder.trim() ||
+      !amount.trim() ||
+      !branchCode.trim() ||
+      !accountType.trim()
+    ) {
       setError("Please complete all payout input credentials.");
+      setSuccessMessage("");
       return;
     }
 
     const value = parseFloat(amount);
     if (isNaN(value) || value <= 0) {
       setError("Please submit a valid cash payout amount starting from R1.00");
+      setSuccessMessage("");
       return;
     }
 
     if (value > (currentUser.balance || 0)) {
       setError(`Requested amount exceeds your current available earnings balance of R${currentUser.balance?.toFixed(2)}.`);
+      setSuccessMessage("");
       return;
     }
 
     setError("");
+    setSuccessMessage("");
     setLoading(true);
 
-    setTimeout(() => {
-      // 1. Log payment request in list with status PENDING
+    try {
+      // Save new row into the withdrawal_requests table in Supabase
+      const { error: dbErr } = await supabase
+        .from('withdrawal_requests')
+        .insert({
+          user_id: currentUser.uid,
+          full_name: fullName,
+          email: currentUser.email,
+          amount: value,
+          bank_name: bankName,
+          account_holder: accountHolder,
+          account_number: accountNumber,
+          branch_code: branchCode,
+          account_type: accountType,
+          status: "Pending"
+        });
+
+      if (dbErr) {
+        throw dbErr;
+      }
+
+      // 1. Subtract balance from current user locally
+      setUsers(prev => prev.map(u => {
+        if (u.uid === currentUser.uid) {
+          const nextBal = (u.balance || 0) - value;
+          return {
+            ...u,
+            balance: nextBal < 0 ? 0 : nextBal
+          };
+        }
+        return u;
+      }));
+
+      // 2. Add a record locally so transaction history still shows up in UI
       const record: WithdrawalRecord = {
         id: "with-" + Date.now(),
         userId: currentUser.uid,
@@ -53,25 +101,26 @@ export const WithdrawScreen: React.FC = () => {
         status: WithdrawalStatus.PENDING,
         timestamp: new Date().toISOString()
       };
-
       setWithdrawals(prev => [record, ...prev]);
 
-      // 2. Subtract balance from current user
-      setUsers(prev => prev.map(u => {
-        if (u.uid === currentUser.uid) {
-          const nextBal = (u.balance || 0) - value;
-          return {
-            ...u,
-            balance: nextBal < 0 ? 0 : nextBal
-          };
-        }
-        return u;
-      }));
+      setSuccessMessage("Withdrawal request submitted successfully.");
+      alert("Withdrawal request submitted successfully.");
 
+      // Clear the form
+      setFullName("");
+      setBankName("First National Bank (FNB)");
+      setAccountNumber("");
+      setAccountHolder("");
+      setAmount("");
+      setBranchCode("");
+      setAccountType("Savings");
+    } catch (err: any) {
+      console.error("Supabase withdrawal save error:", err);
+      setError(err.message || String(err));
+      setSuccessMessage("");
+    } finally {
       setLoading(false);
-      alert(`Withdrawal request of R${value.toFixed(2)} submitted successfully! It is pending administrator approval inside the Admin Dashboard.`);
-      setMobileScreen("agent");
-    }, 1200);
+    }
   };
 
   if (!currentUser) return null;
@@ -100,6 +149,13 @@ export const WithdrawScreen: React.FC = () => {
           <Text className="text-xs text-slate-500 font-bold">Your Available Earnings:</Text>
           <Text className="text-sm font-black text-green-600">R{currentUser.balance?.toFixed(2) || "0.00"}</Text>
         </View>
+
+        {successMessage && (
+          <View className="p-3 bg-green-50 border border-green-100 rounded-2xl flex flex-row items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+            <Text className="text-xs text-green-700 font-semibold">{successMessage}</Text>
+          </View>
+        )}
 
         {error && (
           <View className="p-3 bg-red-50 border border-red-100 rounded-2xl flex flex-row items-center gap-2">
@@ -169,6 +225,33 @@ export const WithdrawScreen: React.FC = () => {
                 className="text-xs text-slate-850 font-mono"
               />
             </View>
+          </View>
+
+          <View className="space-y-1">
+            <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-wider pl-1.5">Branch Code</Text>
+            <View className="px-4.5 py-3 border border-slate-200 bg-white rounded-2xl flex flex-row items-center gap-2">
+              <Building className="w-4 h-4 text-slate-400" />
+              <TextInput 
+                placeholder="e.g. 250655"
+                placeholderTextColor="#cbd5e1"
+                value={branchCode}
+                onChange={(e) => setBranchCode(e.target.value)}
+                className="text-xs text-slate-850 font-mono"
+              />
+            </View>
+          </View>
+
+          <View className="space-y-1">
+            <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-wider pl-1.5">Account Type</Text>
+            <select
+              value={accountType}
+              onChange={(e) => setAccountType(e.target.value)}
+              className="w-full px-4 py-3 border border-slate-200 bg-white rounded-2xl text-xs outline-none focus:ring-1 focus:ring-blue-500 text-slate-850 font-medium"
+            >
+              <option value="Savings">Savings</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Transmission">Transmission</option>
+            </select>
           </View>
 
           <View className="space-y-1">
