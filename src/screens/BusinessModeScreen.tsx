@@ -26,7 +26,9 @@ import {
 import { 
   dbFetchApprovedBusinesses, 
   dbFetchUserBusinesses, 
-  dbRegisterBusiness 
+  dbRegisterBusiness,
+  dbRegisterBusinessDraft,
+  dbFetchUserRegistrations
 } from '../services/supabase';
 import { Business } from '../types';
 
@@ -127,10 +129,65 @@ export default function BusinessModeScreen() {
     setLoadingMyBusinesses(true);
     try {
       const uid = currentUser.uid || currentUser.id;
-      const data = await dbFetchUserBusinesses(uid);
-      if (data) {
-        setMyBusinesses(data);
+      const email = currentUser.email || "";
+
+      // 1. Fetch paid/approved listings from 'businesses' table
+      const dataBiz = await dbFetchUserBusinesses(uid) || [];
+
+      // 2. Fetch unpaid registration drafts from 'business_registrations' table
+      const dataReg = email ? await dbFetchUserRegistrations(email) : [];
+
+      // Map registrations to Business interface for uniform rendering
+      const draftBusinesses: Business[] = (dataReg || [])
+        .filter((reg: any) => !reg.is_paid) // only unpaid ones
+        .map((reg: any) => {
+          let extra = { website: "", facebook: "", instagram: "", province: "" };
+          try {
+            if (reg.additional_notes) {
+              const parsed = JSON.parse(reg.additional_notes);
+              extra = { ...extra, ...parsed };
+            }
+          } catch (e) {}
+
+          return {
+            id: reg.id,
+            name: reg.business_name,
+            ownerName: reg.owner_name,
+            description: reg.description,
+            category: reg.category,
+            townCity: reg.town_city,
+            physicalAddress: reg.physical_address,
+            phoneNumber: reg.phone_number,
+            whatsappNumber: reg.whatsapp_number || "",
+            email: reg.email || "",
+            openingHours: "Mon - Fri: 08:00 - 17:00",
+            socialMediaLinks: {
+              website: extra.website || "",
+              facebook: extra.facebook || "",
+              instagram: extra.instagram || ""
+            },
+            photos: [],
+            specials: [],
+            isPublic: false,
+            isPaid: false,
+            paymentStatus: "Unpaid",
+            status: "Pending",
+            createdAt: reg.created_at || "",
+            userId: uid,
+            province: extra.province || "",
+            preferredContactTime: reg.preferred_visit_date || ""
+          };
+        });
+
+      // Combine, preventing duplicates where the registration draft has been converted to a real business
+      const combined = [...dataBiz];
+      for (const draft of draftBusinesses) {
+        if (!combined.some(b => b.id === draft.id)) {
+          combined.push(draft);
+        }
       }
+
+      setMyBusinesses(combined);
     } catch (err) {
       console.error("Error loading my businesses:", err);
     } finally {
@@ -188,34 +245,32 @@ export default function BusinessModeScreen() {
       const businessId = generateUUID();
       const uid = currentUser.uid || currentUser.id;
 
-      const newBusiness: Business = {
+      // 1. Prepare draft payload for business_registrations table
+      const draftRegistration = {
         id: businessId,
-        name: formData.businessName.trim(),
-        ownerName: formData.ownerName.trim(),
-        description: formData.description.trim(),
+        business_name: formData.businessName.trim(),
+        owner_name: formData.ownerName.trim(),
+        phone_number: formData.phoneNumber.trim(),
+        whatsapp_number: formData.whatsappNumber.trim() || null,
+        email: formData.emailAddress.trim(),
         category: formData.category,
-        townCity: formData.city.trim(),
-        physicalAddress: formData.physicalAddress.trim(),
-        phoneNumber: formData.phoneNumber.trim(),
-        whatsappNumber: formData.whatsappNumber.trim() || undefined,
-        email: formData.emailAddress.trim() || undefined,
-        openingHours: 'Mon - Fri: 08:00 - 17:00',
-        socialMediaLinks: {
-          website: formData.website.trim() || undefined,
-          facebook: formData.facebook.trim() || undefined,
-          instagram: formData.instagram.trim() || undefined
-        },
-        isPublic: false,
-        isPaid: false,
-        paymentStatus: 'Unpaid',
-        status: 'Pending', // default status
-        userId: uid,
-        province: formData.province.trim(),
-        preferredContactTime: formData.preferredContactTime
+        town_city: formData.city.trim(),
+        physical_address: formData.physicalAddress.trim(),
+        description: formData.description.trim(),
+        preferred_visit_date: formData.preferredContactTime,
+        additional_notes: JSON.stringify({
+          province: formData.province.trim(),
+          website: formData.website.trim() || null,
+          facebook: formData.facebook.trim() || null,
+          instagram: formData.instagram.trim() || null,
+          userId: uid
+        }),
+        is_paid: false,
+        status: 'pending'
       };
 
-      // 1. Save in Supabase businesses table with unpaid state first
-      const saved = await dbRegisterBusiness(newBusiness);
+      // Save as draft inside business_registrations (NOT businesses table)
+      const saved = await dbRegisterBusinessDraft(draftRegistration);
       if (!saved) {
         throw new Error("Could not save registration draft. Please try again.");
       }
@@ -268,7 +323,7 @@ export default function BusinessModeScreen() {
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center space-x-3">
           <button 
-            onClick={() => setMobileScreen('home')}
+            onClick={() => setMobileScreen('chat')}
             className="p-1.5 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
             id="back-to-home-btn"
           >

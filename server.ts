@@ -472,22 +472,81 @@ app.post("/api/payfast/notify", async (req, res) => {
         const businessId = pfData.custom_str2;
         console.log(`[PayFast ITN] Payment COMPLETE for Business Registration. Business ID: ${businessId}`);
         
-        const { error: bizError } = await supabase
+        // 1. Fetch draft registration from 'business_registrations' table
+        const { data: reg, error: regError } = await supabase
+          .from('business_registrations')
+          .select('*')
+          .eq('id', businessId)
+          .single();
+
+        if (regError || !reg) {
+          console.error(`[PayFast ITN] Error finding registration draft ${businessId} in Supabase:`, regError);
+          throw new Error(`Registration draft ${businessId} not found`);
+        }
+
+        // 2. Parse extra data from additional_notes
+        let extra = { website: null, facebook: null, instagram: null, userId: null, province: null };
+        try {
+          if (reg.additional_notes) {
+            extra = JSON.parse(reg.additional_notes);
+          }
+        } catch (e) {
+          console.warn(`[PayFast ITN] Error parsing additional_notes JSON for ${businessId}:`, e);
+        }
+
+        // 3. Insert into 'businesses' table
+        const newBusiness = {
+          id: reg.id,
+          name: reg.business_name,
+          owner_name: reg.owner_name,
+          description: reg.description,
+          category: reg.category,
+          town_city: reg.town_city,
+          physical_address: reg.physical_address,
+          phone_number: reg.phone_number,
+          whatsapp_number: reg.whatsapp_number,
+          email: reg.email,
+          opening_hours: "Mon - Fri: 08:00 - 17:00",
+          social_media_links: {
+            website: extra.website || null,
+            facebook: extra.facebook || null,
+            instagram: extra.instagram || null
+          },
+          photos: [],
+          specials: [],
+          is_public: false,
+          is_paid: true,
+          payment_status: "Paid",
+          status: "Pending",
+          user_id: extra.userId || null,
+          province: extra.province || null,
+          preferred_contact_time: reg.preferred_visit_date || null,
+          created_at: new Date().toISOString()
+        };
+
+        const { error: insertError } = await supabase
           .from('businesses')
+          .upsert(newBusiness);
+
+        if (insertError) {
+          console.error("[PayFast ITN] Error inserting business in Supabase:", insertError);
+          throw insertError;
+        }
+
+        // 4. Update the 'business_registrations' table is_paid and status
+        const { error: updateRegError } = await supabase
+          .from('business_registrations')
           .update({
             is_paid: true,
-            payment_status: "Paid",
-            status: "Pending",
-            created_at: new Date().toISOString()
+            status: "approved"
           })
           .eq('id', businessId);
 
-        if (bizError) {
-          console.error("[PayFast ITN] Error updating business payment status in Supabase:", bizError);
-          throw bizError;
+        if (updateRegError) {
+          console.warn("[PayFast ITN] Error updating business_registrations status:", updateRegError);
         }
 
-        console.log(`[PayFast ITN] Business ${businessId} successfully set to Paid & Pending!`);
+        console.log(`[PayFast ITN] Business ${businessId} successfully saved to businesses table and set to Paid & Pending!`);
       } else {
         console.log(`[PayFast ITN] Payment is COMPLETE. Upgrading user ${userId} to PRO...`);
         

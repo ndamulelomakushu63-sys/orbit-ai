@@ -50,8 +50,8 @@ if (!rawKey && typeof process !== 'undefined') {
   rawKey = process.env?.VITE_SUPABASE_ANON_KEY;
 }
 
-const supabaseUrl = getValidUrl(rawUrl, "");
-const supabaseAnonKey = getValidKey(rawKey, "");
+const supabaseUrl = getValidUrl(rawUrl, DEFAULT_SUPABASE_URL);
+const supabaseAnonKey = getValidKey(rawKey, DEFAULT_SUPABASE_ANON_KEY);
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
@@ -649,3 +649,31 @@ export async function dbRegisterBusiness(business: Business): Promise<boolean> {
     return false;
   }
 }
+
+export async function dbRegisterBusinessDraft(reg: any): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('business_registrations')
+      .upsert(reg);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase register business draft failed:", err);
+    return false;
+  }
+}
+
+export async function dbFetchUserRegistrations(email: string): Promise<any[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('business_registrations')
+      .select('*')
+      .eq('email', email);
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.warn("Supabase fetch user registrations failed:", err);
+    return null;
+  }
+}
+
