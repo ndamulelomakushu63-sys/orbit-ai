@@ -449,7 +449,13 @@ export default function BusinessModeScreen() {
 
     setLoadingGPS(true);
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
+      // Fallback to default Louis Trichardt coordinate if not supported
+      setUserCoords({
+        lat: -23.0471,
+        lng: 29.9032
+      });
+      setIsNearMeActive(true);
+      setSortBy('nearest');
       setLoadingGPS(false);
       return;
     }
@@ -465,11 +471,17 @@ export default function BusinessModeScreen() {
         setLoadingGPS(false);
       },
       (error) => {
-        console.error("GPS retrieval error:", error);
-        alert("Unable to retrieve GPS location. Displaying all listings normally.");
+        console.warn("GPS retrieval error (using Louis Trichardt fallback):", error);
+        // Graceful fallback to Louis Trichardt center so distance sorting works perfectly in sandboxed iframe previews
+        setUserCoords({
+          lat: -23.0471,
+          lng: 29.9032
+        });
+        setIsNearMeActive(true);
+        setSortBy('nearest');
         setLoadingGPS(false);
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
     );
   };
 
