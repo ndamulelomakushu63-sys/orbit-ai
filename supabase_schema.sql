@@ -373,6 +373,96 @@ BEGIN
     ) THEN
         ALTER TABLE public.businesses ADD COLUMN preferred_contact_time TEXT;
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'starting_price'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN starting_price TEXT;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'latitude'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN latitude NUMERIC;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'longitude'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN longitude NUMERIC;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'rating'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN rating NUMERIC DEFAULT 5.0;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'popularity'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN popularity INT DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'payment_id'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN payment_id TEXT;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'payment_reference'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN payment_reference TEXT;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'amount_paid'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN amount_paid NUMERIC;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'payment_date'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN payment_date TIMESTAMPTZ;
+    END IF;
 END $$;
 
 ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;

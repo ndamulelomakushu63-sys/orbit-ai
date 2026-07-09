@@ -30,271 +30,7 @@ import { Business, ObdiLead } from '../types';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
 
 // High-quality South African small business listings as fallback default directory data
-const MOCK_BUSINESSES: Business[] = [
-  {
-    id: "mock-1",
-    name: "Lindiwe's Hair & Beauty Salon",
-    ownerName: "Lindiwe Mazibuko",
-    description: "Professional braiding, hair styling, cosmetics and luxury beauty treatments in the heart of Tshikota village. Book your appointment today for a premium, friendly experience.",
-    category: "Health & Beauty",
-    townCity: "Tshikota, Louis Trichardt",
-    physicalAddress: "Main Road, Tshikota Village",
-    phoneNumber: "+27 82 555 0192",
-    whatsappNumber: "+27 82 555 0192",
-    email: "lindiwe.beauty@gmail.com",
-    openingHours: "Mon - Sat: 08:30 - 18:00",
-    photos: [
-      "https://images.unsplash.com/photo-1560750588-73207b1ef5b8?auto=format&fit=crop&w=600&q=80"
-    ],
-    socialMediaLinks: {
-      website: "https://www.lindiwebeauty.co.za"
-    },
-    specials: [
-      "Get a free head massage with any premium braiding session on Wednesdays!"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Limpopo",
-    latitude: -22.8234,
-    longitude: 29.7432,
-    rating: 4.9,
-    popularity: 150
-  },
-  {
-    id: "mock-2",
-    name: "The Daily Grind Cafe & Pizza",
-    ownerName: "Devon Weyers",
-    description: "Artisanal coffee, freshly baked sourdough breads, pastries, delicious wood-fired pizzas, and a cozy workspace with super-fast WiFi. Locally sourced organic ingredients.",
-    category: "Food & Beverage",
-    townCity: "Cape Town",
-    physicalAddress: "45 Bree St, Cape Town City Centre",
-    phoneNumber: "+27 21 444 0918",
-    whatsappNumber: "+27 73 112 3456",
-    email: "devon@dailygrind.co.za",
-    openingHours: "Mon - Fri: 07:00 - 16:30, Sat: 08:00 - 14:00",
-    photos: [
-      "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80"
-    ],
-    socialMediaLinks: {
-      website: "https://www.dailygrindcafe.co.za"
-    },
-    specials: [
-      "Free double espresso with any gourmet wood-fired breakfast before 09:00 AM!",
-      "Two-for-One Large Pepperoni or Margherita Pizzas every Thursday after 16:00!"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Western Cape",
-    latitude: -33.9249,
-    longitude: 18.4241,
-    rating: 4.8,
-    popularity: 210
-  },
-  {
-    id: "mock-3",
-    name: "Khumalo Auto Clinic",
-    ownerName: "Sipho Khumalo",
-    description: "Reliable mechanical repairs, diagnostics, engine tune-ups, tire alignment and battery fitment. Over 15 years of trusted experience in Johannesburg.",
-    category: "Automotive",
-    townCity: "Johannesburg",
-    physicalAddress: "112 Albertina Sisulu Rd, Jeppestown",
-    phoneNumber: "+27 11 333 4455",
-    whatsappNumber: "+27 84 999 0011",
-    email: "sipho@khumaloauto.co.za",
-    openingHours: "Mon - Fri: 08:00 - 17:00, Sat: 08:00 - 13:00",
-    photos: [
-      "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=600&q=80"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Gauteng",
-    latitude: -26.2041,
-    longitude: 28.0473,
-    rating: 4.7,
-    popularity: 180
-  },
-  {
-    id: "mock-4",
-    name: "Orbit Tech Support & Repairs",
-    ownerName: "Thabo Ndlovu",
-    description: "Fast and reliable repair services for smartphones, laptops, tablets, and gaming consoles. We also stock premium quality accessories and screen protectors. Open late in Pretoria.",
-    category: "Technology",
-    townCity: "Pretoria",
-    physicalAddress: "Shop 12, Hatfield Plaza, Burnett St",
-    phoneNumber: "+27 12 888 2341",
-    whatsappNumber: "+27 61 777 9081",
-    email: "thabo@orbitrepairs.co.za",
-    openingHours: "Mon - Fri: 09:00 - 17:30, Sat: 09:00 - 15:00",
-    photos: [
-      "https://images.unsplash.com/photo-1468495244123-6c6c332eeece?auto=format&fit=crop&w=600&q=80"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Gauteng",
-    latitude: -25.7479,
-    longitude: 28.2293,
-    rating: 4.6,
-    popularity: 95
-  },
-  {
-    id: "mock-5",
-    name: "Siyakhula Builders & Trades",
-    ownerName: "Bongani Cele",
-    description: "Professional construction, bricklaying, plastering, tiling, plumbing and electrical work. Safe, fully certified, and affordable residential upgrades in Durban.",
-    category: "Construction & Trades",
-    townCity: "Durban",
-    physicalAddress: "45 Kings Rd, Pinetown",
-    phoneNumber: "+27 31 702 4455",
-    whatsappNumber: "+27 83 222 8899",
-    email: "cele@siyakhula.co.za",
-    openingHours: "Mon - Sat: 07:30 - 17:00",
-    photos: [
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=600&q=80"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "KwaZulu-Natal",
-    latitude: -29.8587,
-    longitude: 31.0218,
-    rating: 4.8,
-    popularity: 110
-  },
-  {
-    id: "mock-6",
-    name: "Thohoyandou Elite Car Wash",
-    ownerName: "Ndamulelo Makushu",
-    description: "Premium car wash and complete valeting services. Auto detailing, interior upholstery shampoo, engine cleaning, wax and paint protection in Thohoyandou.",
-    category: "Services",
-    townCity: "Thohoyandou",
-    physicalAddress: "22 Mphephu St, Thohoyandou",
-    phoneNumber: "+27 15 962 1045",
-    whatsappNumber: "+27 72 445 6128",
-    email: "valet.thohoyandou@gmail.com",
-    openingHours: "Mon - Sun: 07:00 - 18:00",
-    photos: [
-      "https://images.unsplash.com/photo-1520340356584-f9917d1eed69?auto=format&fit=crop&w=600&q=80"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Limpopo",
-    latitude: -22.9556,
-    longitude: 30.4783,
-    rating: 4.9,
-    popularity: 135
-  },
-  {
-    id: "mock-7",
-    name: "Giyani Wood-Fired Pizzeria",
-    ownerName: "Rivalani Baloyi",
-    description: "Authentic wood-fired Italian style pizza, freshly prepared pasta dishes, local South African favorite toppings, milkshakes, and delicious desserts.",
-    category: "Food & Beverage",
-    townCity: "Giyani",
-    physicalAddress: "Section F, Main Giyani Road",
-    phoneNumber: "+27 15 812 4923",
-    whatsappNumber: "+27 83 456 7890",
-    email: "pizza.giyani@gmail.com",
-    openingHours: "Mon - Sun: 10:00 - 21:00",
-    photos: [
-      "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Limpopo",
-    latitude: -23.3025,
-    longitude: 30.7132,
-    rating: 4.7,
-    popularity: 142
-  },
-  {
-    id: "mock-8",
-    name: "Musina Family Doctor Clinic",
-    ownerName: "Dr. Farai Ndlovu",
-    description: "Compassionate and highly professional family doctor consultations, children's health, vaccinations, physical health assessments, and prescription services.",
-    category: "Health & Beauty",
-    townCity: "Musina",
-    physicalAddress: "12 Campbell St, Musina",
-    phoneNumber: "+27 15 534 0987",
-    whatsappNumber: "+27 76 991 2234",
-    email: "musina.clinic@gmail.com",
-    openingHours: "Mon - Fri: 08:00 - 17:00, Sat: 08:00 - 12:00",
-    photos: [
-      "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Limpopo",
-    latitude: -22.3381,
-    longitude: 30.0417,
-    rating: 4.8,
-    popularity: 88
-  },
-  {
-    id: "mock-9",
-    name: "Polokwane Care Pharmacy",
-    ownerName: "Mpho Phiri",
-    description: "Your trusted neighborhood community pharmacy in Polokwane. Script dispensing, OTC medicines, baby wellness, blood pressure checks, vitamins, and friendly advice.",
-    category: "Health & Beauty",
-    townCity: "Polokwane",
-    physicalAddress: "78 Landros Mare St, Polokwane",
-    phoneNumber: "+27 15 291 4455",
-    whatsappNumber: "+27 82 445 9901",
-    email: "care.polokwane@pharmacy.co.za",
-    openingHours: "Mon - Fri: 08:00 - 19:00, Sat: 08:00 - 15:00",
-    photos: [
-      "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=600&q=80"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Limpopo",
-    latitude: -23.8962,
-    longitude: 29.4486,
-    rating: 4.9,
-    popularity: 164
-  },
-  {
-    id: "mock-10",
-    name: "Makhado Grill & Pizza Lounge",
-    ownerName: "Tshifhiwa Rambau",
-    description: "The best flame-grilled steaks, ribs, burgers and wood-fired pizzas in Louis Trichardt. A family-friendly restaurant with a rich heritage and incredible local food.",
-    category: "Food & Beverage",
-    townCity: "Louis Trichardt",
-    physicalAddress: "Krogh Street, Louis Trichardt",
-    phoneNumber: "+27 15 516 4900",
-    whatsappNumber: "+27 71 889 0012",
-    email: "makhado.grill@gmail.com",
-    openingHours: "Mon - Sat: 11:00 - 22:00, Sun: 11:00 - 18:00",
-    photos: [
-      "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80"
-    ],
-    isPublic: true,
-    isPaid: true,
-    paymentStatus: "Paid",
-    status: "Approved",
-    province: "Limpopo",
-    latitude: -23.0471,
-    longitude: 29.9032,
-    rating: 4.8,
-    popularity: 115
-  }
-];
+const MOCK_BUSINESSES: Business[] = [];
 
 const CATEGORY_GALLERIES: Record<string, string[]> = {
   'Services': [
@@ -385,7 +121,10 @@ export default function BusinessModeScreen() {
     province: '',
     city: '',
     category: 'Services',
-    description: ''
+    description: '',
+    startingPrice: '',
+    openingHours: '',
+    specials: ''
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -722,7 +461,12 @@ export default function BusinessModeScreen() {
         preferred_visit_date: "Anytime",
         additional_notes: JSON.stringify({
           province: formData.province.trim(),
-          userId: uid
+          userId: uid,
+          startingPrice: formData.startingPrice.trim() || undefined,
+          openingHours: formData.openingHours.trim() || undefined,
+          specials: formData.specials.trim() || undefined,
+          latitude: userCoords?.lat || -23.0471,
+          longitude: userCoords?.lng || 29.9032
         }),
         is_paid: false,
         status: 'pending'
@@ -763,66 +507,6 @@ export default function BusinessModeScreen() {
     }
   };
 
-  // Payment simulator for preview and offline testing
-  const handleSimulatePaymentSuccess = async () => {
-    if (!currentUser || !pendingRegId) return;
-    setIsSubmitting(true);
-    try {
-      const uid = currentUser.uid || currentUser.id;
-
-      // 1. Direct simulation insert to live 'businesses' with Pending status and Paid: true
-      const newBiz: Business = {
-        id: pendingRegId,
-        name: formData.businessName.trim(),
-        ownerName: formData.ownerName.trim(),
-        description: formData.description.trim(),
-        category: formData.category,
-        townCity: formData.city.trim(),
-        physicalAddress: formData.physicalAddress.trim(),
-        phoneNumber: formData.phoneNumber.trim(),
-        whatsappNumber: formData.whatsappNumber.trim(),
-        email: formData.emailAddress.trim(),
-        openingHours: "Mon - Fri: 08:00 - 17:00",
-        socialMediaLinks: {},
-        photos: [],
-        specials: [],
-        isPublic: false,
-        isPaid: true,
-        paymentStatus: "Paid",
-        status: "Pending", // Saved into Supabase with status Pending!
-        userId: uid,
-        province: formData.province.trim(),
-        preferredContactTime: "Anytime"
-      };
-
-      const registered = await dbRegisterBusiness(newBiz);
-      if (!registered) {
-        throw new Error("Failed to register business in live table.");
-      }
-
-      // 2. Also save an entry in OBDI Leads to let the admin see it instantly!
-      const leadEntry: ObdiLead = {
-        id: pendingRegId,
-        business_name: formData.businessName.trim(),
-        owner_name: formData.ownerName.trim(),
-        phone: formData.phoneNumber.trim(),
-        email: formData.emailAddress.trim(),
-        address: formData.physicalAddress.trim() + `, ${formData.city.trim()}, ${formData.province.trim()}`,
-        status: 'paid_new', // paid new lead
-        paid: true,
-        notes: `Physical verification visit required for ${formData.businessName}. Registered via simulated payment.`,
-        specials: ''
-      };
-      await dbUpsertObdiLead(leadEntry);
-
-      // Trigger the successful payment thank you screen
-      setSuccessState(true);
-    } catch (e: any) {
-      alert("Simulation failed: " + e.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const getCleanNumberForWa = (num: string) => {
     // Sanitizes number to keep only digits
@@ -844,7 +528,10 @@ export default function BusinessModeScreen() {
       province: '',
       city: '',
       category: 'Services',
-      description: ''
+      description: '',
+      startingPrice: '',
+      openingHours: '',
+      specials: ''
     });
     setFormStep(1);
     setPendingRegId('');
@@ -1192,7 +879,7 @@ export default function BusinessModeScreen() {
                 <View className="border-b border-slate-100 pb-3">
                   <Text className="text-base font-extrabold text-slate-900 block">List My Business Application</Text>
                   <Text className="text-xs text-slate-400 mt-1 block leading-relaxed font-sans">
-                    Complete this quick 10-field form to register your business draft. A physical inspection listing fee of <strong className="text-blue-600 font-bold">R159</strong> is required to submit.
+                    Complete this quick form to register your business draft. A physical inspection listing fee of <strong className="text-blue-600 font-bold">R159</strong> is required to submit.
                   </Text>
                 </View>
 
@@ -1329,6 +1016,39 @@ export default function BusinessModeScreen() {
                       {formErrors.description && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.description}</Text>}
                     </View>
 
+                    {/* 11. Starting From Price (Optional) */}
+                    <View className="space-y-1.5">
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">11. Starting From Price (Optional)</Text>
+                      <TextInput
+                        placeholder="e.g. Starting from R150"
+                        value={formData.startingPrice}
+                        onChangeText={(t) => setFormData(p => ({ ...p, startingPrice: t }))}
+                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
+                      />
+                    </View>
+
+                    {/* 12. Business Hours (Optional) */}
+                    <View className="space-y-1.5">
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">12. Business Hours (Optional)</Text>
+                      <TextInput
+                        placeholder="e.g. Monday–Friday: 08:00–17:00, Saturday: 08:00–14:00"
+                        value={formData.openingHours}
+                        onChangeText={(t) => setFormData(p => ({ ...p, openingHours: t }))}
+                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
+                      />
+                    </View>
+
+                    {/* 13. Current Specials & Promotions (Optional) */}
+                    <View className="space-y-1.5">
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">13. Current Specials & Promotions (Optional)</Text>
+                      <TextInput
+                        placeholder="e.g. Hair wash + braids from R350"
+                        value={formData.specials}
+                        onChangeText={(t) => setFormData(p => ({ ...p, specials: t }))}
+                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
+                      />
+                    </View>
+
                     <TouchableOpacity
                       onClick={handleFormSubmit}
                       disabled={isSubmitting}
@@ -1371,23 +1091,6 @@ export default function BusinessModeScreen() {
                           <Text className="text-xs text-slate-500 font-medium font-sans">Creating secure PayFast gateway...</Text>
                         </View>
                       )}
-
-                      <div className="flex items-center gap-2 py-1 justify-center">
-                        <div className="h-px bg-slate-200 flex-1 max-w-[120px]" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">OR SIMULATE</span>
-                        <div className="h-px bg-slate-200 flex-1 max-w-[120px]" />
-                      </div>
-
-                      <TouchableOpacity
-                        onClick={handleSimulatePaymentSuccess}
-                        disabled={isSubmitting}
-                        className="w-full border-2 border-dashed border-emerald-300 hover:bg-emerald-50 bg-emerald-50/20 py-3.5 rounded-full text-center cursor-pointer transition flex flex-row justify-center items-center gap-2"
-                      >
-                        <CheckCircle className="w-4 h-4 text-emerald-600" />
-                        <Text className="text-emerald-700 text-xs font-black font-sans">
-                          {isSubmitting ? 'Simulating...' : 'Simulate Successful Payment (Instant)'}
-                        </Text>
-                      </TouchableOpacity>
                     </View>
 
                     <TouchableOpacity
@@ -1519,7 +1222,7 @@ export default function BusinessModeScreen() {
             {/* Profile Grid Section */}
             <View className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
               
-              {/* Left Column: Description, Specials & Hours */}
+              {/* Left Column: Description, Pricing, Specials & Hours */}
               <View className="space-y-6 text-left">
                 
                 {/* Description */}
@@ -1534,21 +1237,83 @@ export default function BusinessModeScreen() {
                   </div>
                 </div>
 
-                {/* Opening Hours */}
+                {/* Contact Information Summary */}
                 <div className="space-y-2">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Opening Hours</Text>
-                  <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center gap-3 shadow-3xs">
-                    <Clock className="w-4.5 h-4.5 text-blue-600 shrink-0" />
-                    <Text className="text-xs font-semibold text-slate-700 font-sans">
-                      {selectedBusiness.openingHours || "Monday - Friday: 08:00 - 17:00"}
-                    </Text>
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Contact Information</Text>
+                  <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-3 shadow-3xs text-left">
+                    <div className="flex items-center gap-3">
+                      <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+                      <Text className="text-xs text-slate-700 font-sans font-semibold">
+                        Phone: <span className="font-bold text-slate-900">{selectedBusiness.phoneNumber}</span>
+                      </Text>
+                    </div>
+                    {(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber) && (
+                      <div className="flex items-center gap-3">
+                        <svg className="w-4 h-4 fill-current text-emerald-600 shrink-0" viewBox="0 0 24 24">
+                          <path d="M12.012 2c-5.506 0-9.985 4.479-9.985 9.985 0 1.758.459 3.411 1.259 4.867l-1.337 4.89 5.011-1.315c1.4.761 2.986 1.191 4.671 1.191 5.506 0 9.985-4.479 9.985-9.985 0-5.506-4.479-9.985-9.985-9.985zm0 1.624c4.61 0 8.361 3.75 8.361 8.361s-3.751 8.361-8.361 8.361c-1.564 0-3.023-.432-4.279-1.183l-.307-.184-3.181.834.849-3.102-.202-.321c-.815-1.298-1.242-2.808-1.242-4.405 0-4.611 3.75-8.361 8.361-8.361zm-3.411 4.84c-.187 0-.395.037-.562.186-.167.149-.637.624-.637 1.524 0 .901.656 1.77.747 1.895.092.125 1.263 1.93 3.061 2.705.428.185.762.294 1.022.378.43.136.822.117 1.131.071.344-.051 1.06-.433 1.209-.851.15-.418.15-.776.105-.851-.045-.075-.165-.12-.345-.21-.18-.09-1.06-.524-1.224-.584-.165-.06-.285-.09-.395.075-.12.165-.435.54-.539.66-.105.119-.21.134-.39.045-.18-.09-.76-.28-1.448-.894-.535-.477-.896-1.066-1.001-1.246-.105-.18-.011-.277.079-.366.081-.08.18-.21.27-.315.09-.105.12-.18.18-.3.06-.12.03-.225-.015-.315-.045-.09-.395-.953-.541-1.306-.142-.343-.287-.297-.395-.302-.102-.005-.221-.005-.34-.005z"/>
+                        </svg>
+                        <Text className="text-xs text-slate-700 font-sans font-semibold">
+                          WhatsApp: <span className="font-bold text-slate-900">{selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber}</span>
+                        </Text>
+                      </div>
+                    )}
+                    {selectedBusiness.email && (
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-4 h-4 text-blue-600 shrink-0" />
+                        <Text className="text-xs text-slate-700 font-sans font-semibold">
+                          Email: <span className="font-bold text-slate-900">{selectedBusiness.email}</span>
+                        </Text>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Current Specials */}
+                {/* Business Hours */}
                 <div className="space-y-2">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Current Specials & Promotions</Text>
-                  {selectedBusiness.specials && selectedBusiness.specials.length > 0 ? (
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Business Hours</Text>
+                  <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-2 shadow-3xs text-left">
+                    <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-1">
+                      <Clock className="w-4.5 h-4.5 text-blue-600 shrink-0" />
+                      <Text className="text-xs font-bold text-slate-850 font-sans">Weekly Schedule</Text>
+                    </div>
+                    {(() => {
+                      const hoursStr = selectedBusiness.openingHours || "Monday–Friday: 08:00–17:00, Saturday: 08:00–14:00, Sunday: Closed";
+                      const lines = hoursStr.split(/[,\n]/).map(l => l.trim()).filter(Boolean);
+                      return (
+                        <div className="space-y-1.5 pl-7">
+                          {lines.map((line, lidx) => (
+                            <Text key={lidx} className="text-xs font-semibold text-slate-650 block font-sans">
+                              {line}
+                            </Text>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Pricing: Starting From Price (Optional) */}
+                {selectedBusiness.startingPrice && (
+                  <div className="space-y-2 animate-fade-in">
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Pricing</Text>
+                    <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-3xs">
+                      <div className="flex items-center gap-3">
+                        <Tag className="w-4.5 h-4.5 text-blue-600 shrink-0" />
+                        <Text className="text-xs font-bold text-slate-800 font-sans">Starting From</Text>
+                      </div>
+                      <span className="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                        {selectedBusiness.startingPrice.toUpperCase().includes("R") 
+                          ? selectedBusiness.startingPrice 
+                          : `R${selectedBusiness.startingPrice}`}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Current Specials */}
+                {selectedBusiness.specials && selectedBusiness.specials.length > 0 && (
+                  <div className="space-y-2 animate-fade-in">
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Current Specials</Text>
                     <View className="space-y-2">
                       {selectedBusiness.specials.map((special, index) => (
                         <div key={index} className="bg-amber-50/60 border border-amber-100 p-4 rounded-xl flex items-start gap-3 shadow-3xs">
@@ -1557,20 +1322,8 @@ export default function BusinessModeScreen() {
                         </div>
                       ))}
                     </View>
-                  ) : (
-                    <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-xl flex items-start gap-3 shadow-3xs">
-                      <Tag className="w-4.5 h-4.5 text-blue-500 shrink-0 mt-0.5" />
-                      <Text className="text-xs font-semibold text-slate-700 leading-relaxed block font-sans">
-                        {selectedBusiness.category === "Health & Beauty" ? "First-time client promo: 10% off any premium hair or beauty treatment. Mention Orbit AI!" :
-                         selectedBusiness.category === "Food & Beverage" ? "Weekly Special: Free hot beverage with any breakfast order before 09:30 AM!" :
-                         selectedBusiness.category === "Automotive" ? "Winter Special: Free brake pad safety inspection with any minor service booked." :
-                         selectedBusiness.category === "Technology" ? "Special: Get a high-grade tempered glass screen guard free with every repair!" :
-                         selectedBusiness.category === "Construction & Trades" ? "Special promotion: Zero-cost on-site assessment and complete professional quote." :
-                         "Special offer: 10% off selected services. Enquire today and mention Orbit AI!"}
-                      </Text>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
               </View>
 
@@ -1651,6 +1404,17 @@ export default function BusinessModeScreen() {
                           <path d="M12.012 2c-5.506 0-9.985 4.479-9.985 9.985 0 1.758.459 3.411 1.259 4.867l-1.337 4.89 5.011-1.315c1.4.761 2.986 1.191 4.671 1.191 5.506 0 9.985-4.479 9.985-9.985 0-5.506-4.479-9.985-9.985-9.985zm0 1.624c4.61 0 8.361 3.75 8.361 8.361s-3.751 8.361-8.361 8.361c-1.564 0-3.023-.432-4.279-1.183l-.307-.184-3.181.834.849-3.102-.202-.321c-.815-1.298-1.242-2.808-1.242-4.405 0-4.611 3.75-8.361 8.361-8.361zm-3.411 4.84c-.187 0-.395.037-.562.186-.167.149-.637.624-.637 1.524 0 .901.656 1.77.747 1.895.092.125 1.263 1.93 3.061 2.705.428.185.762.294 1.022.378.43.136.822.117 1.131.071.344-.051 1.06-.433 1.209-.851.15-.418.15-.776.105-.851-.045-.075-.165-.12-.345-.21-.18-.09-1.06-.524-1.224-.584-.165-.06-.285-.09-.395.075-.12.165-.435.54-.539.66-.105.119-.21.134-.39.045-.18-.09-.76-.28-1.448-.894-.535-.477-.896-1.066-1.001-1.246-.105-.18-.011-.277.079-.366.081-.08.18-.21.27-.315.09-.105.12-.18.18-.3.06-.12.03-.225-.015-.315-.045-.09-.395-.953-.541-1.306-.142-.343-.287-.297-.395-.302-.102-.005-.221-.005-.34-.005z"/>
                         </svg>
                         <span>Chat on WhatsApp</span>
+                      </a>
+                    )}
+
+                    {/* Email button (optional) */}
+                    {selectedBusiness.email && (
+                      <a
+                        href={`mailto:${selectedBusiness.email}`}
+                        className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer"
+                      >
+                        <Mail className="w-4.5 h-4.5 text-slate-500" />
+                        <span>Email Business: {selectedBusiness.email}</span>
                       </a>
                     )}
 

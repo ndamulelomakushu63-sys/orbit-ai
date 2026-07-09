@@ -566,6 +566,7 @@ export function mapDbToBusiness(item: any): Business {
     whatsappNumber: item.whatsapp_number || "",
     email: item.email || "",
     openingHours: item.opening_hours || "Mon - Fri: 08:00 - 17:00",
+    startingPrice: item.starting_price || "",
     socialMediaLinks: item.social_media_links || {},
     photos: item.photos || [],
     specials: item.specials || [],
@@ -576,7 +577,15 @@ export function mapDbToBusiness(item: any): Business {
     createdAt: item.created_at || "",
     userId: item.user_id || "",
     province: item.province || "",
-    preferredContactTime: item.preferred_contact_time || ""
+    preferredContactTime: item.preferred_contact_time || "",
+    paymentId: item.payment_id || "",
+    paymentReference: item.payment_reference || "",
+    amountPaid: item.amount_paid ? Number(item.amount_paid) : 0,
+    paymentDate: item.payment_date || "",
+    latitude: item.latitude !== undefined && item.latitude !== null ? Number(item.latitude) : undefined,
+    longitude: item.longitude !== undefined && item.longitude !== null ? Number(item.longitude) : undefined,
+    rating: item.rating !== undefined && item.rating !== null ? Number(item.rating) : 5.0,
+    popularity: item.popularity !== undefined && item.popularity !== null ? Number(item.popularity) : 0
   };
 }
 
@@ -593,6 +602,7 @@ export function mapBusinessToDb(b: Business): any {
     whatsapp_number: b.whatsappNumber || null,
     email: b.email || null,
     opening_hours: b.openingHours || 'Mon - Fri: 08:00 - 17:00',
+    starting_price: b.startingPrice || null,
     social_media_links: b.socialMediaLinks || {},
     photos: b.photos || [],
     specials: b.specials || [],
@@ -602,7 +612,15 @@ export function mapBusinessToDb(b: Business): any {
     status: b.status || 'Pending',
     user_id: b.userId || null,
     province: b.province || null,
-    preferred_contact_time: b.preferredContactTime || null
+    preferred_contact_time: b.preferredContactTime || null,
+    payment_id: b.paymentId || null,
+    payment_reference: b.paymentReference || null,
+    amount_paid: b.amountPaid || null,
+    payment_date: b.paymentDate || null,
+    latitude: b.latitude !== undefined && b.latitude !== null ? Number(b.latitude) : null,
+    longitude: b.longitude !== undefined && b.longitude !== null ? Number(b.longitude) : null,
+    rating: b.rating !== undefined && b.rating !== null ? Number(b.rating) : null,
+    popularity: b.popularity !== undefined && b.popularity !== null ? Number(b.popularity) : null
   };
 }
 

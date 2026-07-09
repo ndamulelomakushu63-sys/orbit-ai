@@ -485,7 +485,18 @@ app.post("/api/payfast/notify", async (req, res) => {
         }
 
         // 2. Parse extra data from additional_notes
-        let extra = { website: null, facebook: null, instagram: null, userId: null, province: null };
+        let extra: any = { 
+          website: null, 
+          facebook: null, 
+          instagram: null, 
+          userId: null, 
+          province: null,
+          openingHours: null,
+          startingPrice: null,
+          specials: null,
+          latitude: null,
+          longitude: null
+        };
         try {
           if (reg.additional_notes) {
             extra = JSON.parse(reg.additional_notes);
@@ -506,14 +517,15 @@ app.post("/api/payfast/notify", async (req, res) => {
           phone_number: reg.phone_number,
           whatsapp_number: reg.whatsapp_number,
           email: reg.email,
-          opening_hours: "Mon - Fri: 08:00 - 17:00",
+          opening_hours: extra.openingHours || "Mon - Fri: 08:00 - 17:00",
+          starting_price: extra.startingPrice || null,
           social_media_links: {
             website: extra.website || null,
             facebook: extra.facebook || null,
             instagram: extra.instagram || null
           },
           photos: [],
-          specials: [],
+          specials: extra.specials ? [extra.specials] : [],
           is_public: false,
           is_paid: true,
           payment_status: "Paid",
@@ -521,7 +533,15 @@ app.post("/api/payfast/notify", async (req, res) => {
           user_id: extra.userId || null,
           province: extra.province || null,
           preferred_contact_time: reg.preferred_visit_date || null,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          payment_id: pfPaymentId || null,
+          payment_reference: pfData.m_payment_id || null,
+          amount_paid: amountGross || 159.00,
+          payment_date: new Date().toISOString(),
+          latitude: extra.latitude !== undefined && extra.latitude !== null ? Number(extra.latitude) : null,
+          longitude: extra.longitude !== undefined && extra.longitude !== null ? Number(extra.longitude) : null,
+          rating: 5.0,
+          popularity: 0
         };
 
         const { error: insertError } = await supabase

@@ -155,6 +155,7 @@ export interface Business {
   whatsappNumber?: string;
   email?: string;
   openingHours?: string;
+  startingPrice?: string;
   socialMediaLinks?: {
     website?: string;
     facebook?: string;
@@ -170,6 +171,14 @@ export interface Business {
   userId?: string;
   province?: string;
   preferredContactTime?: string;
+  paymentId?: string;
+  paymentReference?: string;
+  amountPaid?: number;
+  paymentDate?: string;
+  latitude?: number;
+  longitude?: number;
+  rating?: number;
+  popularity?: number;
 }
 
 
