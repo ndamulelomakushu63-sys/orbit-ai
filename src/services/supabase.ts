@@ -675,10 +675,13 @@ export async function dbRegisterBusinessDraft(reg: any): Promise<boolean> {
     const { error } = await supabase
       .from('business_registrations')
       .upsert(reg);
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase business draft upsert error:", error);
+      throw error;
+    }
     return true;
   } catch (err) {
-    console.warn("Supabase register business draft failed:", err);
+    console.error("Supabase register business draft failed with error detail:", err);
     return false;
   }
 }

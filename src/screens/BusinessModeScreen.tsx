@@ -478,7 +478,6 @@ export default function BusinessModeScreen() {
         category: formData.category,
         town_city: formData.city.trim(),
         physical_address: formData.physicalAddress.trim(),
-        village_suburb: formData.villageSuburb.trim(),
         description: formData.description.trim(),
         preferred_visit_date: "Anytime",
         additional_notes: JSON.stringify({
