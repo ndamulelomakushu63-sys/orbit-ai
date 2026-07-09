@@ -15,7 +15,10 @@ import {
   Building,
   Info,
   Check,
-  Navigation
+  Navigation,
+  Tag,
+  Share2,
+  Globe
 } from 'lucide-react';
 import { 
   dbFetchApprovedBusinesses, 
@@ -43,6 +46,12 @@ const MOCK_BUSINESSES: Business[] = [
     photos: [
       "https://images.unsplash.com/photo-1560750588-73207b1ef5b8?auto=format&fit=crop&w=600&q=80"
     ],
+    socialMediaLinks: {
+      website: "https://www.lindiwebeauty.co.za"
+    },
+    specials: [
+      "Get a free head massage with any premium braiding session on Wednesdays!"
+    ],
     isPublic: true,
     isPaid: true,
     paymentStatus: "Paid",
@@ -67,6 +76,13 @@ const MOCK_BUSINESSES: Business[] = [
     openingHours: "Mon - Fri: 07:00 - 16:30, Sat: 08:00 - 14:00",
     photos: [
       "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80"
+    ],
+    socialMediaLinks: {
+      website: "https://www.dailygrindcafe.co.za"
+    },
+    specials: [
+      "Free double espresso with any gourmet wood-fired breakfast before 09:00 AM!",
+      "Two-for-One Large Pepperoni or Margherita Pizzas every Thursday after 16:00!"
     ],
     isPublic: true,
     isPaid: true,
@@ -379,6 +395,7 @@ export default function BusinessModeScreen() {
 
   // Gallery slider state for profile modal
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+  const [copiedShare, setCopiedShare] = useState(false);
 
   const categories = [
     'All',
@@ -490,6 +507,38 @@ export default function BusinessModeScreen() {
     setUserCoords(null);
     if (sortBy === 'nearest') {
       setSortBy('newest');
+    }
+  };
+
+  const handleShareBusiness = () => {
+    if (!selectedBusiness) return;
+    const shareText = `Check out "${selectedBusiness.name}" on Orbit AI!\nCategory: ${selectedBusiness.category}\nAddress: ${selectedBusiness.physicalAddress}, ${selectedBusiness.townCity}\nPhone: ${selectedBusiness.phoneNumber || 'N/A'}`;
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareText)
+        .then(() => {
+          setCopiedShare(true);
+          setTimeout(() => setCopiedShare(false), 3000);
+        })
+        .catch((err) => {
+          console.error("Failed to copy text: ", err);
+        });
+    } else {
+      // Fallback for older browsers or sandboxed iframes where clipboard API is not available
+      const textArea = document.createElement("textarea");
+      textArea.value = shareText;
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopiedShare(true);
+        setTimeout(() => setCopiedShare(false), 3000);
+      } catch (err) {
+        console.error("Fallback copy failed: ", err);
+      }
+      document.body.removeChild(textArea);
     }
   };
 
@@ -858,17 +907,15 @@ export default function BusinessModeScreen() {
           <View className="space-y-6">
             
             {/* Search Input Bar & Advanced Filters */}
-            <View className="bg-white p-5 border border-slate-200/55 rounded-[28px] space-y-4 shadow-3xs text-left">
-              <Text className="text-xs font-black text-slate-400 uppercase tracking-widest pl-0.5 block font-sans">Search and Filter Businesses</Text>
-              
-              <View className="flex flex-col sm:flex-row gap-2">
-                <View className="relative flex-1 flex flex-row items-center bg-slate-50 border border-slate-200/60 rounded-2xl px-4 py-3">
+            <View className="space-y-4 text-left">
+              <View className="flex flex-col sm:flex-row gap-2.5">
+                <View className="relative flex-1 flex flex-row items-center bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus-within:border-blue-500 focus-within:bg-white transition-all shadow-2xs">
                   <Search className="w-4 h-4 text-slate-400 shrink-0 mr-3" />
                   <TextInput
                     placeholder="Search by name, category, service, location..."
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    className="flex-1 text-xs bg-transparent outline-none font-sans text-slate-850"
+                    className="flex-1 text-xs bg-transparent outline-none font-sans text-slate-800 placeholder-slate-400"
                     id="directory-search-input-field"
                   />
                 </View>
@@ -877,19 +924,19 @@ export default function BusinessModeScreen() {
                 <TouchableOpacity
                   onClick={handleNearMe}
                   disabled={loadingGPS}
-                  className={`px-4 py-3 rounded-2xl border flex flex-row items-center justify-center gap-2 transition cursor-pointer ${
+                  className={`px-5 py-2.5 rounded-xl border flex flex-row items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-2xs ${
                     isNearMeActive
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
-                      : 'bg-slate-50 border-slate-200/60 text-slate-700 hover:bg-slate-100'
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                   id="directory-near-me-btn"
                 >
-                  <Navigation className={`w-4 h-4 ${isNearMeActive ? 'text-white animate-pulse' : 'text-slate-500'}`} />
-                  <Text className={`text-xs font-bold font-sans ${isNearMeActive ? 'text-white' : 'text-slate-700'}`}>
+                  <Navigation className={`w-4 h-4 ${isNearMeActive ? 'text-white animate-pulse' : 'text-slate-450'}`} />
+                  <Text className={`text-xs font-semibold font-sans ${isNearMeActive ? 'text-white' : 'text-slate-700'}`}>
                     {loadingGPS ? 'Locating...' : isNearMeActive ? 'Near Me Active' : 'Near Me'}
                   </Text>
                   {isNearMeActive && (
-                    <Text className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white px-1.5 py-0.5 rounded-md ml-1 font-mono">
+                    <Text className="text-[9px] font-bold uppercase tracking-wider bg-white/20 text-white px-1.5 py-0.5 rounded-md ml-1 font-mono">
                       GPS ON
                     </Text>
                   )}
@@ -897,20 +944,20 @@ export default function BusinessModeScreen() {
               </View>
 
               {/* Filter by Location (supports townCity, Suburb, Village, Province) */}
-              <View className="space-y-1.5">
-                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Filter by Location</Text>
-                <View className="flex flex-row overflow-x-auto pb-1 gap-1.5 scrollbar-none">
+              <View className="space-y-2">
+                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-0.5 block">Filter by Location</Text>
+                <View className="flex flex-row overflow-x-auto pb-1 gap-2 scrollbar-none">
                   {LOCATIONS.map((loc) => (
                     <TouchableOpacity
                       key={loc}
                       onClick={() => setSelectedLocation(loc)}
-                      className={`px-3.5 py-1.5 rounded-full border whitespace-nowrap transition cursor-pointer ${
+                      className={`px-4 py-1.5 rounded-full border whitespace-nowrap transition-all duration-150 cursor-pointer ${
                         selectedLocation === loc
-                          ? 'bg-blue-600 border-blue-600'
-                          : 'bg-slate-50 border-slate-200/60'
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-xs font-semibold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
                       }`}
                     >
-                      <Text className={`text-[10px] font-bold font-sans tracking-wide ${selectedLocation === loc ? 'text-white' : 'text-slate-500'}`}>
+                      <Text className={`text-xs font-medium font-sans ${selectedLocation === loc ? 'text-white' : 'text-slate-600'}`}>
                         {loc === 'All' ? 'All Locations' : loc}
                       </Text>
                     </TouchableOpacity>
@@ -919,20 +966,20 @@ export default function BusinessModeScreen() {
               </View>
 
               {/* Category Filter Pills */}
-              <View className="space-y-1.5">
-                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-0.5 block">Filter by Category</Text>
-                <View className="flex flex-row overflow-x-auto pb-1 gap-1.5 scrollbar-none">
+              <View className="space-y-2">
+                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-0.5 block">Filter by Category</Text>
+                <View className="flex flex-row overflow-x-auto pb-1 gap-2 scrollbar-none">
                   {categories.map((cat) => (
                     <TouchableOpacity
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
-                      className={`px-3.5 py-1.5 rounded-full border whitespace-nowrap transition cursor-pointer ${
+                      className={`px-4 py-1.5 rounded-full border whitespace-nowrap transition-all duration-150 cursor-pointer ${
                         selectedCategory === cat
-                          ? 'bg-blue-600 border-blue-600'
-                          : 'bg-slate-50 border-slate-200/60'
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-xs font-semibold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
                       }`}
                     >
-                      <Text className={`text-[10px] font-bold font-sans tracking-wide ${selectedCategory === cat ? 'text-white' : 'text-slate-500'}`}>
+                      <Text className={`text-xs font-medium font-sans ${selectedCategory === cat ? 'text-white' : 'text-slate-600'}`}>
                         {cat === 'All' ? 'Browse All' : cat}
                       </Text>
                     </TouchableOpacity>
@@ -980,7 +1027,7 @@ export default function BusinessModeScreen() {
                 {/* FEATURED BUSINESSES */}
                 {pageFeatured.length > 0 && (
                   <View className="space-y-3">
-                    <Text className="text-[10px] font-black text-slate-450 uppercase tracking-widest pl-1 block text-left font-mono">
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 block text-left font-mono">
                       ✦ Featured Businesses
                     </Text>
                     <View className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -995,41 +1042,35 @@ export default function BusinessModeScreen() {
                               setActivePhotoIdx(0);
                               setCurrentView('profile');
                             }}
-                            className="bg-white rounded-[24px] overflow-hidden border border-slate-200/55 shadow-2xs text-left cursor-pointer transition hover:border-blue-400 group flex flex-col"
+                            className="bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-all duration-350 hover:-translate-y-0.5 text-left cursor-pointer group flex flex-col"
                           >
                             <div className="h-44 w-full bg-slate-100 overflow-hidden relative shrink-0">
                               <img 
                                 src={biz.photos?.[0] || getCategoryFallbackImage(biz.category)} 
                                 alt={biz.name} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                                className="w-full h-full object-cover group-hover:scale-102 transition duration-500"
                                 referrerPolicy="no-referrer"
                               />
-                              <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full border border-slate-100 flex items-center gap-1">
-                                <span className="text-amber-500 text-[11px]">★</span>
-                                <span className="text-[10px] font-bold text-slate-800">
-                                  {scoreRating.toFixed(1)}
-                                </span>
-                              </div>
-                              <div className="absolute top-3 right-3 bg-blue-600/90 backdrop-blur-xs text-white px-2.5 py-1 rounded-full">
+                              <div className="absolute top-3 right-3 bg-blue-600 text-white px-2.5 py-1 rounded-lg shadow-sm">
                                 <span className="text-[9px] font-bold uppercase tracking-wider">{biz.category}</span>
                               </div>
                             </div>
-                            <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
+                            <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
                               <div className="space-y-1">
-                                <Text className="text-sm font-extrabold text-slate-900 leading-snug group-hover:text-blue-600 transition truncate block">{biz.name}</Text>
-                                <Text className="text-[11.5px] text-slate-500 line-clamp-2 leading-relaxed block">{biz.description}</Text>
+                                <Text className="text-base font-semibold text-slate-900 group-hover:text-blue-600 transition truncate block">{biz.name}</Text>
+                                <Text className="text-xs text-slate-500 line-clamp-2 leading-relaxed block">{biz.description}</Text>
                               </div>
-                              <div className="pt-2 border-t border-slate-50 flex items-center justify-between shrink-0">
+                              <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
                                 <div className="flex flex-col text-left">
-                                  <div className="flex items-center gap-1 text-slate-450">
+                                  <div className="flex items-center gap-1 text-slate-500">
                                     <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                                    <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 truncate max-w-[120px] sm:max-w-none">{getFullLocationString(biz)}</span>
+                                    <span className="text-xs font-semibold text-slate-600 truncate max-w-[120px] sm:max-w-none">{getFullLocationString(biz)}</span>
                                   </div>
                                   {distanceStr && (
-                                    <span className="text-[9px] font-bold text-blue-600 font-mono mt-0.5 ml-4 block">{distanceStr}</span>
+                                    <span className="text-[9.5px] font-bold text-blue-600 font-mono mt-0.5 ml-4.5 block">{distanceStr}</span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-0.5 text-blue-600 font-bold text-xs">
+                                <div className="flex items-center gap-0.5 text-blue-600 font-semibold text-xs group-hover:translate-x-0.5 transition-all">
                                   <span>View Profile</span>
                                   <ChevronRight className="w-3.5 h-3.5 text-blue-600" />
                                 </div>
@@ -1045,10 +1086,10 @@ export default function BusinessModeScreen() {
                 {/* LATEST BUSINESSES */}
                 {pageLatest.length > 0 && (
                   <View className="space-y-3">
-                    <Text className="text-[10px] font-black text-slate-455 uppercase tracking-widest pl-1 block text-left font-mono">
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 block text-left font-mono">
                       ✦ Latest Businesses
                     </Text>
-                    <View className="space-y-4">
+                    <View className="space-y-3">
                       {pageLatest.map((biz) => {
                         const scoreRating = biz.rating || (((biz.id.charCodeAt(0) || 12) % 4) * 0.1 + 4.5);
                         const distanceStr = getDistanceString(biz);
@@ -1060,41 +1101,37 @@ export default function BusinessModeScreen() {
                               setActivePhotoIdx(0);
                               setCurrentView('profile');
                             }}
-                            className="bg-white rounded-3xl p-4 border border-slate-200/55 shadow-2xs hover:border-blue-400 transition cursor-pointer flex flex-col sm:flex-row gap-4 items-stretch text-left group"
+                            className="bg-white rounded-xl p-4 border border-slate-100 shadow-xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-pointer flex flex-col sm:flex-row gap-4 items-stretch text-left group"
                           >
-                            <div className="w-full sm:w-28 h-28 bg-slate-100 rounded-2xl overflow-hidden relative shrink-0">
+                            <div className="w-full sm:w-32 h-24 bg-slate-50 rounded-lg overflow-hidden relative shrink-0">
                               <img 
                                 src={biz.photos?.[0] || getCategoryFallbackImage(biz.category)} 
                                 alt={biz.name} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                                className="w-full h-full object-cover group-hover:scale-102 transition duration-500"
                                 referrerPolicy="no-referrer"
                               />
                             </div>
-                            <div className="flex-1 flex flex-col justify-between py-1 text-left min-w-0">
+                            <div className="flex-1 flex flex-col justify-between py-0.5 text-left min-w-0">
                               <div className="space-y-1">
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-wider">{biz.category}</span>
-                                  <div className="flex items-center gap-0.5">
-                                    <span className="text-amber-500 text-xs">★</span>
-                                    <span className="text-[10px] font-bold text-slate-600">{scoreRating.toFixed(1)}</span>
-                                  </div>
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 uppercase tracking-wider">{biz.category}</span>
                                 </div>
-                                <Text className="text-sm font-extrabold text-slate-900 group-hover:text-blue-600 transition block truncate">{biz.name}</Text>
+                                <Text className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition block truncate">{biz.name}</Text>
                                 <Text className="text-[11px] text-slate-400 font-sans block truncate">Owner: {biz.ownerName}</Text>
-                                <Text className="text-[11px] text-slate-500 line-clamp-1 leading-relaxed block font-sans">{biz.description}</Text>
+                                <Text className="text-xs text-slate-500 line-clamp-1 leading-relaxed block font-sans">{biz.description}</Text>
                               </div>
                               
-                              <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                                 <div className="flex flex-col text-left">
-                                  <div className="flex items-center gap-1 text-slate-400">
-                                    <MapPin className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate max-w-[130px] sm:max-w-none">{getFullLocationString(biz)}</span>
+                                  <div className="flex items-center gap-1 text-slate-500">
+                                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                    <span className="text-xs font-semibold text-slate-600 truncate max-w-[130px] sm:max-w-none">{getFullLocationString(biz)}</span>
                                   </div>
                                   {distanceStr && (
-                                    <span className="text-[9px] font-bold text-blue-600 font-mono mt-0.5 ml-4 block">{distanceStr}</span>
+                                    <span className="text-[9.5px] font-bold text-blue-600 font-mono mt-0.5 ml-4.5 block">{distanceStr}</span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-0.5 text-blue-600 font-bold text-[11px]">
+                                <div className="flex items-center gap-0.5 text-blue-600 font-semibold text-xs group-hover:translate-x-0.5 transition-all">
                                   <span>View Profile</span>
                                   <ChevronRight className="w-3.5 h-3.5" />
                                 </div>
@@ -1406,149 +1443,256 @@ export default function BusinessModeScreen() {
 
           </View>
         )}
-
-        {/* VIEW 3: DETAILED BUSINESS PROFILE SCREEN */}
+                {/* VIEW 3: DETAILED BUSINESS PROFILE SCREEN */}
         {currentView === 'profile' && selectedBusiness && (
-          <View className="bg-white rounded-[32px] overflow-hidden border border-slate-200/55 shadow-sm text-left">
+          <View className="space-y-6 text-left" id="detailed-business-profile-view">
             
-            {/* Gallery Section */}
-            <div className="relative h-60 w-full bg-slate-100 overflow-hidden shrink-0">
-              <img 
-                src={getBusinessPhotos(selectedBusiness)[activePhotoIdx]} 
-                alt={selectedBusiness.name} 
-                className="w-full h-full object-cover transition-all duration-300"
-                referrerPolicy="no-referrer"
-              />
-              
+            {/* Top Navigation Bar / Breadcrumb */}
+            <View className="flex flex-row items-center justify-between pb-2 border-b border-slate-100 select-none">
               <TouchableOpacity
-                onClick={() => setCurrentView('directory')}
-                className="absolute top-4 left-4 bg-black/40 hover:bg-black/55 p-2 rounded-full text-white cursor-pointer transition flex items-center justify-center"
+                onClick={() => {
+                  setCurrentView('directory');
+                  setActivePhotoIdx(0);
+                }}
+                className="flex flex-row items-center gap-1.5 text-blue-600 hover:text-blue-700 transition cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4 text-white" />
+                <ArrowLeft className="w-4 h-4 text-blue-600" />
+                <Text className="text-xs font-semibold text-blue-600 font-sans">Back to Directory</Text>
               </TouchableOpacity>
-
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-5 text-white pointer-events-none text-left flex flex-col justify-end h-28">
-                <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 font-sans">{selectedBusiness.category}</span>
-                <h2 className="text-lg font-black text-white leading-tight mt-1 truncate">{selectedBusiness.name}</h2>
-              </div>
-            </div>
-
-            {/* Photo Slides Indicator */}
-            {getBusinessPhotos(selectedBusiness).length > 1 && (
-              <div className="flex flex-row justify-center gap-2 p-3 bg-slate-50 border-b border-slate-100">
-                {getBusinessPhotos(selectedBusiness).map((photo, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    onClick={() => setActivePhotoIdx(idx)}
-                    className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-all ${activePhotoIdx === idx ? 'bg-blue-600 scale-110' : 'bg-slate-300 hover:bg-slate-400'}`}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Profile Contents */}
-            <div className="p-5 space-y-5 text-left">
               
-              {/* Rating & Location Tag line */}
-              <div className="flex justify-between items-center bg-slate-50 border border-slate-100 p-3 rounded-2xl">
-                <div className="flex items-center gap-1">
-                  <span className="text-amber-500 text-sm">★</span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {(selectedBusiness.rating || (((selectedBusiness.id.charCodeAt(0) || 12) % 4) * 0.1 + 4.5)).toFixed(1)} Rating
-                  </span>
-                </div>
-                <div className="flex flex-col text-right">
-                  <div className="flex items-center gap-1.5 text-slate-500 justify-end">
-                    <MapPin className="w-4 h-4 text-slate-400" />
-                    <span className="text-xs font-bold text-slate-600">{getFullLocationString(selectedBusiness)}</span>
-                  </div>
-                  {getDistanceString(selectedBusiness) && (
-                    <span className="text-[10px] font-bold text-blue-600 font-mono mt-0.5">{getDistanceString(selectedBusiness)}</span>
-                  )}
-                </div>
-              </div>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                Business ID: {selectedBusiness.id}
+              </Text>
+            </View>
 
-              {/* Owner and Details */}
-              <div className="space-y-1 bg-blue-50/20 border border-blue-100/40 p-4 rounded-2xl">
-                <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Owner & Verification Details</Text>
-                <Text className="text-sm font-extrabold text-slate-800 block mt-1">Owner: {selectedBusiness.ownerName}</Text>
-                <div className="flex items-center gap-1 text-[11px] text-slate-450 mt-1 font-medium font-sans">
-                  <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span className="text-slate-500 font-bold">Physical Information Hand-Verified by Orbit AI</span>
-                </div>
-              </div>
-
-              {/* Professional Description */}
-              <div className="space-y-1.5">
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Professional Description</Text>
-                <Text className="text-xs text-slate-600 leading-relaxed block font-sans">
-                  {selectedBusiness.description}
-                </Text>
-              </div>
-
-              {/* Opening Hours */}
-              <div className="space-y-1.5 pt-1">
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Opening Hours</Text>
-                <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 p-3.5 rounded-2xl text-xs text-slate-600">
-                  <Clock className="w-4 h-4 text-slate-400 shrink-0" />
-                  <Text className="font-medium font-sans text-slate-700">{selectedBusiness.openingHours || "Mon - Fri: 08:00 - 17:00"}</Text>
-                </div>
-              </div>
-
-              {/* Location */}
-              <div className="space-y-1.5 pt-1">
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans">Physical Address</Text>
-                <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 p-3.5 rounded-2xl text-xs text-slate-600">
-                  <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                  <Text className="font-medium font-sans text-slate-700 leading-relaxed">
-                    {selectedBusiness.physicalAddress}, {selectedBusiness.townCity}, {selectedBusiness.province || "South Africa"}
-                  </Text>
-                </div>
-              </div>
-
-              {/* Core Contact Action block */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-sans text-center mb-1">Contact Channels</Text>
+            {/* Photo Gallery & Main Hero Image */}
+            <View className="space-y-3">
+              <div className="relative h-72 w-full bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 shadow-2xs">
+                <img 
+                  src={getBusinessPhotos(selectedBusiness)[activePhotoIdx]} 
+                  alt={selectedBusiness.name} 
+                  className="w-full h-full object-cover transition-all duration-300"
+                  referrerPolicy="no-referrer"
+                />
                 
-                <div className="flex flex-col sm:flex-row gap-2">
-                  
-                  {/* Phone Button */}
-                  {selectedBusiness.phoneNumber && (
-                    <a
-                      href={`tel:${selectedBusiness.phoneNumber}`}
-                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 rounded-full flex flex-row items-center justify-center gap-2 text-xs transition active:scale-97 cursor-pointer"
-                    >
-                      <Phone className="w-4 h-4 text-slate-650" />
-                      <span>Call: {selectedBusiness.phoneNumber}</span>
-                    </a>
-                  )}
+                {/* Overlay with subtle category tag */}
+                <div className="absolute top-4 right-4 bg-blue-600 text-white px-3 py-1 rounded-full shadow-sm">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{selectedBusiness.category}</span>
+                </div>
+              </div>
 
-                  {/* WhatsApp button */}
-                  {(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber) && (
-                    <a
-                      href={`https://wa.me/${getCleanNumberForWa(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber || "")}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-full flex flex-row items-center justify-center gap-2 text-xs transition active:scale-97 cursor-pointer shadow-2xs"
+              {/* Photo Gallery Thumbnail Row */}
+              {getBusinessPhotos(selectedBusiness).length > 1 && (
+                <div className="flex flex-row gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  {getBusinessPhotos(selectedBusiness).map((photo, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      onClick={() => setActivePhotoIdx(idx)}
+                      className={`relative w-20 h-14 rounded-lg overflow-hidden border-2 cursor-pointer transition ${activePhotoIdx === idx ? 'border-blue-600' : 'border-transparent opacity-70 hover:opacity-100'}`}
                     >
-                      <svg className="w-4.5 h-4.5 fill-current text-white shrink-0" viewBox="0 0 24 24">
-                        <path d="M12.012 2c-5.506 0-9.985 4.479-9.985 9.985 0 1.758.459 3.411 1.259 4.867l-1.337 4.89 5.011-1.315c1.4.761 2.986 1.191 4.671 1.191 5.506 0 9.985-4.479 9.985-9.985 0-5.506-4.479-9.985-9.985-9.985zm0 1.624c4.61 0 8.361 3.75 8.361 8.361s-3.751 8.361-8.361 8.361c-1.564 0-3.023-.432-4.279-1.183l-.307-.184-3.181.834.849-3.102-.202-.321c-.815-1.298-1.242-2.808-1.242-4.405 0-4.611 3.75-8.361 8.361-8.361zm-3.411 4.84c-.187 0-.395.037-.562.186-.167.149-.637.624-.637 1.524 0 .901.656 1.77.747 1.895.092.125 1.263 1.93 3.061 2.705.428.185.762.294 1.022.378.43.136.822.117 1.131.071.344-.051 1.06-.433 1.209-.851.15-.418.15-.776.105-.851-.045-.075-.165-.12-.345-.21-.18-.09-1.06-.524-1.224-.584-.165-.06-.285-.09-.395.075-.12.165-.435.54-.539.66-.105.119-.21.134-.39.045-.18-.09-.76-.28-1.448-.894-.535-.477-.896-1.066-1.001-1.246-.105-.18-.011-.277.079-.366.081-.08.18-.21.27-.315.09-.105.12-.18.18-.3.06-.12.03-.225-.015-.315-.045-.09-.395-.953-.541-1.306-.142-.343-.287-.297-.395-.302-.102-.005-.221-.005-.34-.005z"/>
-                      </svg>
-                      <span>WhatsApp Chat</span>
-                    </a>
-                  )}
+                      <img src={photo} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </TouchableOpacity>
+                  ))}
+                </div>
+              )}
+            </View>
 
+            {/* Business Header Info */}
+            <View className="space-y-2 text-left">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 font-mono">
+                    {selectedBusiness.category} Directory
+                  </span>
+                  <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight font-sans leading-tight">
+                    {selectedBusiness.name}
+                  </h2>
                 </div>
 
+                <div className="bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider font-sans">Verified Listing</span>
+                </div>
+              </div>
+            </View>
+
+            {/* Profile Grid Section */}
+            <View className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              
+              {/* Left Column: Description, Specials & Hours */}
+              <View className="space-y-6 text-left">
+                
+                {/* Description */}
+                <div className="space-y-2">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">About the Business</Text>
+                  <Text className="text-sm text-slate-650 leading-relaxed block font-sans">
+                    {selectedBusiness.description}
+                  </Text>
+                  <div className="flex flex-row items-center gap-1.5 text-xs text-slate-400 mt-2 font-medium">
+                    <span className="font-semibold text-slate-500">Representative:</span>
+                    <span>{selectedBusiness.ownerName}</span>
+                  </div>
+                </div>
+
+                {/* Opening Hours */}
+                <div className="space-y-2">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Opening Hours</Text>
+                  <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center gap-3 shadow-3xs">
+                    <Clock className="w-4.5 h-4.5 text-blue-600 shrink-0" />
+                    <Text className="text-xs font-semibold text-slate-700 font-sans">
+                      {selectedBusiness.openingHours || "Monday - Friday: 08:00 - 17:00"}
+                    </Text>
+                  </div>
+                </div>
+
+                {/* Current Specials */}
+                <div className="space-y-2">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Current Specials & Promotions</Text>
+                  {selectedBusiness.specials && selectedBusiness.specials.length > 0 ? (
+                    <View className="space-y-2">
+                      {selectedBusiness.specials.map((special, index) => (
+                        <div key={index} className="bg-amber-50/60 border border-amber-100 p-4 rounded-xl flex items-start gap-3 shadow-3xs">
+                          <Tag className="w-4.5 h-4.5 text-amber-500 shrink-0 mt-0.5" />
+                          <Text className="text-xs font-semibold text-amber-950 leading-relaxed block font-sans">{special}</Text>
+                        </div>
+                      ))}
+                    </View>
+                  ) : (
+                    <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-xl flex items-start gap-3 shadow-3xs">
+                      <Tag className="w-4.5 h-4.5 text-blue-500 shrink-0 mt-0.5" />
+                      <Text className="text-xs font-semibold text-slate-700 leading-relaxed block font-sans">
+                        {selectedBusiness.category === "Health & Beauty" ? "First-time client promo: 10% off any premium hair or beauty treatment. Mention Orbit AI!" :
+                         selectedBusiness.category === "Food & Beverage" ? "Weekly Special: Free hot beverage with any breakfast order before 09:30 AM!" :
+                         selectedBusiness.category === "Automotive" ? "Winter Special: Free brake pad safety inspection with any minor service booked." :
+                         selectedBusiness.category === "Technology" ? "Special: Get a high-grade tempered glass screen guard free with every repair!" :
+                         selectedBusiness.category === "Construction & Trades" ? "Special promotion: Zero-cost on-site assessment and complete professional quote." :
+                         "Special offer: 10% off selected services. Enquire today and mention Orbit AI!"}
+                      </Text>
+                    </div>
+                  )}
+                </div>
+
+              </View>
+
+              {/* Right Column: Map, Address, Sharing & Action Buttons */}
+              <View className="space-y-6 text-left">
+                
+                {/* Physical Location Address & Directions Map */}
+                <div className="space-y-2">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Directions & Map Location</Text>
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                    {/* Visual map simulation */}
+                    <div className="h-44 w-full relative bg-blue-50/30 overflow-hidden flex items-center justify-center">
+                      <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                        backgroundImage: "radial-gradient(#2563eb 1.2px, transparent 1.2px), radial-gradient(#2563eb 1.2px, transparent 1.2px)",
+                        backgroundSize: "24px 24px",
+                        backgroundPosition: "0 0, 12px 12px"
+                      }} />
+                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-blue-100/30" />
+                      <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-1 bg-blue-100/30" />
+                      
+                      {/* Sleek Pin visual */}
+                      <div className="relative z-10 flex flex-col items-center">
+                        <div className="absolute -top-1 w-8 h-8 bg-blue-500/20 rounded-full animate-ping" />
+                        <div className="w-11 h-11 bg-blue-600 rounded-full flex items-center justify-center shadow-md">
+                          <MapPin className="w-5.5 h-5.5 text-white" />
+                        </div>
+                        <span className="mt-2 text-[10px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-md shadow-xs border border-blue-100">
+                          {selectedBusiness.townCity}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0 text-left">
+                        <Text className="text-xs font-bold text-slate-800 block truncate">Address</Text>
+                        <Text className="text-[11px] text-slate-500 font-medium block truncate mt-0.5 text-left">
+                          {selectedBusiness.physicalAddress}, {selectedBusiness.townCity}
+                        </Text>
+                      </div>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedBusiness.name + ', ' + selectedBusiness.physicalAddress + ', ' + selectedBusiness.townCity)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-blue-600 hover:bg-blue-700 active:scale-97 text-white font-semibold px-4 py-2 rounded-xl text-xs transition flex flex-row items-center gap-1.5 cursor-pointer shadow-3xs shrink-0"
+                      >
+                        <Navigation className="w-3.5 h-3.5 text-white" />
+                        <span>Navigate</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Channels */}
+                <div className="space-y-3 pt-1">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Contact & Actions</Text>
+                  
+                  <div className="flex flex-col gap-2.5">
+                    {/* Phone button */}
+                    {selectedBusiness.phoneNumber && (
+                      <a
+                        href={`tel:${selectedBusiness.phoneNumber}`}
+                        className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer"
+                      >
+                        <Phone className="w-4.5 h-4.5 text-slate-500" />
+                        <span>Call Business: {selectedBusiness.phoneNumber}</span>
+                      </a>
+                    )}
+
+                    {/* WhatsApp button */}
+                    {(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber) && (
+                      <a
+                        href={`https://wa.me/${getCleanNumberForWa(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber || "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer shadow-xs"
+                      >
+                        <svg className="w-4.5 h-4.5 fill-current text-white shrink-0" viewBox="0 0 24 24">
+                          <path d="M12.012 2c-5.506 0-9.985 4.479-9.985 9.985 0 1.758.459 3.411 1.259 4.867l-1.337 4.89 5.011-1.315c1.4.761 2.986 1.191 4.671 1.191 5.506 0 9.985-4.479 9.985-9.985 0-5.506-4.479-9.985-9.985-9.985zm0 1.624c4.61 0 8.361 3.75 8.361 8.361s-3.751 8.361-8.361 8.361c-1.564 0-3.023-.432-4.279-1.183l-.307-.184-3.181.834.849-3.102-.202-.321c-.815-1.298-1.242-2.808-1.242-4.405 0-4.611 3.75-8.361 8.361-8.361zm-3.411 4.84c-.187 0-.395.037-.562.186-.167.149-.637.624-.637 1.524 0 .901.656 1.77.747 1.895.092.125 1.263 1.93 3.061 2.705.428.185.762.294 1.022.378.43.136.822.117 1.131.071.344-.051 1.06-.433 1.209-.851.15-.418.15-.776.105-.851-.045-.075-.165-.12-.345-.21-.18-.09-1.06-.524-1.224-.584-.165-.06-.285-.09-.395.075-.12.165-.435.54-.539.66-.105.119-.21.134-.39.045-.18-.09-.76-.28-1.448-.894-.535-.477-.896-1.066-1.001-1.246-.105-.18-.011-.277.079-.366.081-.08.18-.21.27-.315.09-.105.12-.18.18-.3.06-.12.03-.225-.015-.315-.045-.09-.395-.953-.541-1.306-.142-.343-.287-.297-.395-.302-.102-.005-.221-.005-.34-.005z"/>
+                        </svg>
+                        <span>Chat on WhatsApp</span>
+                      </a>
+                    )}
+
+                    {/* Visit Website (if available) */}
+                    {selectedBusiness.socialMediaLinks?.website && (
+                      <a
+                        href={selectedBusiness.socialMediaLinks.website}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer shadow-xs animate-fade-in"
+                      >
+                        <Globe className="w-4.5 h-4.5 text-white" />
+                        <span>Visit Official Website</span>
+                      </a>
+                    )}
+
+                    {/* Share Business */}
+                    <TouchableOpacity
+                      onClick={handleShareBusiness}
+                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer"
+                    >
+                      <Share2 className="w-4.5 h-4.5 text-blue-600" />
+                      <span>{copiedShare ? "Details Copied to Clipboard!" : "Share Business Listing"}</span>
+                    </TouchableOpacity>
+                  </div>
+                </div>
+
+                {/* Back to directory button */}
                 <TouchableOpacity
-                  onClick={() => setCurrentView('directory')}
-                  className="w-full mt-2 bg-slate-50 hover:bg-slate-100 text-slate-500 font-bold py-3 rounded-full text-center border border-slate-200 transition text-xs cursor-pointer"
+                  onClick={() => {
+                    setCurrentView('directory');
+                    setActivePhotoIdx(0);
+                  }}
+                  className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-500 font-semibold py-3.5 rounded-xl text-center transition text-xs cursor-pointer border border-slate-200/50"
                 >
                   Return to Directory
                 </TouchableOpacity>
-              </div>
 
-            </div>
+              </View>
+
+            </View>
+
           </View>
         )}
 

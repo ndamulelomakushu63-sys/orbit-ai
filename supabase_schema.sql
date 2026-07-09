@@ -248,36 +248,48 @@ CREATE POLICY "Users can create/update referrals."
 -- ==========================================
 -- 6. WITHDRAWALS TABLE
 -- ==========================================
+-- 6. WITHDRAWALS TABLE
+-- ==========================================
 
-CREATE TABLE IF NOT EXISTS public.withdrawals (
+CREATE TABLE IF NOT EXISTS public.withdrawal_requests (
     id TEXT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-    user_name TEXT NOT NULL,
-    user_email TEXT NOT NULL,
     full_name TEXT NOT NULL,
+    email TEXT,
     bank_name TEXT NOT NULL,
     account_number TEXT NOT NULL,
     account_holder TEXT NOT NULL,
+    branch_code TEXT,
+    account_type TEXT,
+    processed_at TIMESTAMPTZ,
+    admin_notes TEXT,
     amount NUMERIC NOT NULL,
     status TEXT NOT NULL,
-    timestamp TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
+-- For backwards compatibility/graceful migrations, also ensure column adjustments
+ALTER TABLE public.withdrawal_requests ADD COLUMN IF NOT EXISTS branch_code TEXT;
+ALTER TABLE public.withdrawal_requests ADD COLUMN IF NOT EXISTS account_type TEXT;
+ALTER TABLE public.withdrawal_requests ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+ALTER TABLE public.withdrawal_requests ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+ALTER TABLE public.withdrawal_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
-DROP POLICY IF EXISTS "Users can view their own withdrawals." ON public.withdrawals;
+ALTER TABLE public.withdrawal_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own withdrawals." ON public.withdrawal_requests;
 CREATE POLICY "Users can view their own withdrawals."
-    ON public.withdrawals FOR SELECT
+    ON public.withdrawal_requests FOR SELECT
     USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can request withdrawals." ON public.withdrawals;
+DROP POLICY IF EXISTS "Users can request withdrawals." ON public.withdrawal_requests;
 CREATE POLICY "Users can request withdrawals."
-    ON public.withdrawals FOR INSERT
+    ON public.withdrawal_requests FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Admin can update withdrawals." ON public.withdrawals;
+DROP POLICY IF EXISTS "Admin can update withdrawals." ON public.withdrawal_requests;
 CREATE POLICY "Admin can update withdrawals."
-    ON public.withdrawals FOR ALL
+    ON public.withdrawal_requests FOR ALL
     USING (true);
 
 
@@ -575,7 +587,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON public.conversations(use
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_id ON public.chat_messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer_id ON public.referrals(referrer_id);
 CREATE INDEX IF NOT EXISTS idx_referrals_referred_user_id ON public.referrals(referred_user_id);
-CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON public.withdrawals(user_id);
+CREATE INDEX IF NOT EXISTS idx_withdrawal_requests_user_id ON public.withdrawal_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_businesses_user_id ON public.businesses(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON public.support_tickets(user_id);
