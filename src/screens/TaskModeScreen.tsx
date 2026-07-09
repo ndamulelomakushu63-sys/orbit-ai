@@ -16,6 +16,98 @@ interface TaskCard {
   color: string;
 }
 
+const INTERVIEW_STEPS = [
+  {
+    key: "fullName",
+    question: "Hello! I am your Premium AI CV Builder. Let's build a world-class ATS-friendly CV suitable for South Africa and international employers. \n\nTo start, what is your full name?",
+    placeholder: "e.g. Solly Molapisi"
+  },
+  {
+    key: "position",
+    question: "What position or job title are you applying for?",
+    placeholder: "e.g. Senior Software Engineer or Admin Assistant"
+  },
+  {
+    key: "phoneNumber",
+    question: "What is your contact phone number?",
+    placeholder: "e.g. +27 76 123 4567"
+  },
+  {
+    key: "email",
+    question: "What is your email address?",
+    placeholder: "e.g. solly@example.com"
+  },
+  {
+    key: "location",
+    question: "Which city and province do you live in?",
+    placeholder: "e.g. Pretoria, Gauteng"
+  },
+  {
+    key: "educationLevel",
+    question: "What is your highest level of education? (e.g. Matric, Diploma, Bachelor of Science, Honours, etc.)",
+    placeholder: "e.g. Bachelor of Science in Computer Science"
+  },
+  {
+    key: "educationInstitution",
+    question: "Which school, college, or university did you attend, and which year did you graduate?",
+    placeholder: "e.g. University of Pretoria, 2021"
+  },
+  {
+    key: "hasExperience",
+    question: "Do you have any work experience? (Yes/No)",
+    placeholder: "Type Yes or No"
+  },
+  {
+    key: "experience",
+    question: "Tell me about your previous jobs. (Please mention company name, role, years, and a few key responsibilities if possible)",
+    placeholder: "e.g. Senior Dev at TechLabs (2022-Present): Led team of 4 to design e-commerce apps.",
+    skipIf: (answers: Record<string, string>) => {
+      const ans = (answers.hasExperience || "").toLowerCase().trim();
+      return ans === "no" || ans === "none" || ans === "n" || ans === "false";
+    }
+  },
+  {
+    key: "skills",
+    question: "What key professional skills do you have? (Comma-separated or listed)",
+    placeholder: "e.g. React Native, TypeScript, Client Relations, Project Management"
+  },
+  {
+    key: "languages",
+    question: "Which languages do you speak?",
+    placeholder: "e.g. English, Tshivenda, Zulu"
+  },
+  {
+    key: "certificates",
+    question: "Do you have any certificates, professional licences, or drivers licences?",
+    placeholder: "e.g. AWS Certified Developer, Code 10 Drivers Licence, or 'None'"
+  },
+  {
+    key: "hobbies",
+    question: "What are your personal hobbies and interests?",
+    placeholder: "e.g. Reading, playing football, hiking"
+  },
+  {
+    key: "achievements",
+    question: "Are there any achievements, awards, or honors you would like employers to know about?",
+    placeholder: "e.g. Employee of the Month, graduated with distinction, or 'None'"
+  },
+  {
+    key: "includeReferences",
+    question: "Would you like to include professional references? (e.g. 'Yes, available on request' or you can type their contact details)",
+    placeholder: "e.g. Yes, available on request"
+  },
+  {
+    key: "extra",
+    question: "Is there anything else you would like me to include in your CV? (Feel free to type details such as 'I enjoy charity work', 'I volunteer at church', 'I own a small business', 'I am willing to relocate', etc. I will intelligently decide where these belong!)",
+    placeholder: "e.g. I volunteer at church and am willing to relocate"
+  },
+  {
+    key: "style",
+    question: "Which CV style would you like to generate?\n\n• Professional (Classic & clean)\n• Modern (Sleek & high-impact)\n• Executive (Authoritative & premium)\n• Minimal (Spacious & elegant)\n• Creative (Asymmetric & distinct)",
+    placeholder: "Type Professional, Modern, Executive, Minimal, or Creative"
+  }
+];
+
 export const TaskModeScreen: React.FC = () => {
   const { setMobileScreen, currentUser } = useAppState();
 
@@ -80,6 +172,13 @@ export const TaskModeScreen: React.FC = () => {
   const [cvExperience, setCvExperience] = useState("");
   const [cvEducation, setCvEducation] = useState("");
 
+  // Premium CV AI Interview States
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+  const [interviewHistory, setInterviewHistory] = useState<{ sender: 'ai' | 'user'; text: string }[]>([]);
+  const [interviewAnswers, setInterviewAnswers] = useState<Record<string, string>>({});
+  const [interviewInput, setInterviewInput] = useState("");
+  const [cvStyle, setCvStyle] = useState<"Professional" | "Modern" | "Executive" | "Minimal" | "Creative">("Professional");
+
   const [bizName, setBizName] = useState("");
   const [bizIndustry, setBizIndustry] = useState("Technology");
   const [bizAudience, setBizAudience] = useState("");
@@ -110,6 +209,72 @@ export const TaskModeScreen: React.FC = () => {
     setErrorMessage("");
     setResultText("");
     setIsEditingResult(false);
+
+    // Initialize/Reset interview for CV Builder
+    if (task.id === "cv") {
+      setCurrentQuestionIdx(0);
+      setInterviewAnswers({});
+      setInterviewInput("");
+      setCvStyle("Professional");
+      setInterviewHistory([
+        { sender: 'ai', text: INTERVIEW_STEPS[0].question }
+      ]);
+    }
+  };
+
+  const handleSendInterviewMessage = (overrideText?: string) => {
+    const textToSend = (overrideText || interviewInput).trim();
+    if (!textToSend) return;
+
+    // 1. Add user message
+    const newHistory = [...interviewHistory, { sender: 'user', text: textToSend }];
+    setInterviewHistory(newHistory);
+    setInterviewInput("");
+
+    // 2. Save current answer
+    const currentStep = INTERVIEW_STEPS[currentQuestionIdx];
+    const updatedAnswers = { ...interviewAnswers, [currentStep.key]: textToSend };
+    setInterviewAnswers(updatedAnswers);
+
+    // If style step is answered, set cvStyle state
+    let matchedStyle = cvStyle;
+    if (currentStep.key === "style") {
+      const foundStyle = ["Professional", "Modern", "Executive", "Minimal", "Creative"].find(
+        s => s.toLowerCase() === textToSend.toLowerCase()
+      ) as any;
+      if (foundStyle) {
+        matchedStyle = foundStyle;
+        setCvStyle(foundStyle);
+      }
+    }
+
+    // 3. Find next question
+    let nextIdx = currentQuestionIdx + 1;
+    while (nextIdx < INTERVIEW_STEPS.length) {
+      const step = INTERVIEW_STEPS[nextIdx];
+      if (step.skipIf && step.skipIf(updatedAnswers)) {
+        nextIdx++;
+      } else {
+        break;
+      }
+    }
+
+    // 4. Update state and push next message
+    if (nextIdx < INTERVIEW_STEPS.length) {
+      setCurrentQuestionIdx(nextIdx);
+      setTimeout(() => {
+        setInterviewHistory(prev => [...prev, { sender: 'ai', text: INTERVIEW_STEPS[nextIdx].question }]);
+      }, 250);
+    } else {
+      // Completed!
+      setCurrentQuestionIdx(INTERVIEW_STEPS.length); // mark completed
+      setTimeout(() => {
+        setInterviewHistory(prev => [...prev, { 
+          sender: 'ai', 
+          text: `Excellent! I have compiled all your answers and your selected style is ${matchedStyle}. \n\nClick the 'Generate Premium CV' button below to compile your world-class, ATS-compliant CV instantly!` 
+        }]);
+      }, 250);
+    }
   };
 
   const handleGoBack = () => {
@@ -140,8 +305,30 @@ export const TaskModeScreen: React.FC = () => {
     // Prepare custom payload based on task
     let inputs: any = {};
     if (selectedTask.id === "cv") {
-      if (!cvName.trim()) { setErrorMessage("Full Name is required."); setLoading(false); return; }
-      inputs = { fullName: cvName, skills: cvSkills, experience: cvExperience, education: cvEducation };
+      if (!interviewAnswers.fullName?.trim()) { 
+        setErrorMessage("Please complete the interview or at least provide your full name."); 
+        setLoading(false); 
+        return; 
+      }
+      inputs = {
+        fullName: interviewAnswers.fullName,
+        position: interviewAnswers.position || "",
+        phoneNumber: interviewAnswers.phoneNumber || "",
+        email: interviewAnswers.email || "",
+        location: interviewAnswers.location || "",
+        educationLevel: interviewAnswers.educationLevel || "",
+        educationInstitution: interviewAnswers.educationInstitution || "",
+        hasExperience: interviewAnswers.hasExperience || "",
+        experience: interviewAnswers.experience || "",
+        skills: interviewAnswers.skills || "",
+        languages: interviewAnswers.languages || "",
+        certificates: interviewAnswers.certificates || "",
+        hobbies: interviewAnswers.hobbies || "",
+        achievements: interviewAnswers.achievements || "",
+        includeReferences: interviewAnswers.includeReferences || "",
+        extra: interviewAnswers.extra || "",
+        style: cvStyle
+      };
     } else if (selectedTask.id === "business_plan") {
       if (!bizName.trim()) { setErrorMessage("Business Name is required."); setLoading(false); return; }
       inputs = { businessName: bizName, industry: bizIndustry, targetAudience: bizAudience, productService: bizOffer };
@@ -201,6 +388,104 @@ export const TaskModeScreen: React.FC = () => {
     }
   };
 
+  const renderStyledCVPreview = (text: string, style: string) => {
+    const lines = text.split('\n');
+    
+    // Choose theme wrapper style based on CV style
+    let wrapperClass = "bg-white p-6 border rounded-3xl shadow-3xs text-left ";
+    let h1Class = "text-2xl font-extrabold tracking-tight ";
+    let h2Class = "text-sm font-extrabold uppercase tracking-wider border-b pb-1 mt-5 mb-2 ";
+    let h3Class = "text-xs font-bold text-slate-800 mt-1 ";
+    let pClass = "text-[11px] text-slate-600 leading-relaxed mt-0.5 ";
+    let liClass = "text-[11px] text-slate-600 leading-relaxed pl-1.5 list-disc ml-4 ";
+    let dividerClass = "border-slate-200 my-4 ";
+
+    if (style === "Professional") {
+      wrapperClass += "border-t-8 border-t-slate-800 border-slate-200";
+      h1Class += "text-slate-900 text-center";
+      h2Class += "text-blue-900 border-slate-200";
+    } else if (style === "Modern") {
+      wrapperClass += "border-l-8 border-l-teal-600 border-slate-200";
+      h1Class += "text-teal-950";
+      h2Class += "text-teal-700 bg-teal-50/50 px-2.5 rounded-lg py-1 border-none";
+    } else if (style === "Executive") {
+      wrapperClass += "border-2 border-slate-300";
+      h1Class += "text-slate-900 text-center uppercase font-black";
+      h2Class += "text-amber-800 border-b border-t border-slate-150 py-1.5 text-center";
+      h3Class += "text-slate-900";
+    } else if (style === "Minimal") {
+      wrapperClass += "border-none shadow-none p-2 bg-slate-50";
+      h1Class += "text-slate-800 font-light text-xl";
+      h2Class += "text-slate-500 border-slate-200 font-bold";
+      pClass = "text-[10.5px] text-slate-500 leading-loose mt-0.5";
+      liClass = "text-[10.5px] text-slate-500 leading-loose pl-1.5 list-disc ml-4";
+    } else if (style === "Creative") {
+      wrapperClass += "bg-gradient-to-br from-slate-50 to-indigo-50/10 border-indigo-100 border";
+      h1Class += "text-indigo-900";
+      h2Class += "text-indigo-600 border-l-4 border-indigo-500 pl-2 border-b-0";
+    }
+
+    return (
+      <View className={wrapperClass}>
+        {lines.map((line, idx) => {
+          const trimmed = line.trim();
+          if (!trimmed) return <View key={idx} className="h-2" />;
+
+          if (line.startsWith('# ')) {
+            return (
+              <Text key={idx} className={`${h1Class} block font-sans`}>
+                {line.substring(2)}
+              </Text>
+            );
+          }
+          
+          if (line.startsWith('## ')) {
+            return (
+              <Text key={idx} className={`${h2Class} block font-sans`}>
+                {line.substring(3)}
+              </Text>
+            );
+          }
+
+          if (line.startsWith('### ')) {
+            return (
+              <Text key={idx} className={`${h3Class} block font-sans`}>
+                {line.substring(4)}
+              </Text>
+            );
+          }
+
+          if (line.startsWith('#### ')) {
+            return (
+              <Text key={idx} className={`${h3Class} block font-sans`}>
+                {line.substring(5)}
+              </Text>
+            );
+          }
+
+          if (trimmed === '---') {
+            return <hr key={idx} className={dividerClass} />;
+          }
+
+          if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+            const bulletText = trimmed.substring(2);
+            return (
+              <li key={idx} className={liClass}>
+                {bulletText}
+              </li>
+            );
+          }
+
+          return (
+            <Text key={idx} className={`${pClass} block font-sans`}>
+              {line}
+            </Text>
+          );
+        })}
+      </View>
+    );
+  };
+
   const handleCopy = () => {
     navigator.clipboard.writeText(resultText);
     setCopiedSuccess(true);
@@ -222,91 +507,226 @@ export const TaskModeScreen: React.FC = () => {
       const pageHeight = doc.internal.pageSize.getHeight();
       const maxLineWidth = pageWidth - (margin * 2);
 
-      // Title & Header setup
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(22);
-      doc.setTextColor(31, 41, 55); // Slate 800
-      
-      const titleString = selectedTask.title;
-      doc.text(titleString, margin, margin + 5);
+      // Define style configurations
+      let primaryColor = [31, 41, 55]; // Slate 800
+      let accentColor = [37, 99, 235]; // Blue 600
+      let textColor = [55, 65, 81]; // Slate 700
+      let lineSpacing = 6;
+      let centerHeader = false;
+      let uppercaseHeaders = false;
 
-      // Simple divider
-      doc.setLineWidth(0.5);
-      doc.setDrawColor(209, 213, 219); // Slate 300
-      doc.line(margin, margin + 10, pageWidth - margin, margin + 10);
+      if (selectedTask.id === "cv") {
+        if (cvStyle === "Professional") {
+          primaryColor = [15, 23, 42]; // Navy 900
+          accentColor = [30, 64, 175]; // Royal Blue 800
+          textColor = [71, 85, 105]; // Slate 600
+          centerHeader = true;
+        } else if (cvStyle === "Modern") {
+          primaryColor = [13, 148, 136]; // Teal 600
+          accentColor = [15, 118, 110]; // Teal 700
+          textColor = [51, 65, 85]; // Slate 700
+        } else if (cvStyle === "Executive") {
+          primaryColor = [127, 29, 29]; // Burgundy 900
+          accentColor = [120, 53, 4]; // Dark Amber 950
+          textColor = [17, 24, 39]; // Coal Black 900
+          centerHeader = true;
+          uppercaseHeaders = true;
+        } else if (cvStyle === "Minimal") {
+          primaryColor = [55, 65, 81]; // Gray 700
+          accentColor = [107, 114, 128]; // Gray 500
+          textColor = [107, 114, 128]; // Slate 500
+          lineSpacing = 7; // more spacious spacing
+        } else if (cvStyle === "Creative") {
+          primaryColor = [109, 40, 217]; // Violet 700
+          accentColor = [79, 70, 229]; // Indigo 600
+          textColor = [71, 85, 105]; // Slate 600
+        }
+      }
 
-      // Body text config
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.setTextColor(55, 65, 81); // Slate 700
-
+      // PDF Content builder loop
       const rawLines = resultText.split('\n');
-      let currentY = margin + 20;
-      const lineHeight = 6;
+      let currentY = margin + 5;
 
-      rawLines.forEach(line => {
-        if (currentY > pageHeight - margin) {
-          doc.addPage();
-          currentY = margin;
+      // Draw top accent line/bar if Modern style
+      if (selectedTask.id === "cv" && cvStyle === "Modern") {
+        doc.setFillColor(13, 148, 136); // Teal
+        doc.rect(0, 0, 8, pageHeight, 'F'); // Left vertical bar
+      }
+
+      // Modern margin offset
+      const startX = (selectedTask.id === "cv" && cvStyle === "Modern") ? margin + 5 : margin;
+      const wrapWidth = (selectedTask.id === "cv" && cvStyle === "Modern") ? maxLineWidth - 10 : maxLineWidth;
+
+      // Draw Title / Name header
+      if (selectedTask.id === "cv") {
+        // Find the first header line (H1) for name, then draw it specially
+        const nameLine = rawLines.find(line => line.startsWith('# '));
+        const subtitleLine = rawLines.find(line => line.startsWith('### '));
+        
+        if (nameLine) {
+          const nameText = nameLine.substring(2);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(22);
+          doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+          if (centerHeader) {
+            doc.text(nameText, pageWidth / 2, currentY, { align: 'center' });
+          } else {
+            doc.text(nameText, startX, currentY);
+          }
+          currentY += 8;
         }
 
+        if (subtitleLine) {
+          const subText = subtitleLine.substring(4);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(12);
+          doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+          if (centerHeader) {
+            doc.text(subText, pageWidth / 2, currentY, { align: 'center' });
+          } else {
+            doc.text(subText, startX, currentY);
+          }
+          currentY += 8;
+        }
+      } else {
+        // Draw Task Title
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text(selectedTask.title, margin, currentY);
+        currentY += 7;
+
+        // Draw a simple line divider
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(209, 213, 219);
+        doc.line(margin, currentY, pageWidth - margin, currentY);
+        currentY += 10;
+      }
+
+      // Render remaining lines
+      rawLines.forEach(line => {
         const trimmed = line.trim();
         if (!trimmed) {
-          currentY += 4; // empty line spacing
+          currentY += 3; // minimal empty line spacing
           return;
         }
 
-        if (line.startsWith('# ')) {
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(16);
-          doc.setTextColor(31, 41, 55);
-          const text = line.substring(2);
-          const split = doc.splitTextToSize(text, maxLineWidth);
-          split.forEach((part: string) => {
-            if (currentY > pageHeight - margin) { doc.addPage(); currentY = margin; }
-            doc.text(part, margin, currentY);
-            currentY += lineHeight + 2;
-          });
-          currentY += 2;
-        } else if (line.startsWith('## ')) {
+        // Avoid re-drawing the top name or subtitle if CV
+        if (selectedTask.id === "cv") {
+          if (line.startsWith('# ') || line.startsWith('### ')) {
+            return;
+          }
+        }
+
+        if (currentY > pageHeight - margin - 10) {
+          doc.addPage();
+          currentY = margin;
+          // Redraw left bar for new page if Modern
+          if (selectedTask.id === "cv" && cvStyle === "Modern") {
+            doc.setFillColor(13, 148, 136);
+            doc.rect(0, 0, 8, pageHeight, 'F');
+          }
+        }
+
+        if (line.startsWith('## ')) {
+          const text = line.substring(3);
+          const headerText = uppercaseHeaders ? text.toUpperCase() : text;
+          
+          currentY += 4; // Extra space before section
           doc.setFont("helvetica", "bold");
           doc.setFontSize(13);
-          doc.setTextColor(31, 41, 55);
-          const text = line.substring(3);
-          const split = doc.splitTextToSize(text, maxLineWidth);
-          split.forEach((part: string) => {
-            if (currentY > pageHeight - margin) { doc.addPage(); currentY = margin; }
-            doc.text(part, margin, currentY);
-            currentY += lineHeight + 1;
-          });
-          currentY += 1.5;
-        } else if (line.startsWith('### ') || line.startsWith('#### ')) {
+          doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+
+          if (centerHeader) {
+            doc.text(headerText, pageWidth / 2, currentY, { align: 'center' });
+            currentY += 2;
+            doc.setLineWidth(0.3);
+            doc.setDrawColor(accentColor[0], accentColor[1], accentColor[2]);
+            doc.line((pageWidth / 2) - 30, currentY, (pageWidth / 2) + 30, currentY);
+            currentY += 5;
+          } else {
+            doc.text(headerText, startX, currentY);
+            currentY += 2;
+            doc.setLineWidth(0.3);
+            doc.setDrawColor(220, 225, 230);
+            doc.line(startX, currentY, pageWidth - margin, currentY);
+            currentY += 5;
+          }
+        } else if (line.startsWith('#### ')) {
+          const text = line.substring(5);
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(11.5);
-          doc.setTextColor(55, 65, 81);
-          const text = line.replace(/^#{3,4}\s+/, '');
-          const split = doc.splitTextToSize(text, maxLineWidth);
+          doc.setFontSize(11);
+          doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+
+          const split = doc.splitTextToSize(text, wrapWidth);
           split.forEach((part: string) => {
-            if (currentY > pageHeight - margin) { doc.addPage(); currentY = margin; }
-            doc.text(part, margin, currentY);
-            currentY += lineHeight;
+            if (currentY > pageHeight - margin) { 
+              doc.addPage(); 
+              currentY = margin; 
+              if (selectedTask.id === "cv" && cvStyle === "Modern") {
+                doc.setFillColor(13, 148, 136);
+                doc.rect(0, 0, 8, pageHeight, 'F');
+              }
+            }
+            doc.text(part, startX, currentY);
+            currentY += lineSpacing;
           });
-          currentY += 1;
+        } else if (trimmed === '---') {
+          doc.setLineWidth(0.2);
+          doc.setDrawColor(200, 200, 200);
+          doc.line(startX, currentY, pageWidth - margin, currentY);
+          currentY += 4;
+        } else if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10.5);
+          doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+          
+          const text = trimmed.substring(2);
+          doc.text("•", startX + 1, currentY);
+          
+          const split = doc.splitTextToSize(text, wrapWidth - 5);
+          split.forEach((part: string) => {
+            if (currentY > pageHeight - margin) { 
+              doc.addPage(); 
+              currentY = margin; 
+              if (selectedTask.id === "cv" && cvStyle === "Modern") {
+                doc.setFillColor(13, 148, 136);
+                doc.rect(0, 0, 8, pageHeight, 'F');
+              }
+            }
+            doc.text(part, startX + 5, currentY);
+            currentY += lineSpacing;
+          });
         } else {
           doc.setFont("helvetica", "normal");
-          doc.setFontSize(11);
-          doc.setTextColor(55, 65, 81);
-          const split = doc.splitTextToSize(line, maxLineWidth);
+          doc.setFontSize(10.5);
+          doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+
+          const split = doc.splitTextToSize(line, wrapWidth);
           split.forEach((part: string) => {
-            if (currentY > pageHeight - margin) { doc.addPage(); currentY = margin; }
-            doc.text(part, margin, currentY);
-            currentY += lineHeight;
+            if (currentY > pageHeight - margin) { 
+              doc.addPage(); 
+              currentY = margin; 
+              if (selectedTask.id === "cv" && cvStyle === "Modern") {
+                doc.setFillColor(13, 148, 136);
+                doc.rect(0, 0, 8, pageHeight, 'F');
+              }
+            }
+            if (centerHeader && (line.includes('|') || line.includes('Email:'))) {
+              doc.text(part, pageWidth / 2, currentY, { align: 'center' });
+            } else {
+              doc.text(part, startX, currentY);
+            }
+            currentY += lineSpacing;
           });
         }
       });
 
       // Save instantly
-      doc.save(`OrbitAI_${selectedTask.id}_output.pdf`);
+      const filename = selectedTask.id === "cv" 
+        ? `${(interviewAnswers.fullName || "OrbitAI").replace(/\s+/g, '_')}_CV_${cvStyle}.pdf`
+        : `OrbitAI_${selectedTask.id}_output.pdf`;
+      doc.save(filename);
     } catch (err) {
       console.error("PDF generation failed:", err);
       alert("Failed to export PDF format directly on frontend.");
@@ -385,47 +805,141 @@ export const TaskModeScreen: React.FC = () => {
 
             {/* FORM SPECIFICS BY TASK */}
             
-            {/* CV WRITE FORM */}
+            {/* CV WRITE FORM - ChatGPT style AI Interview */}
             {selectedTask.id === "cv" && (
-              <View className="space-y-3">
-                <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Full Name</Text>
-                  <TextInput 
-                    placeholder="e.g. Solly Molapisi"
-                    value={cvName}
-                    onChange={(e: any) => setCvName(e.target.value)}
-                    className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800"
-                  />
-                </View>
+              <View className="space-y-4">
+                {/* Chat window container */}
+                <View className="bg-white border border-slate-200/60 rounded-3xl p-4 shadow-3xs flex flex-col min-h-[380px] max-h-[500px]">
+                  
+                  {/* Chat top header with restart interview */}
+                  <View className="flex flex-row items-center justify-between border-b border-slate-150 pb-2 mb-3">
+                    <View className="flex flex-row items-center gap-2">
+                      <View className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <Text className="text-[11px] font-bold text-slate-700 tracking-tight font-sans">
+                        AI CV CONSULTANT
+                      </Text>
+                    </View>
+                    
+                    <TouchableOpacity 
+                      onClick={() => {
+                        setCurrentQuestionIdx(0);
+                        setInterviewAnswers({});
+                        setInterviewInput("");
+                        setCvStyle("Professional");
+                        setInterviewHistory([
+                          { sender: 'ai', text: INTERVIEW_STEPS[0].question }
+                        ]);
+                        setErrorMessage("");
+                      }}
+                      className="flex flex-row items-center gap-1 px-2 py-1 hover:bg-slate-50 text-slate-400 hover:text-red-500 rounded-lg transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <Text className="text-[10px] font-bold">Restart</Text>
+                    </TouchableOpacity>
+                  </View>
 
-                <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Core Skills & Competencies</Text>
-                  <textarea 
-                    placeholder="e.g. React Native, TypeScript, Client Relations, Project Management"
-                    value={cvSkills}
-                    onChange={(e: any) => setCvSkills(e.target.value)}
-                    className="w-full text-xs p-3 min-h-[70px] bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800 resize-none"
-                  />
-                </View>
+                  {/* Message log */}
+                  <ScrollView 
+                    className="flex-1 space-y-3 pr-1"
+                    contentContainerClassName="space-y-3 pb-2"
+                  >
+                    {interviewHistory.map((msg, index) => (
+                      <View 
+                        key={index}
+                        className={`flex flex-col max-w-[85%] ${
+                          msg.sender === 'user' ? 'self-end items-end' : 'self-start items-start'
+                        }`}
+                      >
+                        <View 
+                          className={`p-3 rounded-2xl text-left ${
+                            msg.sender === 'user' 
+                              ? 'bg-blue-600 rounded-tr-none' 
+                              : 'bg-slate-100 rounded-tl-none'
+                          }`}
+                        >
+                          <Text className={`text-[11.5px] leading-relaxed font-sans whitespace-pre-line ${
+                            msg.sender === 'user' ? 'text-white font-semibold' : 'text-slate-850'
+                          }`}>
+                            {msg.text}
+                          </Text>
+                        </View>
+                        <Text className="text-[8px] text-slate-400 mt-1 pl-1 pr-1 font-mono uppercase">
+                          {msg.sender === 'user' ? 'You' : 'AI Consultant'}
+                        </Text>
+                      </View>
+                    ))}
+                  </ScrollView>
 
-                <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Professional Experience</Text>
-                  <textarea 
-                    placeholder="e.g. Senior Developer at TechLabs (2022-Present): Led a team of 4 to design e-commerce apps."
-                    value={cvExperience}
-                    onChange={(e: any) => setCvExperience(e.target.value)}
-                    className="w-full text-xs p-3 min-h-[90px] bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800 resize-none"
-                  />
-                </View>
+                  {/* Input row / interactive buttons */}
+                  <View className="border-t border-slate-150 pt-3 mt-2">
+                    {/* Style Selection Quick Buttons */}
+                    {currentQuestionIdx < INTERVIEW_STEPS.length && INTERVIEW_STEPS[currentQuestionIdx].key === "style" && (
+                      <View className="flex flex-wrap flex-row gap-1.5 justify-center mb-3">
+                        {(["Professional", "Modern", "Executive", "Minimal", "Creative"] as const).map(styleOpt => (
+                          <TouchableOpacity
+                            key={styleOpt}
+                            onClick={() => {
+                              setCvStyle(styleOpt);
+                              handleSendInterviewMessage(styleOpt);
+                            }}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-400 rounded-xl text-center text-[10.5px] font-bold text-slate-700 transition cursor-pointer"
+                          >
+                            {styleOpt}
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
 
-                <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Academic Education</Text>
-                  <textarea 
-                    placeholder="e.g. Bachelor of Science in Computer Science, University of Pretoria (2018-2021)"
-                    value={cvEducation}
-                    onChange={(e: any) => setCvEducation(e.target.value)}
-                    className="w-full text-xs p-3 min-h-[70px] bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800 resize-none"
-                  />
+                    {/* Quick Yes/No buttons for hasExperience step */}
+                    {currentQuestionIdx < INTERVIEW_STEPS.length && INTERVIEW_STEPS[currentQuestionIdx].key === "hasExperience" && (
+                      <View className="flex flex-row gap-2 justify-center mb-3">
+                        <TouchableOpacity
+                          onClick={() => handleSendInterviewMessage("Yes")}
+                          className="px-4 py-1.5 bg-slate-100 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-400 rounded-xl text-center text-[11px] font-bold text-slate-700 transition cursor-pointer"
+                        >
+                          Yes, I have work experience
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onClick={() => handleSendInterviewMessage("No")}
+                          className="px-4 py-1.5 bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-400 rounded-xl text-center text-[11px] font-bold text-slate-700 transition cursor-pointer"
+                        >
+                          No work experience
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {/* Standard Input form if not style/hasExperience step */}
+                    {currentQuestionIdx < INTERVIEW_STEPS.length && INTERVIEW_STEPS[currentQuestionIdx].key !== "style" && INTERVIEW_STEPS[currentQuestionIdx].key !== "hasExperience" && (
+                      <View className="flex flex-row gap-2 items-center">
+                        <input 
+                          type="text"
+                          placeholder={INTERVIEW_STEPS[currentQuestionIdx].placeholder}
+                          value={interviewInput}
+                          onChange={(e) => setInterviewInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleSendInterviewMessage();
+                            }
+                          }}
+                          className="flex-1 text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800"
+                        />
+                        <TouchableOpacity
+                          onClick={() => handleSendInterviewMessage()}
+                          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                        >
+                          Send
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {/* If interview is complete, show styling & edit options */}
+                    {currentQuestionIdx >= INTERVIEW_STEPS.length && (
+                      <View className="flex flex-col gap-1 text-center bg-blue-50/50 p-2.5 rounded-2xl border border-blue-100/50">
+                        <Text className="text-[10px] font-bold text-blue-800 block font-sans">CV Style Selected: {cvStyle}</Text>
+                        <Text className="text-[9px] text-slate-500 block font-sans">You are ready to write your premium CV. Click compile below!</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               </View>
             )}
@@ -673,23 +1187,45 @@ export const TaskModeScreen: React.FC = () => {
             )}
 
             {/* GENERATE BUTTON */}
-            <TouchableOpacity 
-              onClick={handleGenerate}
-              disabled={loading}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-center text-xs font-bold shadow-2xs border border-blue-500 transition active:scale-98 flex items-center justify-center gap-2 mt-4 cursor-pointer"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 text-white animate-spin" />
-                  <span>AI Writing Outcome...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-white" />
-                  <span>Generate Result</span>
-                </>
-              )}
-            </TouchableOpacity>
+            {selectedTask.id === "cv" ? (
+              currentQuestionIdx >= INTERVIEW_STEPS.length && (
+                <TouchableOpacity 
+                  onClick={handleGenerate}
+                  disabled={loading}
+                  className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-750 hover:to-indigo-750 text-white rounded-xl text-center text-xs font-extrabold shadow-md border border-blue-500 transition active:scale-98 flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-white animate-spin" />
+                      <span>AI Compiling Your Premium CV...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-white" />
+                      <span>Generate Premium ATS-Friendly CV</span>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )
+            ) : (
+              <TouchableOpacity 
+                onClick={handleGenerate}
+                disabled={loading}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-center text-xs font-bold shadow-2xs border border-blue-500 transition active:scale-98 flex items-center justify-center gap-2 mt-4 cursor-pointer"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 text-white animate-spin" />
+                    <span>AI Writing Outcome...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-white" />
+                    <span>Generate Result</span>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
           </View>
         )}
@@ -749,6 +1285,8 @@ export const TaskModeScreen: React.FC = () => {
                 onChange={(e) => setResultText(e.target.value)}
                 className="w-full min-h-[360px] p-4 bg-white border border-slate-200 rounded-3xl outline-none focus:border-blue-400 font-mono text-xs text-slate-800"
               />
+            ) : selectedTask.id === "cv" ? (
+              renderStyledCVPreview(resultText, cvStyle)
             ) : (
               <View className="bg-white p-5 border border-slate-200/60 rounded-3xl shadow-3xs overflow-auto">
                 <Text className="text-xs text-slate-800 leading-relaxed font-sans whitespace-pre-wrap block text-left">

@@ -742,22 +742,38 @@ app.post("/api/task-generate", async (req, res) => {
     let prompt = "";
 
     if (taskType === "cv") {
-      prompt = `Write a professional, high-fidelity curriculum vitae (CV) for the following individual:
-- Full Name: ${inputs.fullName}
-- Key Skills: ${inputs.skills}
-- Work Experience: ${inputs.experience}
-- Education Background: ${inputs.education}
+      prompt = `Write a professional, high-fidelity, world-class ATS-friendly CV for the following individual.
+The CV MUST be built entirely from the user's answers below. Do NOT add any imaginary sections (like GitHub links, software projects, or generic skills) unless specifically requested or supported by the user's input below.
 
-CRITICAL RULES:
-1. Format this professionally with clean spacing and clear layout.
-2. Structure the CV into standard sections:
-   - PROFESSIONAL SUMMARY (a powerful paragraph highlighting their skills and experience)
-   - KEY SKILLS & COMPETENCIES (formatted as bullet points)
-   - PROFESSIONAL WORK EXPERIENCE (ordered chronologically, detailed and professional)
-   - ACADEMIC EDUCATION & TRAINING (detailed qualifications, institutions, and years)
-   - PROFESSIONAL REFERENCES (provide clear placeholder/structured fields like 'Available on request' or formatted reference boxes)
-3. Do NOT include any emojis in the response.
-4. Keep the text professional, concise, and highly employer-friendly.`;
+User Interview Data:
+- Full Name: ${inputs.fullName || "N/A"}
+- Position/Role Applied For: ${inputs.position || "N/A"}
+- Phone Number: ${inputs.phone || "N/A"}
+- Email Address: ${inputs.email || "N/A"}
+- City & Province (Location): ${inputs.location || "N/A"}
+- Highest Level of Education: ${inputs.educationLevel || "N/A"}
+- Years & Depth of Experience: ${inputs.experience || "N/A"}
+- Key Skills & Expertise: ${inputs.skills || "N/A"}
+- Special Highlights/Additional Details: ${inputs.additional || "N/A"}
+- Selected Visual Theme/Style: ${inputs.style || "Professional"}
+
+CRITICAL FORMATTING RULES:
+1. Output RAW Markdown-formatted text ONLY. Do NOT wrap the entire response in a markdown block (no \`\`\` or \`\`\`markdown). Just start writing.
+2. Follow these exact syntax rules for headings to ensure successful frontend rendering and PDF compilation:
+   - Use "# [Full Name]" at the very beginning for the name.
+   - Use "### [Job Title / Position]" for the professional subtitle below the name.
+   - For contact information, output it on a single line right after the subtitle (e.g. "Email: ${inputs.email} | Phone: ${inputs.phone} | Location: ${inputs.location}").
+   - Use "## [SECTION TITLE]" (double hash) for primary CV sections. Use only:
+     - "## Professional Summary"
+     - "## Key Skills & Competencies"
+     - "## Work Experience"
+     - "## Academic Background"
+     - "## References" (if references exist or are requested, otherwise use "## References\nReferences available upon request")
+   - Use "#### [Job Title/Degree] - [Employer/Institution]" (four hashes) for specific records inside Work Experience or Academic Background.
+   - Use standard bullet points ("* ") for description lists or key skills.
+   - Use "---" (triple dash) on a single line for subtle dividers or thematic breaks.
+3. Keep the content highly professional, employer-ready, and optimized for South African (SA) and international hiring standards.
+4. Do NOT use any emojis.`;
     } else if (taskType === "business_plan") {
       prompt = `Write a comprehensive, professional, and structured Business Plan outline for:
 - Business Name: ${inputs.businessName}
