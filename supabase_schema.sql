@@ -317,6 +317,7 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     status TEXT DEFAULT 'Pending',
     payment_status TEXT DEFAULT 'Unpaid',
     province TEXT,
+    village_suburb TEXT,
     preferred_contact_time TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -362,6 +363,16 @@ BEGIN
           AND column_name = 'province'
     ) THEN
         ALTER TABLE public.businesses ADD COLUMN province TEXT;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'businesses' 
+          AND column_name = 'village_suburb'
+    ) THEN
+        ALTER TABLE public.businesses ADD COLUMN village_suburb TEXT;
     END IF;
 
     IF NOT EXISTS (
@@ -510,11 +521,26 @@ CREATE TABLE IF NOT EXISTS public.business_registrations (
     physical_address TEXT NOT NULL,
     description TEXT NOT NULL,
     preferred_visit_date TEXT NOT NULL,
+    village_suburb TEXT,
     additional_notes TEXT,
     is_paid BOOLEAN DEFAULT FALSE,
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Idempotent helper to add columns to business_registrations if they don't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'business_registrations' 
+          AND column_name = 'village_suburb'
+    ) THEN
+        ALTER TABLE public.business_registrations ADD COLUMN village_suburb TEXT;
+    END IF;
+END $$;
 
 ALTER TABLE public.business_registrations ENABLE ROW LEVEL SECURITY;
 

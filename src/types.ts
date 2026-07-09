@@ -170,6 +170,7 @@ export interface Business {
   createdAt?: string;
   userId?: string;
   province?: string;
+  villageSuburb?: string;
   preferredContactTime?: string;
   paymentId?: string;
   paymentReference?: string;

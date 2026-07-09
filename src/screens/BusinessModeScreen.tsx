@@ -119,6 +119,7 @@ export default function BusinessModeScreen() {
     emailAddress: '',
     physicalAddress: '',
     province: '',
+    villageSuburb: '',
     city: '',
     category: 'Services',
     description: '',
@@ -296,7 +297,7 @@ export default function BusinessModeScreen() {
 
   // Filter listings based on multi-field search query, category, and location
   const filteredBusinesses = allBusinesses.filter(biz => {
-    // 1. Expanded search matches: Name, Category, Description, Owner name, townCity (City/Town/Village/Suburb), Province, Keywords
+    // 1. Expanded search matches: Name, Category, Description, Owner name, townCity (City/Town/Village/Suburb), Province, Village/Suburb, Full Address, Specials
     let matchesSearch = true;
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase().trim();
@@ -307,6 +308,8 @@ export default function BusinessModeScreen() {
       const inOwner = biz.ownerName.toLowerCase().includes(q);
       const inAddress = biz.physicalAddress.toLowerCase().includes(q);
       const inProvince = biz.province ? biz.province.toLowerCase().includes(q) : false;
+      const inVillage = biz.villageSuburb ? biz.villageSuburb.toLowerCase().includes(q) : false;
+      const inSpecials = biz.specials ? biz.specials.some(spec => spec.toLowerCase().includes(q)) : false;
 
       // Extract keywords (longer than 2 characters) for flexible query match
       const keywords = q.split(/\s+/).filter(k => k.length > 2);
@@ -315,10 +318,12 @@ export default function BusinessModeScreen() {
         biz.category.toLowerCase().includes(kw) ||
         biz.description.toLowerCase().includes(kw) ||
         biz.townCity.toLowerCase().includes(kw) ||
-        (biz.province && biz.province.toLowerCase().includes(kw))
+        (biz.province && biz.province.toLowerCase().includes(kw)) ||
+        (biz.villageSuburb && biz.villageSuburb.toLowerCase().includes(kw)) ||
+        (biz.specials && biz.specials.some(s => s.toLowerCase().includes(kw)))
       );
 
-      matchesSearch = inName || inCategory || inDesc || inTown || inOwner || inAddress || inProvince || keywordMatch;
+      matchesSearch = inName || inCategory || inDesc || inTown || inOwner || inAddress || inProvince || inVillage || inSpecials || keywordMatch;
     }
 
     // 2. Category Pill Filter
@@ -385,6 +390,7 @@ export default function BusinessModeScreen() {
 
   const getFullLocationString = (biz: Business): string => {
     const parts = [];
+    if (biz.villageSuburb) parts.push(biz.villageSuburb);
     if (biz.townCity) parts.push(biz.townCity);
     if (biz.province) parts.push(biz.province);
     return parts.join(", ") || "South Africa";
@@ -430,6 +436,7 @@ export default function BusinessModeScreen() {
     
     if (!formData.physicalAddress.trim()) errors.physicalAddress = "Physical Address is required";
     if (!formData.province.trim()) errors.province = "Province is required";
+    if (!formData.villageSuburb.trim()) errors.villageSuburb = "Village / Suburb is required";
     if (!formData.city.trim()) errors.city = "City is required";
     if (!formData.category) errors.category = "Category is required";
     if (!formData.description.trim()) errors.description = "Short Description is required";
@@ -457,10 +464,12 @@ export default function BusinessModeScreen() {
         category: formData.category,
         town_city: formData.city.trim(),
         physical_address: formData.physicalAddress.trim(),
+        village_suburb: formData.villageSuburb.trim(),
         description: formData.description.trim(),
         preferred_visit_date: "Anytime",
         additional_notes: JSON.stringify({
           province: formData.province.trim(),
+          villageSuburb: formData.villageSuburb.trim(),
           userId: uid,
           startingPrice: formData.startingPrice.trim() || undefined,
           openingHours: formData.openingHours.trim() || undefined,
@@ -526,6 +535,7 @@ export default function BusinessModeScreen() {
       emailAddress: '',
       physicalAddress: '',
       province: '',
+      villageSuburb: '',
       city: '',
       category: 'Services',
       description: '',
@@ -975,11 +985,23 @@ export default function BusinessModeScreen() {
                       {formErrors.physicalAddress && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.physicalAddress}</Text>}
                     </View>
 
+                    {/* 8. Village / Suburb */}
+                    <View className="space-y-1.5">
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">8. Village / Suburb *</Text>
+                      <TextInput
+                        placeholder="e.g. Madombidzha or Sea Point"
+                        value={formData.villageSuburb}
+                        onChangeText={(t) => setFormData(p => ({ ...p, villageSuburb: t }))}
+                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
+                      />
+                      {formErrors.villageSuburb && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.villageSuburb}</Text>}
+                    </View>
+
                     {/* Grid for Province and City */}
                     <View className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* 8. Province */}
+                      {/* 9. Province */}
                       <View className="space-y-1.5">
-                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">8. Province *</Text>
+                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">9. Province *</Text>
                         <TextInput
                           placeholder="e.g. Western Cape"
                           value={formData.province}
@@ -989,9 +1011,9 @@ export default function BusinessModeScreen() {
                         {formErrors.province && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.province}</Text>}
                       </View>
 
-                      {/* 9. City */}
+                      {/* 10. City */}
                       <View className="space-y-1.5">
-                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">9. City *</Text>
+                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">10. City / Town *</Text>
                         <TextInput
                           placeholder="e.g. Cape Town"
                           value={formData.city}
@@ -1002,9 +1024,9 @@ export default function BusinessModeScreen() {
                       </View>
                     </View>
 
-                    {/* 10. Short Description */}
+                    {/* 11. Short Description */}
                     <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">10. Short Business Description *</Text>
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">11. Short Business Description *</Text>
                       <TextInput
                         multiline
                         numberOfLines={4}
@@ -1016,9 +1038,9 @@ export default function BusinessModeScreen() {
                       {formErrors.description && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.description}</Text>}
                     </View>
 
-                    {/* 11. Starting From Price (Optional) */}
+                    {/* 12. Starting From Price (Optional) */}
                     <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">11. Starting From Price (Optional)</Text>
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">12. Starting From Price (Optional)</Text>
                       <TextInput
                         placeholder="e.g. Starting from R150"
                         value={formData.startingPrice}
@@ -1027,9 +1049,9 @@ export default function BusinessModeScreen() {
                       />
                     </View>
 
-                    {/* 12. Business Hours (Optional) */}
+                    {/* 13. Business Hours (Optional) */}
                     <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">12. Business Hours (Optional)</Text>
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">13. Business Hours (Optional)</Text>
                       <TextInput
                         placeholder="e.g. Monday–Friday: 08:00–17:00, Saturday: 08:00–14:00"
                         value={formData.openingHours}
@@ -1038,9 +1060,9 @@ export default function BusinessModeScreen() {
                       />
                     </View>
 
-                    {/* 13. Current Specials & Promotions (Optional) */}
+                    {/* 14. Current Specials & Promotions (Optional) */}
                     <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">13. Current Specials & Promotions (Optional)</Text>
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">14. Current Specials & Promotions (Optional)</Text>
                       <TextInput
                         placeholder="e.g. Hair wash + braids from R350"
                         value={formData.specials}
@@ -1351,7 +1373,7 @@ export default function BusinessModeScreen() {
                           <MapPin className="w-5.5 h-5.5 text-white" />
                         </div>
                         <span className="mt-2 text-[10px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-md shadow-xs border border-blue-100">
-                          {selectedBusiness.townCity}
+                          {selectedBusiness.villageSuburb ? `${selectedBusiness.villageSuburb}, ${selectedBusiness.townCity}` : selectedBusiness.townCity}
                         </span>
                       </div>
                     </div>
@@ -1360,11 +1382,13 @@ export default function BusinessModeScreen() {
                       <div className="flex-1 min-w-0 text-left">
                         <Text className="text-xs font-bold text-slate-800 block truncate">Address</Text>
                         <Text className="text-[11px] text-slate-500 font-medium block truncate mt-0.5 text-left">
-                          {selectedBusiness.physicalAddress}, {selectedBusiness.townCity}
+                          {[selectedBusiness.physicalAddress, selectedBusiness.villageSuburb, selectedBusiness.townCity, selectedBusiness.province].filter(Boolean).join(", ")}
                         </Text>
                       </div>
                       <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedBusiness.name + ', ' + selectedBusiness.physicalAddress + ', ' + selectedBusiness.townCity)}`}
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          [selectedBusiness.name, selectedBusiness.physicalAddress, selectedBusiness.villageSuburb, selectedBusiness.townCity, selectedBusiness.province].filter(Boolean).join(', ')
+                        )}`}
                         target="_blank"
                         rel="noreferrer"
                         className="bg-blue-600 hover:bg-blue-700 active:scale-97 text-white font-semibold px-4 py-2 rounded-xl text-xs transition flex flex-row items-center gap-1.5 cursor-pointer shadow-3xs shrink-0"
