@@ -71,6 +71,8 @@ interface AppContextType {
   setLimitModalType: (type: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null) => void;
   obdiLeads: ObdiLead[];
   setObdiLeads: React.Dispatch<React.SetStateAction<ObdiLead[]>>;
+  businessPaymentStatus: 'success' | 'cancelled' | null;
+  setBusinessPaymentStatus: (status: 'success' | 'cancelled' | null) => void;
 
 }
 
@@ -499,6 +501,20 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const searchParams = new URLSearchParams(window.location.search);
     const isSuccess = searchParams.get("payment_success") === "true";
     const isCancelled = searchParams.get("payment_cancelled") === "true";
+    const plan = searchParams.get("plan");
+
+    if (plan === "business-registration") {
+      setMobileScreen("business-mode");
+      if (isSuccess) {
+        console.log("[PayFast] Successful business registration listing fee payment returned.");
+        setBusinessPaymentStatus("success");
+      } else if (isCancelled) {
+        console.log("[PayFast] Cancelled business registration listing fee payment returned.");
+        setBusinessPaymentStatus("cancelled");
+      }
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
 
     if (isSuccess) {
       console.log("[PayFast] Successful payment returned. Pulling latest subscription from database...");
@@ -679,6 +695,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 
   const [mobileScreen, setMobileScreen] = useState<string>("splash");
+  const [businessPaymentStatus, setBusinessPaymentStatus] = useState<'success' | 'cancelled' | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string>("conv-1");
   const [isAiTyping, setIsAiTyping] = useState<boolean>(false);
   const [invitedByCode, setInvitedByCode] = useState<string>("ORBIT-SP9210");
@@ -1017,7 +1034,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       incrementUsageLimit,
       limitModalType,
       setLimitModalType,
-      obdiLeads, setObdiLeads
+      obdiLeads, setObdiLeads,
+      businessPaymentStatus, setBusinessPaymentStatus
     }}>
       {children}
     </AppContext.Provider>

@@ -298,8 +298,12 @@ app.post("/api/payfast/checkout", async (req, res) => {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const origin = process.env.APP_URL || `${protocol}://${host}`;
 
-    const returnUrl = `${origin}?payment_success=true`;
-    const cancelUrl = `${origin}?payment_cancelled=true`;
+    let returnUrl = `${origin}?payment_success=true`;
+    let cancelUrl = `${origin}?payment_cancelled=true`;
+    if (plan === "business-registration" && businessId) {
+      returnUrl += `&plan=business-registration&business_id=${businessId}`;
+      cancelUrl += `&plan=business-registration&business_id=${businessId}`;
+    }
     const notifyUrl = `${origin}/api/payfast/notify`;
 
     let amount = "99.99";

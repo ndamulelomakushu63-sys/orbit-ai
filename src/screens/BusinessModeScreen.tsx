@@ -86,7 +86,7 @@ const CATEGORY_GALLERIES: Record<string, string[]> = {
 };
 
 export default function BusinessModeScreen() {
-  const { currentUser, setMobileScreen } = useAppState();
+  const { currentUser, setMobileScreen, businessPaymentStatus, setBusinessPaymentStatus } = useAppState();
 
   // Screen layout state: 'directory' | 'profile' | 'register'
   const [currentView, setCurrentView] = useState<'directory' | 'profile' | 'register'>('directory');
@@ -168,6 +168,20 @@ export default function BusinessModeScreen() {
   useEffect(() => {
     loadLiveBusinesses();
   }, []);
+
+  useEffect(() => {
+    if (businessPaymentStatus === "success") {
+      setCurrentView('register');
+      setSuccessState(true);
+      setBusinessPaymentStatus(null);
+    } else if (businessPaymentStatus === "cancelled") {
+      setCurrentView('register');
+      setFormStep(1);
+      setSuccessState(false);
+      setBusinessPaymentStatus(null);
+      alert("Your business registration listing fee payment was cancelled. Your application draft remains saved in an unpaid state, so you can review and try again!");
+    }
+  }, [businessPaymentStatus]);
 
   const loadLiveBusinesses = async () => {
     setLoadingDirectory(true);
@@ -507,6 +521,8 @@ export default function BusinessModeScreen() {
         const data = await res.json();
         if (data.checkoutUrl) {
           setCheckoutUrl(data.checkoutUrl);
+          // Auto-redirect to the secure PayFast payment gateway
+          window.location.href = data.checkoutUrl;
         }
       }
     } catch (err: any) {
