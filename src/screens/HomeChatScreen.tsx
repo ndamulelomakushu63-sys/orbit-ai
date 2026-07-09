@@ -45,6 +45,9 @@ export const HomeChatScreen: React.FC = () => {
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showRefund, setShowRefund] = useState(false);
+  const [showCancellation, setShowCancellation] = useState(false);
+  const [showContact, setShowContact] = useState(false);
 
   // States for Reply and Delete features
   const [selectedMessageForMenu, setSelectedMessageForMenu] = useState<ChatMessage | null>(null);
@@ -442,19 +445,103 @@ export const HomeChatScreen: React.FC = () => {
         </div>
       </View>
 
-      {/* FOOTER TO HEADER LAYOUT: 3 links above the chat window in a single horizontal row */}
-      <View className="flex flex-row justify-center items-center py-2 bg-slate-50 border-b border-slate-100 gap-4 select-none">
-        <TouchableOpacity onClick={() => setShowAbout(true)} className="py-0.5 px-1 hover:opacity-80">
-          <Text className="text-[11px] text-slate-500 hover:text-slate-800 font-sans font-medium">About</Text>
-        </TouchableOpacity>
-        <Text className="text-[10px] text-slate-300">|</Text>
-        <TouchableOpacity onClick={() => setShowPrivacy(true)} className="py-0.5 px-1 hover:opacity-80">
-          <Text className="text-[11px] text-slate-500 hover:text-slate-800 font-sans font-medium">Privacy Policy</Text>
-        </TouchableOpacity>
-        <Text className="text-[10px] text-slate-300">|</Text>
-        <TouchableOpacity onClick={() => setShowTerms(true)} className="py-0.5 px-1 hover:opacity-80">
-          <Text className="text-[11px] text-slate-500 hover:text-slate-800 font-sans font-medium">Terms of Use</Text>
-        </TouchableOpacity>
+      {/* FOOTER TO HEADER LAYOUT: 6 links above the chat window in a single horizontal scrollable row */}
+      <View className="w-full bg-slate-50 border-b border-slate-100 select-none">
+        <div className="flex flex-row overflow-x-auto whitespace-nowrap scrollbar-none py-2 px-4 items-center justify-start sm:justify-center gap-4">
+          <TouchableOpacity 
+            onClick={() => {
+              setShowAbout(true);
+              setShowPrivacy(false);
+              setShowTerms(false);
+              setShowRefund(false);
+              setShowCancellation(false);
+              setShowContact(false);
+            }} 
+            className="py-0.5 px-1 hover:opacity-80"
+          >
+            <Text className={`text-[11px] font-sans font-medium ${showAbout ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>About</Text>
+          </TouchableOpacity>
+          
+          <Text className="text-[10px] text-slate-300">|</Text>
+          
+          <TouchableOpacity 
+            onClick={() => {
+              setShowAbout(false);
+              setShowPrivacy(true);
+              setShowTerms(false);
+              setShowRefund(false);
+              setShowCancellation(false);
+              setShowContact(false);
+            }} 
+            className="py-0.5 px-1 hover:opacity-80"
+          >
+            <Text className={`text-[11px] font-sans font-medium ${showPrivacy ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Privacy Policy</Text>
+          </TouchableOpacity>
+          
+          <Text className="text-[10px] text-slate-300">|</Text>
+          
+          <TouchableOpacity 
+            onClick={() => {
+              setShowAbout(false);
+              setShowPrivacy(false);
+              setShowTerms(true);
+              setShowRefund(false);
+              setShowCancellation(false);
+              setShowContact(false);
+            }} 
+            className="py-0.5 px-1 hover:opacity-80"
+          >
+            <Text className={`text-[11px] font-sans font-medium ${showTerms ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Terms of Use</Text>
+          </TouchableOpacity>
+          
+          <Text className="text-[10px] text-slate-300">|</Text>
+          
+          <TouchableOpacity 
+            onClick={() => {
+              setShowAbout(false);
+              setShowPrivacy(false);
+              setShowTerms(false);
+              setShowRefund(true);
+              setShowCancellation(false);
+              setShowContact(false);
+            }} 
+            className="py-0.5 px-1 hover:opacity-80"
+          >
+            <Text className={`text-[11px] font-sans font-medium ${showRefund ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Refund Policy</Text>
+          </TouchableOpacity>
+          
+          <Text className="text-[10px] text-slate-300">|</Text>
+          
+          <TouchableOpacity 
+            onClick={() => {
+              setShowAbout(false);
+              setShowPrivacy(false);
+              setShowTerms(false);
+              setShowRefund(false);
+              setShowCancellation(true);
+              setShowContact(false);
+            }} 
+            className="py-0.5 px-1 hover:opacity-80"
+          >
+            <Text className={`text-[11px] font-sans font-medium ${showCancellation ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Cancellation Policy</Text>
+          </TouchableOpacity>
+          
+          <Text className="text-[10px] text-slate-300">|</Text>
+          
+          <TouchableOpacity 
+            onClick={() => {
+              setShowAbout(false);
+              setShowPrivacy(false);
+              setShowTerms(false);
+              setShowRefund(false);
+              setShowCancellation(false);
+              setShowContact(true);
+            }} 
+            className="py-0.5 px-1 hover:opacity-80"
+          >
+            <Text className={`text-[11px] font-sans font-medium ${showContact ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Contact Us</Text>
+          </TouchableOpacity>
+        </div>
       </View>
 
       {/* WHATSAPP-STYLE PLAIN WHITE CHAT STREAM AREA */}
@@ -936,6 +1023,93 @@ export const HomeChatScreen: React.FC = () => {
             </View>
             <TouchableOpacity 
               onClick={() => setShowAbout(false)}
+              className="mt-6 py-3 bg-black hover:bg-neutral-800 text-white rounded-xl text-center text-xs font-bold cursor-pointer"
+            >
+              Close
+            </TouchableOpacity>
+          </View>
+        </div>
+      )}
+
+      {/* PORTAL REFUND POLICY MODAL */}
+      {showRefund && (
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[9999] p-4 select-none animate-fade-in">
+          <View className="bg-white rounded-3xl p-6 w-full max-w-sm border border-slate-200 shadow-xl max-h-[80%] flex flex-col justify-between text-left">
+            <View className="text-left space-y-5">
+              <Text className="text-2xl font-black text-slate-900 tracking-tight block text-left">Refund Policy</Text>
+              
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">7-Day Refund Window:</span> We offer a full refund for Orbit Pro subscription cancellations made within 7 days of the initial purchase or billing date.
+              </Text>
+
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">Outside 7-Day Window:</span> Any cancellation requested after the 7-day period is not eligible for a refund. However, you will continue to have full access to Orbit Pro features until the end of your current billing cycle.
+              </Text>
+
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">Processing Refunds:</span> Once requested and approved, refunds are processed back to the original payment method and may take 5–10 business days to reflect on your statement.
+              </Text>
+            </View>
+            <TouchableOpacity 
+              onClick={() => setShowRefund(false)}
+              className="mt-6 py-3 bg-black hover:bg-neutral-800 text-white rounded-xl text-center text-xs font-bold cursor-pointer"
+            >
+              Close
+            </TouchableOpacity>
+          </View>
+        </div>
+      )}
+
+      {/* PORTAL CANCELLATION POLICY MODAL */}
+      {showCancellation && (
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[9999] p-4 select-none animate-fade-in">
+          <View className="bg-white rounded-3xl p-6 w-full max-w-sm border border-slate-200 shadow-xl max-h-[80%] flex flex-col justify-between text-left">
+            <View className="text-left space-y-5">
+              <Text className="text-2xl font-black text-slate-900 tracking-tight block text-left">Cancellation Policy</Text>
+              
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">Easy Cancellations:</span> You can cancel your Orbit Pro subscription at any time directly through the Payment / Billing tab in the navigation menu.
+              </Text>
+
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">Immediate Effect:</span> Upon cancellation, auto-renewal is immediately deactivated, ensuring you will not be charged again.
+              </Text>
+
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">Access Until Expiry:</span> If you cancel outside the refund window, your subscription remains fully active and usable until your next scheduled renewal date, at which point it gracefully downgrades.
+              </Text>
+            </View>
+            <TouchableOpacity 
+              onClick={() => setShowCancellation(false)}
+              className="mt-6 py-3 bg-black hover:bg-neutral-800 text-white rounded-xl text-center text-xs font-bold cursor-pointer"
+            >
+              Close
+            </TouchableOpacity>
+          </View>
+        </div>
+      )}
+
+      {/* PORTAL CONTACT US MODAL */}
+      {showContact && (
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[9999] p-4 select-none animate-fade-in">
+          <View className="bg-white rounded-3xl p-6 w-full max-w-sm border border-slate-200 shadow-xl max-h-[80%] flex flex-col justify-between text-left">
+            <View className="text-left space-y-5">
+              <Text className="text-2xl font-black text-slate-900 tracking-tight block text-left">Contact Us</Text>
+              
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">Support Channels:</span> Need help, have questions about your subscription, or want to provide feedback? Our South African support team is here to assist you.
+              </Text>
+
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">Email Support:</span> Drop us an email at <span className="font-bold text-blue-600">support@orbitai.com</span> for billing queries, technical support, or general enquiries. We typically respond within 24 hours.
+              </Text>
+
+              <Text className="text-[12px] text-slate-700 leading-relaxed block text-left font-sans font-medium">
+                <span className="font-bold text-slate-900">Developer & Founder:</span> Designed and founded by Ndamulelo Makushu Glen. For partnerships, feedback, or direct enquiries, feel free to reach out to ndamulelomakushu63@gmail.com.
+              </Text>
+            </View>
+            <TouchableOpacity 
+              onClick={() => setShowContact(false)}
               className="mt-6 py-3 bg-black hover:bg-neutral-800 text-white rounded-xl text-center text-xs font-bold cursor-pointer"
             >
               Close
