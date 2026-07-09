@@ -894,187 +894,240 @@ export default function BusinessModeScreen() {
                 </View>
 
                 {formStep === 1 ? (
-                  <View className="space-y-4">
+                  <View className="space-y-6">
                     
-                    {/* 1. Business Name */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">1. Business Name *</Text>
-                      <TextInput
-                        placeholder="e.g. Cape Town Artisan Bakers"
-                        value={formData.businessName}
-                        onChangeText={(t) => setFormData(p => ({ ...p, businessName: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                      />
-                      {formErrors.businessName && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.businessName}</Text>}
-                    </View>
-
-                    {/* 2. Owner Name */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">2. Owner Name *</Text>
-                      <TextInput
-                        placeholder="e.g. John Doe"
-                        value={formData.ownerName}
-                        onChangeText={(t) => setFormData(p => ({ ...p, ownerName: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                      />
-                      {formErrors.ownerName && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.ownerName}</Text>}
-                    </View>
-
-                    {/* Category Selector */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">3. Business Category *</Text>
-                      <select
-                        value={formData.category}
-                        onChange={(e) => setFormData(p => ({ ...p, category: e.target.value }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans cursor-pointer h-[46px]"
-                      >
-                        {categories.filter(c => c !== 'All').map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
-                    </View>
-
-                    {/* Grid for Contacts */}
-                    <View className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* 4. Phone Number */}
+                    {/* SECTION 1: Business Information */}
+                    <View className="bg-slate-50/50 p-5 border border-slate-200/60 rounded-[20px] space-y-4">
+                      <View className="border-b border-slate-200 pb-2 mb-2">
+                        <Text className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest block">SECTION 1</Text>
+                        <Text className="text-sm font-black text-slate-850 block mt-0.5">Business Information</Text>
+                      </View>
+                      
+                      {/* Business Name */}
                       <View className="space-y-1.5">
-                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">4. Phone Number *</Text>
+                        <Text className="text-xs font-bold text-slate-700 block">Business Name *</Text>
                         <TextInput
-                          placeholder="e.g. +27 82 123 4567"
-                          value={formData.phoneNumber}
-                          onChangeText={(t) => setFormData(p => ({ ...p, phoneNumber: t }))}
-                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
+                          placeholder="e.g. Cape Town Artisan Bakers"
+                          value={formData.businessName}
+                          onChangeText={(t) => setFormData(p => ({ ...p, businessName: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
                         />
-                        {formErrors.phoneNumber && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.phoneNumber}</Text>}
+                        {formErrors.businessName && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.businessName}</Text>}
                       </View>
 
-                      {/* 5. WhatsApp Number */}
+                      {/* Business Category */}
                       <View className="space-y-1.5">
-                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">5. WhatsApp Number *</Text>
+                        <Text className="text-xs font-bold text-slate-700 block">Business Category *</Text>
+                        <select
+                          value={formData.category}
+                          onChange={(e) => setFormData(p => ({ ...p, category: e.target.value }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans cursor-pointer h-[46px] text-slate-800"
+                        >
+                          {categories.filter(c => c !== 'All').map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </View>
+
+                      {/* Description */}
+                      <View className="space-y-1.5">
+                        <Text className="text-xs font-bold text-slate-700 block">Short Business Description *</Text>
                         <TextInput
-                          placeholder="e.g. +27 82 123 4567"
-                          value={formData.whatsappNumber}
-                          onChangeText={(t) => setFormData(p => ({ ...p, whatsappNumber: t }))}
-                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
+                          multiline
+                          numberOfLines={4}
+                          placeholder="What services or products do you offer? Share a brief background..."
+                          value={formData.description}
+                          onChangeText={(t) => setFormData(p => ({ ...p, description: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800 block"
                         />
-                        {formErrors.whatsappNumber && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.whatsappNumber}</Text>}
+                        {formErrors.description && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.description}</Text>}
                       </View>
                     </View>
 
-                    {/* 6. Email */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">6. Email Address *</Text>
-                      <TextInput
-                        placeholder="owner@mybusiness.co.za"
-                        value={formData.emailAddress}
-                        onChangeText={(t) => setFormData(p => ({ ...p, emailAddress: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                      />
-                      {formErrors.emailAddress && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.emailAddress}</Text>}
-                    </View>
-
-                    {/* 7. Physical Address */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">7. Physical Address *</Text>
-                      <TextInput
-                        placeholder="e.g. 123 Main Road, Sea Point"
-                        value={formData.physicalAddress}
-                        onChangeText={(t) => setFormData(p => ({ ...p, physicalAddress: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                      />
-                      {formErrors.physicalAddress && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.physicalAddress}</Text>}
-                    </View>
-
-                    {/* 8. Village / Suburb */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">8. Village / Suburb *</Text>
-                      <TextInput
-                        placeholder="e.g. Madombidzha or Sea Point"
-                        value={formData.villageSuburb}
-                        onChangeText={(t) => setFormData(p => ({ ...p, villageSuburb: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                      />
-                      {formErrors.villageSuburb && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.villageSuburb}</Text>}
-                    </View>
-
-                    {/* Grid for Province and City */}
-                    <View className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* 9. Province */}
-                      <View className="space-y-1.5">
-                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">9. Province *</Text>
-                        <TextInput
-                          placeholder="e.g. Western Cape"
-                          value={formData.province}
-                          onChangeText={(t) => setFormData(p => ({ ...p, province: t }))}
-                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                        />
-                        {formErrors.province && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.province}</Text>}
+                    {/* SECTION 2: Owner Information */}
+                    <View className="bg-slate-50/50 p-5 border border-slate-200/60 rounded-[20px] space-y-4">
+                      <View className="border-b border-slate-200 pb-2 mb-2">
+                        <Text className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest block">SECTION 2</Text>
+                        <Text className="text-sm font-black text-slate-850 block mt-0.5">Owner Information</Text>
                       </View>
 
-                      {/* 10. City */}
+                      {/* Owner Name */}
                       <View className="space-y-1.5">
-                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">10. City / Town *</Text>
+                        <Text className="text-xs font-bold text-slate-700 block">Owner Name *</Text>
                         <TextInput
-                          placeholder="e.g. Cape Town"
-                          value={formData.city}
-                          onChangeText={(t) => setFormData(p => ({ ...p, city: t }))}
-                          className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
+                          placeholder="e.g. John Doe"
+                          value={formData.ownerName}
+                          onChangeText={(t) => setFormData(p => ({ ...p, ownerName: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
                         />
-                        {formErrors.city && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.city}</Text>}
+                        {formErrors.ownerName && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.ownerName}</Text>}
+                      </View>
+
+                      {/* Grid for Contacts */}
+                      <View className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Phone Number */}
+                        <View className="space-y-1.5">
+                          <Text className="text-xs font-bold text-slate-700 block">Phone Number *</Text>
+                          <TextInput
+                            placeholder="e.g. +27 82 123 4567"
+                            value={formData.phoneNumber}
+                            onChangeText={(t) => setFormData(p => ({ ...p, phoneNumber: t }))}
+                            className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                          />
+                          {formErrors.phoneNumber && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.phoneNumber}</Text>}
+                        </View>
+
+                        {/* WhatsApp Number */}
+                        <View className="space-y-1.5">
+                          <Text className="text-xs font-bold text-slate-700 block">WhatsApp Number *</Text>
+                          <TextInput
+                            placeholder="e.g. +27 82 123 4567"
+                            value={formData.whatsappNumber}
+                            onChangeText={(t) => setFormData(p => ({ ...p, whatsappNumber: t }))}
+                            className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                          />
+                          {formErrors.whatsappNumber && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.whatsappNumber}</Text>}
+                        </View>
+                      </View>
+
+                      {/* Email */}
+                      <View className="space-y-1.5">
+                        <Text className="text-xs font-bold text-slate-700 block">Email Address *</Text>
+                        <TextInput
+                          placeholder="owner@mybusiness.co.za"
+                          value={formData.emailAddress}
+                          onChangeText={(t) => setFormData(p => ({ ...p, emailAddress: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                        />
+                        {formErrors.emailAddress && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.emailAddress}</Text>}
                       </View>
                     </View>
 
-                    {/* 11. Short Description */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">11. Short Business Description *</Text>
-                      <TextInput
-                        multiline
-                        numberOfLines={4}
-                        placeholder="What services or products do you offer? Share a brief background..."
-                        value={formData.description}
-                        onChangeText={(t) => setFormData(p => ({ ...p, description: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800 block"
-                      />
-                      {formErrors.description && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.description}</Text>}
+                    {/* SECTION 3: Business Location */}
+                    <View className="bg-slate-50/50 p-5 border border-slate-200/60 rounded-[20px] space-y-4">
+                      <View className="border-b border-slate-200 pb-2 mb-2">
+                        <Text className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest block">SECTION 3</Text>
+                        <Text className="text-sm font-black text-slate-850 block mt-0.5">Business Location</Text>
+                      </View>
+
+                      {/* Grid for Province and City */}
+                      <View className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Province */}
+                        <View className="space-y-1.5">
+                          <Text className="text-xs font-bold text-slate-700 block">Province *</Text>
+                          <TextInput
+                            placeholder="e.g. Limpopo"
+                            value={formData.province}
+                            onChangeText={(t) => setFormData(p => ({ ...p, province: t }))}
+                            className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                          />
+                          {formErrors.province && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.province}</Text>}
+                        </View>
+
+                        {/* City / Town */}
+                        <View className="space-y-1.5">
+                          <Text className="text-xs font-bold text-slate-700 block">Town / City *</Text>
+                          <TextInput
+                            placeholder="e.g. Makhado"
+                            value={formData.city}
+                            onChangeText={(t) => setFormData(p => ({ ...p, city: t }))}
+                            className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                          />
+                          {formErrors.city && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.city}</Text>}
+                        </View>
+                      </View>
+
+                      {/* Village / Suburb */}
+                      <View className="space-y-1.5">
+                        <Text className="text-xs font-bold text-slate-700 block">Village / Suburb *</Text>
+                        <TextInput
+                          placeholder="e.g. Madombidzha"
+                          value={formData.villageSuburb}
+                          onChangeText={(t) => setFormData(p => ({ ...p, villageSuburb: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                        />
+                        {formErrors.villageSuburb && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.villageSuburb}</Text>}
+                      </View>
+
+                      {/* Full Address */}
+                      <View className="space-y-1.5">
+                        <Text className="text-xs font-bold text-slate-700 block">Full Address *</Text>
+                        <TextInput
+                          placeholder="e.g. Stand 123, Madombidzha, Makhado"
+                          value={formData.physicalAddress}
+                          onChangeText={(t) => setFormData(p => ({ ...p, physicalAddress: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                        />
+                        {formErrors.physicalAddress && <Text className="text-red-500 text-[10px] pl-1 block font-bold">{formErrors.physicalAddress}</Text>}
+                      </View>
+
+                      {/* GPS Location Indicator */}
+                      <View className="space-y-1.5">
+                        <Text className="text-xs font-bold text-slate-700 block">GPS Location</Text>
+                        <View className="bg-white p-3.5 border border-slate-200/75 rounded-xl flex flex-row items-center justify-between">
+                          <View className="flex flex-row items-center gap-2">
+                            <Navigation className="w-4 h-4 text-blue-500 shrink-0" />
+                            <Text className="text-[11px] text-slate-550 font-sans">
+                              {userCoords ? `Lat: ${userCoords.lat.toFixed(4)}, Lng: ${userCoords.lng.toFixed(4)}` : "Click capture to secure GPS coords"}
+                            </Text>
+                          </View>
+                          <TouchableOpacity 
+                            onClick={handleNearMe}
+                            className="bg-blue-50 border border-blue-100 hover:bg-blue-100 px-3 py-1.5 rounded-lg active:scale-97 cursor-pointer"
+                          >
+                            <Text className="text-[10px] text-blue-700 font-bold font-sans">
+                              {loadingGPS ? "Fetching GPS..." : userCoords ? "Re-fetch GPS" : "Capture Location"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     </View>
 
-                    {/* 12. Starting From Price (Optional) */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">12. Starting From Price (Optional)</Text>
-                      <TextInput
-                        placeholder="e.g. Starting from R150"
-                        value={formData.startingPrice}
-                        onChangeText={(t) => setFormData(p => ({ ...p, startingPrice: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                      />
-                    </View>
+                    {/* SECTION 4: Business Details */}
+                    <View className="bg-slate-50/50 p-5 border border-slate-200/60 rounded-[20px] space-y-4">
+                      <View className="border-b border-slate-200 pb-2 mb-2">
+                        <Text className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest block">SECTION 4</Text>
+                        <Text className="text-sm font-black text-slate-850 block mt-0.5">Business Details</Text>
+                      </View>
 
-                    {/* 13. Business Hours (Optional) */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">13. Business Hours (Optional)</Text>
-                      <TextInput
-                        placeholder="e.g. Monday–Friday: 08:00–17:00, Saturday: 08:00–14:00"
-                        value={formData.openingHours}
-                        onChangeText={(t) => setFormData(p => ({ ...p, openingHours: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                      />
-                    </View>
+                      {/* Opening Hours */}
+                      <View className="space-y-1.5">
+                        <Text className="text-xs font-bold text-slate-700 block">Opening Hours (Optional)</Text>
+                        <TextInput
+                          placeholder="e.g. Monday–Friday: 08:00–17:00, Saturday: 08:00–14:00"
+                          value={formData.openingHours}
+                          onChangeText={(t) => setFormData(p => ({ ...p, openingHours: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                        />
+                      </View>
 
-                    {/* 14. Current Specials & Promotions (Optional) */}
-                    <View className="space-y-1.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-0.5 block">14. Current Specials & Promotions (Optional)</Text>
-                      <TextInput
-                        placeholder="e.g. Hair wash + braids from R350"
-                        value={formData.specials}
-                        onChangeText={(t) => setFormData(p => ({ ...p, specials: t }))}
-                        className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl outline-none focus:border-blue-400 focus:bg-white font-sans text-slate-800"
-                      />
+                      {/* Starting Price */}
+                      <View className="space-y-1.5">
+                        <Text className="text-xs font-bold text-slate-700 block">Starting Price (Optional)</Text>
+                        <TextInput
+                          placeholder="e.g. Starting from R150"
+                          value={formData.startingPrice}
+                          onChangeText={(t) => setFormData(p => ({ ...p, startingPrice: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                        />
+                      </View>
+
+                      {/* Current Specials */}
+                      <View className="space-y-1.5">
+                        <Text className="text-xs font-bold text-slate-700 block">Current Specials (Optional)</Text>
+                        <TextInput
+                          placeholder="e.g. Hair wash + braids from R350"
+                          value={formData.specials}
+                          onChangeText={(t) => setFormData(p => ({ ...p, specials: t }))}
+                          className="w-full text-xs p-3.5 bg-white border border-slate-200/70 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-sans text-slate-800"
+                        />
+                      </View>
                     </View>
 
                     <TouchableOpacity
                       onClick={handleFormSubmit}
                       disabled={isSubmitting}
-                      className={`w-full py-4 rounded-full flex flex-row items-center justify-center mt-4 cursor-pointer select-none ${
+                      className={`w-full py-4 rounded-xl flex flex-row items-center justify-center mt-4 cursor-pointer select-none ${
                         isSubmitting ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-98'
                       }`}
                       id="form-submit-next-btn"
