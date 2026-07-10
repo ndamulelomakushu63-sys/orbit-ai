@@ -7,6 +7,36 @@ import { UserPlan, ChatMessage } from '../types';
 import { Reply, Trash2, X } from 'lucide-react';
 import { BottomNav } from '../components/BottomNav';
 
+interface MessageWithParsedAttachments {
+  text: string;
+  attachments: { id: string; name: string; type: 'image' | 'file'; url: string; sizeStr: string }[];
+}
+
+const parseMessageAttachments = (rawMessage: string): MessageWithParsedAttachments => {
+  const delimiterStart = "|||ATTACHMENTS_JSON_START|||";
+  const delimiterEnd = "|||ATTACHMENTS_JSON_END|||";
+  
+  if (rawMessage.includes(delimiterStart) && rawMessage.includes(delimiterEnd)) {
+    const parts = rawMessage.split(delimiterStart);
+    const textPart = parts[0].trim();
+    const attachmentsPart = parts[1].split(delimiterEnd)[0];
+    try {
+      const attachments = JSON.parse(attachmentsPart);
+      return { text: textPart, attachments };
+    } catch (e) {
+      console.error("Failed to parse attachments JSON", e);
+    }
+  }
+  return { text: rawMessage, attachments: [] };
+};
+
+const serializeMessageAttachments = (text: string, attachments: any[]): string => {
+  if (attachments.length === 0) return text;
+  const delimiterStart = "|||ATTACHMENTS_JSON_START|||";
+  const delimiterEnd = "|||ATTACHMENTS_JSON_END|||";
+  return `${text}\n\n${delimiterStart}${JSON.stringify(attachments)}${delimiterEnd}`;
+};
+
 export const HomeChatScreen: React.FC = () => {
   const { 
     currentUser, 
@@ -54,6 +84,7 @@ export const HomeChatScreen: React.FC = () => {
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
   const pressTimer = useRef<any>(null);
 
   const handlePressStart = (msg: ChatMessage) => {
@@ -96,23 +127,56 @@ export const HomeChatScreen: React.FC = () => {
 
   const handleSend = async () => {
     if (!inputText.trim() && localAttachments.length === 0) return;
-    
-    let finalMessage = inputText.trim();
-    if (localAttachments.length > 0) {
-      const attachmentsDescription = localAttachments.map(att => 
-        `[Attached ${att.type === 'image' ? 'Image' : 'File'}: ${att.name} (${att.sizeStr})]`
-      ).join('\n');
-      
-      finalMessage = finalMessage 
-        ? `${finalMessage}\n\n${attachmentsDescription}`
-        : attachmentsDescription;
-    }
+
+    const replyId = replyingToMessage?.id;
+    setReplyingToMessage(null);
+
+    const attachmentsToSend = [...localAttachments];
+    const textToSend = inputText.trim();
 
     setInputText("");
     setLocalAttachments([]);
-    const replyId = replyingToMessage?.id;
-    setReplyingToMessage(null);
-    await triggerChatMessage(finalMessage, replyId);
+
+    if (attachmentsToSend.length > 0) {
+      // Show upload progress indicator
+      setIsUploading(true);
+      setUploadProgress(0);
+      setUploadingFileName(attachmentsToSend.length === 1 ? attachmentsToSend[0].name : `${attachmentsToSend.length} files`);
+
+      // Run progress animation
+      let currentProgress = 0;
+      const interval = setInterval(async () => {
+        currentProgress += 15;
+        if (currentProgress >= 100) {
+          clearInterval(interval);
+          setUploadProgress(100);
+          setTimeout(async () => {
+            setIsUploading(false);
+            setUploadProgress(0);
+            setUploadingFileName("");
+
+            // Create formatted descriptions for the AI model
+            const descriptions = attachmentsToSend.map(att => 
+              `[Attached ${att.type === 'image' ? 'Image' : 'File'}: ${att.name} (${att.sizeStr})]`
+            ).join('\n');
+
+            // Caption text with description
+            const captionWithDesc = textToSend 
+              ? `${textToSend}\n\n${descriptions}`
+              : descriptions;
+
+            // Serialize full high-res attachment data for the UI
+            const finalMessage = serializeMessageAttachments(captionWithDesc, attachmentsToSend);
+
+            await triggerChatMessage(finalMessage, replyId);
+          }, 450);
+        } else {
+          setUploadProgress(currentProgress);
+        }
+      }, 80);
+    } else {
+      await triggerChatMessage(textToSend, replyId);
+    }
   };
 
   const subStatus = currentUser?.subscription_status;
@@ -250,7 +314,9 @@ export const HomeChatScreen: React.FC = () => {
     const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
     const sizeStr = `${sizeMB} MB`;
 
-    simulateUpload(file, (url) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const url = event.target?.result as string || "";
       const newAttachment = {
         id: `photo-${Date.now()}`,
         name: file.name,
@@ -259,7 +325,8 @@ export const HomeChatScreen: React.FC = () => {
         sizeStr
       };
       setLocalAttachments(prev => [...prev, newAttachment]);
-    });
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,7 +342,9 @@ export const HomeChatScreen: React.FC = () => {
     const sizeKB = (file.size / 1024).toFixed(0);
     const sizeStr = parseInt(sizeKB) > 1024 ? `${(parseInt(sizeKB)/1024).toFixed(1)} MB` : `${sizeKB} KB`;
 
-    simulateUpload(file, (url) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const url = event.target?.result as string || "";
       const newAttachment = {
         id: `file-${Date.now()}`,
         name: file.name,
@@ -284,7 +353,8 @@ export const HomeChatScreen: React.FC = () => {
         sizeStr
       };
       setLocalAttachments(prev => [...prev, newAttachment]);
-    });
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleFallbackCameraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -300,7 +370,9 @@ export const HomeChatScreen: React.FC = () => {
     const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
     const sizeStr = `${sizeMB} MB`;
 
-    simulateUpload(file, (url) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const url = event.target?.result as string || "";
       const newAttachment = {
         id: `capture-${Date.now()}`,
         name: file.name || `capture_${Date.now()}.jpg`,
@@ -309,7 +381,8 @@ export const HomeChatScreen: React.FC = () => {
         sizeStr
       };
       setLocalAttachments(prev => [...prev, newAttachment]);
-    });
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAttachment = (type: string) => {
@@ -624,28 +697,80 @@ export const HomeChatScreen: React.FC = () => {
                         : 'bg-slate-100 rounded-tl-none' // Recipient standard grey bubble
                   }`}
                 >
-                  {msg.replyToMessageId && (() => {
-                    const parentMsg = chatMessages.find(m => m.id === msg.replyToMessageId);
-                    if (!parentMsg) return null;
+                  {(() => {
+                    const { text: cleanText, attachments: msgAttachments } = parseMessageAttachments(msg.message);
+                    
                     return (
-                      <View className="mb-2 p-1.5 bg-black/5 rounded-lg border-l-4 border-blue-500 text-left select-none max-w-full">
-                        <Text className="text-[9px] font-bold text-blue-600 block">
-                          {parentMsg.role === 'user' ? 'You' : 'Orbit AI'}
-                        </Text>
-                        <Text className="text-[10px] text-slate-600 truncate block">
-                          {parentMsg.message}
-                        </Text>
-                      </View>
+                      <>
+                        {msg.replyToMessageId && (() => {
+                          const parentMsg = chatMessages.find(m => m.id === msg.replyToMessageId);
+                          if (!parentMsg) return null;
+                          const parentText = parseMessageAttachments(parentMsg.message).text;
+                          return (
+                            <View className="mb-2.5 p-2 bg-black/5 rounded-xl border-l-4 border-blue-500 text-left select-none max-w-full">
+                              <Text className="text-[9px] font-bold text-blue-600 block">
+                                {parentMsg.role === 'user' ? 'You' : 'Orbit AI'}
+                              </Text>
+                              <Text className="text-[10px] text-slate-600 truncate block">
+                                {parentText}
+                              </Text>
+                            </View>
+                          );
+                        })()}
+
+                        {isError && (
+                          <View className="flex flex-row items-center gap-1.5 mb-1.5 font-semibold text-red-900 border-b border-red-100 pb-1 align-middle">
+                            <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                            <Text className="text-red-900 font-bold text-xs select-none font-sans">API Alert</Text>
+                          </View>
+                        )}
+
+                        {/* RENDER RICH ATTACHMENTS LARGE INSIDE BUBBLE */}
+                        {msgAttachments && msgAttachments.length > 0 && (
+                          <View className="flex flex-col gap-2 mb-2 w-full max-w-[280px]">
+                            {msgAttachments.map((att: any) => {
+                              if (att.type === 'image') {
+                                return (
+                                  <TouchableOpacity
+                                    key={att.id}
+                                    onClick={() => setZoomImageUrl(att.url)}
+                                    className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-black/5 bg-slate-50 shadow-3xs cursor-pointer active:scale-[0.99] transition"
+                                  >
+                                    <img 
+                                      src={att.url} 
+                                      className="w-full h-full object-cover" 
+                                      alt={att.name} 
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  </TouchableOpacity>
+                                );
+                              } else {
+                                return (
+                                  <div 
+                                    key={att.id} 
+                                    className="flex flex-row items-center gap-2.5 p-2.5 bg-white border border-slate-200/80 rounded-xl shadow-3xs text-left"
+                                  >
+                                    <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                      <FileText className="w-5 h-5 text-blue-500" />
+                                    </div>
+                                    <div className="flex-1 min-w-0 flex flex-col">
+                                      <span className="text-[11px] font-bold text-slate-800 truncate leading-tight block">{att.name}</span>
+                                      <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">{att.sizeStr}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            })}
+                          </View>
+                        )}
+
+                        {/* RENDER MAIN MESSAGE TEXT */}
+                        {cleanText && (
+                          <FormattedMessage text={cleanText} isUser={msg.role === 'user'} />
+                        )}
+                      </>
                     );
                   })()}
-
-                  {isError && (
-                    <View className="flex flex-row items-center gap-1.5 mb-1.5 font-semibold text-red-900 border-b border-red-100 pb-1 align-middle">
-                      <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                      <Text className="text-red-900 font-bold text-xs select-none font-sans">API Alert</Text>
-                    </View>
-                  )}
-                  <FormattedMessage text={msg.message} isUser={msg.role === 'user'} />
                   
                   <Text className={`text-[8px] mt-1 block text-right font-mono ${msg.role === 'user' ? 'text-slate-500' : isError ? 'text-red-400' : 'text-slate-400'}`}>
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -767,28 +892,66 @@ export const HomeChatScreen: React.FC = () => {
 
       {/* LOCAL ATTACHMENTS PREVIEW ROW */}
       {localAttachments.length > 0 && (
-        <View className="px-3 py-2.5 bg-slate-50 border-t border-slate-200/60 flex flex-row flex-wrap gap-2 animate-fade-in select-none">
-          {localAttachments.map(att => (
-            <div key={att.id} className="bg-white border border-slate-200/85 rounded-xl p-1.5 flex flex-row items-center gap-2 pr-2.5 shadow-3xs max-w-[190px]">
-              {att.type === 'image' ? (
-                <img src={att.url} className="w-8 h-8 rounded-lg object-cover bg-slate-50" alt="Preview" />
-              ) : (
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                  <FileText className="w-4 h-4 text-blue-500" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <span className="text-[10px] font-bold text-slate-800 truncate leading-tight block">{att.name}</span>
-                <span className="text-[8px] text-slate-400 font-mono leading-none mt-0.5">{att.sizeStr}</span>
-              </div>
-              <TouchableOpacity 
-                onClick={() => setLocalAttachments(prev => prev.filter(a => a.id !== att.id))}
-                className="p-1 bg-slate-100 hover:bg-slate-250 text-slate-400 hover:text-slate-600 rounded-full transition cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </TouchableOpacity>
-            </div>
-          ))}
+        <View className="bg-slate-50 border-t border-slate-200/60 py-3.5 px-4 animate-fade-in select-none">
+          <View className="flex flex-row overflow-x-auto gap-3 scrollbar-none pb-1">
+            {localAttachments.map(att => {
+              if (att.type === 'image') {
+                return (
+                  <View 
+                    key={att.id} 
+                    className="relative shrink-0 w-[240px] h-[150px] rounded-2xl overflow-hidden border border-slate-200/80 bg-slate-100 shadow-3xs"
+                  >
+                    <img 
+                      src={att.url} 
+                      className="w-full h-full object-cover" 
+                      alt="Preview" 
+                      referrerPolicy="no-referrer"
+                    />
+                    {/* Small X button top-right */}
+                    <TouchableOpacity
+                      onClick={() => setLocalAttachments(prev => prev.filter(a => a.id !== att.id))}
+                      className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-black/85 rounded-full flex items-center justify-center text-white transition active:scale-90 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5 text-white font-bold" />
+                    </TouchableOpacity>
+                    {/* Size and name label overlay */}
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-left">
+                      <span className="text-[10px] font-semibold text-white truncate block">{att.name}</span>
+                      <span className="text-[8px] text-white/80 font-mono block mt-0.5">{att.sizeStr}</span>
+                    </div>
+                  </View>
+                );
+              } else {
+                return (
+                  <View 
+                    key={att.id} 
+                    className="relative shrink-0 w-[200px] h-[150px] p-3.5 bg-white border border-slate-200/80 rounded-2xl flex flex-col justify-between shadow-3xs text-left"
+                  >
+                    <div className="flex flex-row items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5 text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[11px] font-bold text-slate-800 truncate block">{att.name}</span>
+                        <span className="text-[8px] text-slate-400 font-mono block mt-0.5">{att.sizeStr}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Size badge and bottom design */}
+                    <div className="flex flex-row items-center justify-between mt-auto">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Document File</span>
+                      <TouchableOpacity
+                        onClick={() => setLocalAttachments(prev => prev.filter(a => a.id !== att.id))}
+                        className="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-600 transition cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </TouchableOpacity>
+                    </div>
+                  </View>
+                );
+              }
+            })}
+          </View>
         </View>
       )}
 
@@ -1261,6 +1424,37 @@ export const HomeChatScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
+        </div>
+      )}
+
+      {/* FULL-SCREEN IMAGE VIEWER PINCH-TO-ZOOM MODAL */}
+      {zoomImageUrl && (
+        <div className="fixed inset-0 bg-black/95 flex flex-col justify-between z-[99999] select-none animate-fade-in p-4">
+          {/* Zoom Header */}
+          <div className="flex flex-row items-center justify-between w-full pb-2">
+            <span className="text-white/60 text-xs">Image Viewer</span>
+            <TouchableOpacity 
+              onClick={() => setZoomImageUrl(null)}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition active:scale-95 cursor-pointer"
+            >
+              <X className="w-5 h-5 text-white" />
+            </TouchableOpacity>
+          </div>
+          
+          {/* Zoom Body */}
+          <div className="flex-1 flex items-center justify-center p-2 relative overflow-auto">
+            <img 
+              src={zoomImageUrl} 
+              className="max-w-full max-h-[80vh] rounded-xl object-contain select-none transition-transform duration-300" 
+              style={{ transform: "scale(1)" }}
+              alt="Zoomed attachment" 
+            />
+          </div>
+
+          {/* Prompt/Caption or Info Footer */}
+          <div className="text-center pb-4">
+            <Text className="text-white/50 text-[10px] font-mono">Pinch to zoom / double tap supported natively</Text>
+          </div>
         </div>
       )}
 

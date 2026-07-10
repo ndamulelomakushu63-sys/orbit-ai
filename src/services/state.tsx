@@ -799,9 +799,17 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIsAiTyping(true);
 
     try {
+      const stripAttachmentsJson = (msg: string): string => {
+        const index = msg.indexOf("|||ATTACHMENTS_JSON_START|||");
+        if (index !== -1) {
+          return msg.substring(0, index).trim();
+        }
+        return msg;
+      };
+
       const activeHistory = chatMessages
         .filter(m => m.conversationId === activeConversationId)
-        .map(m => ({ role: m.role, text: m.message }));
+        .map(m => ({ role: m.role, text: stripAttachmentsJson(m.message) }));
 
       const currentAgent = agents.find(a => a.id === activeAgentId);
       const systemPrompt = currentAgent ? currentAgent.systemPrompt : undefined;
@@ -811,7 +819,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: userMsgText,
+          message: stripAttachmentsJson(userMsgText),
           history: activeHistory,
           systemPrompt,
           userId: currentUser?.uid
