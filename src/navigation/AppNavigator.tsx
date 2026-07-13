@@ -23,26 +23,9 @@ import { PremiumLockScreen } from '../components/PremiumLockScreen';
 
 export const AppNavigator: React.FC = () => {
   const { mobileScreen, currentUser } = useAppState();
-  const [demoBypass, setDemoBypass] = React.useState(() => {
-    return localStorage.getItem("orbit_marketing_bypass") === "true";
-  });
-  const [showControls, setShowControls] = React.useState(true);
-
-  React.useEffect(() => {
-    const handleStorageChange = () => {
-      setDemoBypass(localStorage.getItem("orbit_marketing_bypass") === "true");
-    };
-    window.addEventListener("storage", handleStorageChange);
-    // Poll storage occasionally to update across tabs or context changes
-    const interval = setInterval(handleStorageChange, 500);
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      clearInterval(interval);
-    };
-  }, []);
 
   const subStatus = currentUser?.subscription_status;
-  const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly" || demoBypass;
+  const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly";
 
   const renderScreen = () => {
     switch (mobileScreen) {
@@ -127,51 +110,6 @@ export const AppNavigator: React.FC = () => {
       <div className="flex-1 overflow-hidden relative">
         {renderScreen()}
       </div>
-
-      {demoBypass && (
-        <>
-          {showControls ? (
-            <div className="absolute bottom-20 inset-x-4 bg-slate-900/95 backdrop-blur-md border border-slate-800 p-3.5 rounded-2xl shadow-xl flex flex-row items-center justify-between z-[99999] animate-fade-in text-left select-none">
-              <div className="flex items-center gap-2.5">
-                <div className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-white tracking-wide">Screenshot Preview Mode Active</span>
-                  <span className="text-[9px] text-slate-400 font-medium">Bypass enabled & demo content pre-filled</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowControls(false)}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-lg text-[10px] font-bold transition active:scale-95 cursor-pointer"
-                  title="Hide controls to take screenshots"
-                >
-                  Hide Bar
-                </button>
-                <button
-                  onClick={() => {
-                    localStorage.removeItem("orbit_marketing_bypass");
-                    setDemoBypass(false);
-                    window.dispatchEvent(new Event("storage"));
-                  }}
-                  className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[10px] font-bold transition active:scale-95 cursor-pointer"
-                >
-                  Reactivate Lock
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowControls(true)}
-              className="absolute bottom-20 right-4 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-full text-[10px] text-emerald-400 font-bold tracking-wide shadow-lg z-[99999] opacity-40 hover:opacity-100 transition duration-300 cursor-pointer"
-            >
-              🛠️ Show Marketing Bar
-            </button>
-          )}
-        </>
-      )}
     </div>
   );
 };

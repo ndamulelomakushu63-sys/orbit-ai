@@ -57,21 +57,6 @@ export const PremiumLockScreen: React.FC<PremiumLockScreenProps> = ({
           >
             <Text className="text-white font-bold text-sm">Upgrade to Pro</Text>
           </TouchableOpacity>
-
-          {/* Marketing & Screen Preview Tools */}
-          <div className="w-full border-t border-slate-100 pt-4 mt-2">
-            <button
-              onClick={() => {
-                localStorage.setItem("orbit_marketing_bypass", "true");
-                window.dispatchEvent(new Event("storage"));
-                // Instantly redirect to Task Mode as requested so they can take screenshots immediately
-                setMobileScreen("task-mode");
-              }}
-              className="w-full py-2.5 border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-99 text-slate-500 rounded-xl text-xs font-bold transition cursor-pointer select-none"
-            >
-              🛠️ Marketing Screenshot Mode (Free Bypass)
-            </button>
-          </div>
         </View>
       </View>
 

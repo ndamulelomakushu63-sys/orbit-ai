@@ -203,64 +203,6 @@ export const TaskModeScreen: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const assignFileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const isBypassActive = localStorage.getItem("orbit_marketing_bypass") === "true";
-    if (isBypassActive) {
-      // Prepopulate state with beautiful marketing demo content!
-      setInterviewAnswers({
-        fullName: "Sarah Jenkins",
-        position: "Senior Product Designer",
-        phoneNumber: "+1 (555) 019-2834",
-        email: "sarah.jenkins@designorbit.io",
-        location: "San Francisco, CA",
-        educationLevel: "Master's Degree",
-        educationInstitution: "Stanford University",
-        hasExperience: "Yes",
-        experience: "Lead UX Designer at Stripe (3 years), Senior Designer at Figma (4 years). Led design systems, scaled user research, and optimized checkout flow conversions by 22%.",
-        skills: "Figma, React, Design Systems, User Research, Mobile App Design, Interaction Design, Team Leadership",
-        languages: "English (Native), Spanish (Conversational)",
-        certificates: "NN/g UX Master Certified (#82019), Certified Scrum Product Owner",
-        hobbies: "Oil painting, hiking, mentoring junior designers on ADPList",
-        achievements: "Keynote speaker at Config 2024, Winner of the Red Dot Design Award 2023",
-        includeReferences: "Yes",
-        extra: "Willing to travel occasionally, strong advocate for accessibility (WCAG 2.1 AA)"
-      });
-      setCvStyle("Modern");
-      setCurrentQuestionIdx(16); // marked completed
-      setInterviewHistory([
-        { sender: 'ai', text: "Hello! I am your Premium AI CV Builder. Let's build a world-class ATS-friendly CV suitable for South Africa and international employers. \n\nTo start, what is your full name?" },
-        { sender: 'user', text: "Sarah Jenkins" },
-        { sender: 'ai', text: "What position or job title are you applying for?" },
-        { sender: 'user', text: "Senior Product Designer" },
-        { sender: 'ai', text: "Excellent! I have compiled all your answers and your selected style is Modern. \n\nClick the 'Generate Premium CV' button below to compile your world-class, ATS-compliant CV instantly!" }
-      ]);
-
-      // Business Plan
-      setBizName("Lumina Coffee Roasters");
-      setBizIndustry("Food & Beverage / E-Commerce");
-      setBizAudience("Artisanal coffee lovers, specialty cafes, and sustainability-conscious urban professionals.");
-      setBizOffer("A subscription-based, ethically sourced coffee roasting company delivering fresh single-origin beans with smart flavor-pairing recommendations directly to consumers.");
-
-      // Email
-      setEmailPurpose("Negotiate a partnership renewal with enterprise client including a proposed 15% increase in mutual scope and streamlined communication channels.");
-      setEmailRecipient("Executive Board / Director of Operations");
-      setEmailTone("Formal");
-
-      // Social Media
-      setSocialTopic("Launch of Orbit AI v2.0 - featuring the revolutionary Task Mode and autonomous Agent Program.");
-      setSocialPlatform("LinkedIn");
-      setSocialMessage("We're thrilled to introduce Orbit AI v2.0! This release changes the game with autonomous Agent Modes, instant Curricula Vitae generations, and executive business plan drafting.");
-      setSocialTone("Professional");
-
-      // Summarize
-      setDocPastedText("Orbit AI represents a monumental paradigm shift in decentralized, user-directed artificial intelligence. By implementing a full-stack, state-authoritative client framework paired with modular agent prompts, users can automate daily administrative tasks, compile ATS-friendly resume files, negotiate strategic partnerships, and run advanced business simulators. Version 2.0 optimizes the UI through spacious negative space, Inter and Space Grotesk type pairings, and real-time local file uploads with zero server leakage. The custom PDF export engine utilizes modern vector math to ensure print-ready alignment across standard dimensions.");
-
-      // Assignment Helper
-      setAssignTopic("The Economic and Technological Impacts of Generative AI on Global Knowledge Work (2024-2026)");
-      setAssignGuidelines("Write a comprehensive academic essay outline discussing labor productivity shifts, sector-specific disruptions, and regulatory frameworks. Follow standard academic APA style.");
-    }
-  }, []);
-
   const handleSelectTask = (task: TaskCard) => {
     setSelectedTask(task);
     setActiveStep("input");
@@ -359,30 +301,6 @@ export const TaskModeScreen: React.FC = () => {
     if (!selectedTask) return;
     setErrorMessage("");
     setLoading(true);
-
-    const isBypassActive = localStorage.getItem("orbit_marketing_bypass") === "true";
-    if (isBypassActive) {
-      setTimeout(() => {
-        let mockResult = "";
-        if (selectedTask.id === "cv") {
-          mockResult = `# SARAH JENKINS\n### Senior Product Designer | sarah.jenkins@designorbit.io | +1 (555) 019-2834 | San Francisco, CA\n\n---\n\n## EXECUTIVE SUMMARY\nA highly accomplished and visionary Senior Product Designer with over 7 years of experience leading UX/UI design across world-class digital platforms. Proven track record of spearheading design systems, scaling complex user research methodologies, and collaborating cross-functionally to deliver sleek, user-centric interfaces. Recognized for optimizing the checkout flow conversion rate by 22% at Stripe and driving product direction at Figma.\n\n---\n\n## PROFESSIONAL EXPERIENCE\n\n### Lead UX Designer | Stripe\n*2022 — Present | San Francisco, CA*\n- Spearheaded the redesign of the global merchant checkout dashboard, directly increasing conversion rates by 22% and improving overall task success rates.\n- Led a cross-functional team of 12 designers and engineers to build and scale the new 'Stripe-Flow' responsive design system across 4 web platforms and 2 mobile platforms.\n- Conducted continuous user research, usability testing sessions, and interactive prototyping cycles with over 150 enterprise merchants globally.\n\n### Senior Product Designer | Figma\n*2018 — 2022 | San Francisco, CA*\n- Designed and optimized core interactive workspace features, enhancing collaborative team workflows and reducing user friction on complex multiplayer canvases.\n- Mentored and trained junior designers, introducing high-impact design critiques, wireframing guidelines, and strict accessibility standards (WCAG 2.1 AA).\n- Partnered with product and engineering leaders to establish semantic design tokens, bridging the design-to-development pipeline.\n\n---\n\n## EDUCATION\n\n### M.S. in Human-Computer Interaction | Stanford University\n*2016 — 2018 | Stanford, CA*\n- Specialization in Interaction Design, Cognitive Science, and Rapid Prototyping. Graduated with Honors (GPA 3.9/4.0).\n\n### B.A. in Graphic Design | Rhode Island School of Design (RISD)\n*2012 — 2016 | Providence, RI*\n- Dual concentration in Typography and Digital Media. Recipient of the Excellence in Design scholarship.\n\n---\n\n## CORE SKILLS & EXPERTISE\n- **Design**: Figma, UI/UX Design, Design Systems, Mobile App Design, Wireframing, Rapid Prototyping, Accessibility (WCAG 2.1 AA)\n- **Research**: Usability Testing, User Interviews, Persona Mapping, A/B Testing, Cognitive Walkthroughs, Journey Mapping\n- **Collaboration**: Agile/Scrum, Product Strategy, Cross-Functional Team Leadership, Technical Writer, Mentorship\n\n---\n\n## CERTIFICATIONS & HONORS\n- **NN/g UX Master Certified** – Nielsen Norman Group (#82019)\n- **Certified Scrum Product Owner (CSPO)** – Scrum Alliance\n- **Red Dot Design Award Winner** – Best of the Best category (2023)\n- **Config 2024 Guest Speaker** – Topic: "Scaling Collaborative Design Systems"`;
-        } else if (selectedTask.id === "business_plan") {
-          mockResult = `# EXECUTIVE BUSINESS PLAN: LUMINA COFFEE ROASTERS\n### Prepared for: Investors and Strategic Partners | Industry: Food & Beverage / E-Commerce\n\n---\n\n## 1. EXECUTIVE SUMMARY\nLumina Coffee Roasters is an artisanal, direct-to-consumer coffee brand dedicated to delivering exceptional, ethically sourced, single-origin coffee directly to modern urban professionals. By leveraging a high-impact e-commerce subscription model and an intelligent, flavor-profile matching algorithm, Lumina offers customers a curated coffee-drinking experience that marries convenience with a deep passion for craft coffee.\n\n---\n\n## 2. PROBLEM & SOLUTION\n- **The Problem**: Specialty coffee lovers often struggle to discover high-quality, ethically produced beans that match their unique flavor preferences, while traditional supermarket options lack freshness and transparent sourcing.\n- **The Solution**: Lumina sources premium green coffee beans through direct-trade relationships, roasts them in small batches, and ships them within 24 hours of roasting. Our smart flavor-pairing recommendation quiz ensures each customer is matched with their ideal roast profile.\n\n---\n\n## 3. MARKET OPPORTUNITY\nThe global specialty coffee and online e-commerce subscription market is experiencing unprecedented growth, driven by a post-pandemic shift toward premium home-brewing experiences. Lumina targets the premium tier of this segment—tech-savvy professionals aged 25-45 who value environmental sustainability, transparent supply chains, and exceptional culinary taste.\n\n---\n\n## 4. PRODUCT & SERVICE PORTFOLIO\n- **The Origin Subscription**: Monthly or bi-weekly rotating single-origin roasts accompanied by origin stories and sensory flavor wheels.\n- **Flavor Match Quiz**: A proprietary client-side web application that profiles user flavor preferences (e.g., fruit notes, chocolatey body, acidity levels) to curate their deliveries.\n- **Ethical Direct-Trade**: Fully transparent carbon-neutral shipping with 100% compostable packaging.\n\n---\n\n## 5. FINANCIAL PROJECTIONS (YEAR 1 - 3)\n- **Year 1**: Projected revenue of $240,000 with a gross margin of 68% and 2,500 active subscribers.\n- **Year 2**: Projected expansion to $680,000 revenue with a 72% gross margin by scaling corporate office partnerships.\n- **Year 3**: Reaching $1.5M in annual recurring revenue (ARR) and establishing our first carbon-neutral micro-roastery.`;
-        } else if (selectedTask.id === "email") {
-          mockResult = `# PARTNERSHIP RENEWAL & SCOPE EXPANSION PROPOSAL\n### Subject: Strategic Alliance Renewal & Mutual Growth Initiatives - Orbit AI\n\n---\n\nDear Executive Board,\n\nI hope this email finds you well.\n\nAs we approach the conclusion of our highly successful initial partnership term, I want to take a moment to express our sincere appreciation for the collaborative synergy we have shared. Together, we have successfully optimized administrative pipelines and delivered unparalleled value to our mutual stakeholders.\n\nTo build upon this powerful momentum, I would like to propose a renewal of our partnership with a strategic 15% increase in mutual operational scope. This expansion will introduce direct API integrations, real-time shared workspace telemetry, and dedicated executive support channels.\n\nTo streamline our next steps, I have outlined our proposed workflow:\n- **Immediate Scope Alignment**: Review of the updated SLA draft and mutual resource allocations.\n- **Integrated Communications**: Implementation of a unified Slack/Teams bridge for real-time collaboration.\n- **Review Call**: A brief 15-minute executive alignment session next Tuesday or Thursday.\n\nThank you once again for your visionary leadership and continued partnership. We are incredibly excited about the next chapter of our shared journey.\n\nWarm regards,\n\n**Sarah Jenkins**  \nDirector of Operations | Orbit AI  \nsarah.jenkins@designorbit.io | +1 (555) 019-2834`;
-        } else if (selectedTask.id === "social_media") {
-          mockResult = `# LINKEDIN LAUNCH ANNOUNCEMENT: ORBIT AI v2.0 🚀\n### Tagline: The Next Paradigm of Autonomous Knowledge Work\n\n---\n\nWe are thrilled to officially unveil **Orbit AI v2.0**—a monumental leap forward in the space of decentralized, user-directed productivity.\n\nThis release is engineered to empower modern professionals to skip the back-and-forth chat. With our brand new **Task Mode** and autonomous **Agent Program**, you can compile employer-ready CVs, draft strategic business outlines, and summarize heavy documents instantly.\n\n### Key Highlights of Version 2.0:\n- **ATS-Compliant CV Engine**: Interactive AI interview coach with beautifully styled visual exports (Modern, Minimal, Executive).\n- **Autonomous Agents**: Instantly activate specialist agents to manage complex referrals and track organic growth.\n- **Privacy-First Processing**: 100% secure uploads with real-time progress visuals.\n\nJoin over 25,000+ visionaries who are reshaping their daily workflows today!\n\n👉 **Experience the Future of Work**: [https://orbitai.io/download](https://orbitai.io/download)\n\n---\n#ArtificialIntelligence #Productivity #FutureOfWork #SaaSLaunch #DesignSystem #UIUX`;
-        } else if (selectedTask.id === "summarize") {
-          mockResult = `# EXECUTIVE SUMMARY: ORBIT AI SYSTEM ARCHITECTURE\n### Document analyzed: Orbit_AI_v2.0_Whitepaper.pdf (Size: 1.2 MB)\n\n---\n\n## 1. CORE DISCOVERY\nOrbit AI represents a monumental paradigm shift in user-directed artificial intelligence, transitioning from standard message-based conversational prompts to highly structured, task-specific frontend state automation.\n\n---\n\n## 2. KEY INSIGHTS & TAKEAWAYS\n- **State-Authoritative Client**: By implementing state context tracking on the client rather than relying on session-less backend calls, the system reduces API latency by 40% and ensures instant user response.\n- **Dual Display Typography**: The intentional pairing of *Space Grotesk* for display headings and *Inter* for body text creates a highly legible, premium aesthetic that optimizes visual focus.\n- **ATS-Compliant Document Compilation**: The integrated PDF export utility uses modern vector math to ensure print-ready alignment across standard dimensions.\n\n---\n\n## 3. RECOMMENDATIONS & WORKFLOWS\n- **Scale Agent Programs**: Recommend expanding the referral agent program to reward enterprise power-users.\n- **Introduce Local Persistence**: Continue using localStorage caching for offline-first capabilities while offering optional secure database synchronization.`;
-        } else {
-          mockResult = `# ACADEMIC STUDY GUIDE & ESSAY OUTLINE\n### Topic: The Economic and Technological Impacts of Generative AI on Global Knowledge Work (2024-2026)\n\n---\n\n## I. INTRODUCTION & THESIS STATEMENT\n- **Hook**: The rapid adoption of generative artificial intelligence represents the fastest technological deployment in human history, surpassing the internet and mobile computing.\n- **Background**: Generative AI has transitioned from a specialized novelty to a core infrastructure tool for global knowledge workers, dramatically altering cognitive task execution.\n- **Thesis Statement**: Although Generative AI significantly boosts individual labor productivity in knowledge-intensive sectors, it simultaneously disrupts traditional labor economics and challenges existing regulatory, copyright, and ethical frameworks.\n\n---\n\n## II. MAIN DISCUSSIONS & LITERATURE REVIEW\n\n### A. Labor Productivity & Economic Shifts\n- Discussion on empirical studies (e.g., Brynjolfsson et al., 2023) showing a 14% to 35% increase in task completion speeds for customer support and software engineering.\n- The "skills-leveling" effect: Greater relative performance gains observed among lower-skilled workers compared to high-skilled professionals.\n\n### B. Sector-Specific Disruptions & Re-skilling\n- In-depth analysis of highly affected industries: Software development, legal analysis, technical writing, and graphic design.\n- The evolution of "Prompt Engineering" into collaborative human-AI system design.\n\n### C. Regulatory and Copyright Challenges\n- Overview of landmark legal disputes surrounding dataset training permissions and fair use policies.\n- Comparative analysis of the EU AI Act (risk-based framework) versus the US Executive Orders on safe, secure, and trustworthy development.\n\n---\n\n## III. CONCLUSION & FUTURE OUTLOOK\n- **Summary**: Generative AI is a double-edged sword, serving as both an intellectual multiplier and an economic disruptor.\n- **Synthesis**: The future of work will not belong to AI alone, but to professionals who master the art of human-AI collaboration.`;
-        }
-        setResultText(mockResult);
-        setActiveStep("result");
-        setLoading(false);
-      }, 750);
-      return;
-    }
 
     // Prepare custom payload based on task
     let inputs: any = {};
