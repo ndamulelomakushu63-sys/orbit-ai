@@ -68,9 +68,52 @@ export const AgentDashboardScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Tiered referral system progress card */}
+        <View className="bg-white border border-slate-200/50 rounded-3xl p-5 shadow-2xs space-y-4">
+          <View className="flex flex-row justify-between items-start">
+            <View className="space-y-1">
+              <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block font-sans">
+                Starter Bonus Progress
+              </Text>
+              <Text className="text-base font-black text-slate-800 tracking-tight">
+                {myReferrals.length >= 4 ? "Starter Bonus Completed" : "Unlock Full Referral Rewards"}
+              </Text>
+              {myReferrals.length >= 4 && (
+                <Text className="text-xs font-bold text-green-600 block">
+                  Full Referral Rewards Unlocked
+                </Text>
+              )}
+            </View>
+            <View className="bg-blue-50 border border-blue-100 rounded-full px-2.5 py-1">
+              <Text className="text-xs font-black text-blue-600 font-mono">
+                {Math.min(myReferrals.length, 4)}/4
+              </Text>
+            </View>
+          </View>
+
+          {/* Progress Bar */}
+          <View className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+            <View 
+              className="bg-blue-600 h-full rounded-full transition-all duration-500" 
+              style={{ width: `${Math.min(myReferrals.length, 4) * 25}%` }}
+            />
+          </View>
+
+          {/* Helper descriptive instructions */}
+          <Text className="text-[11px] text-slate-400 leading-normal font-medium">
+            {myReferrals.length >= 4 
+              ? "Awesome! You have completed your starter bonus. You now earn R10.00 for every referred user who upgrades to a Pro subscription." 
+              : `Earn R5.00 instantly on registration for your first 4 referred users (up to R20.00). Currently: R${(Math.min(myReferrals.length, 4) * 5).toFixed(2)} earned.`}
+          </Text>
+        </View>
+
         {/* Copy Referrals interface box */}
         <View className="bg-white p-4 border border-slate-200/50 rounded-3xl space-y-2.5 shadow-2xs">
-          <Text className="text-xs font-bold text-slate-800">Share your private website link. Earn R10 for every signup.</Text>
+          <Text className="text-xs font-bold text-slate-800">
+            {myReferrals.length >= 4 
+              ? "Share your private link. Earn R10 for every referral that upgrades to Pro!" 
+              : "Share your private link. Earn R5 for each of your first 4 referred signups!"}
+          </Text>
           <View className="flex flex-row items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-2">
             <Text className="text-xs text-slate-500 flex-1 truncate font-mono pl-1.5 font-medium">
               orbitai.co.za/ref={currentUser.referralCode}

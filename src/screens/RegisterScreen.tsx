@@ -80,16 +80,30 @@ export const RegisterScreen: React.FC = () => {
         if (matchReferrer) {
           newProf.referredBy = invitedByCode.trim();
           
+          const referrerRefs = referrals.filter(r => r.referrerId === matchReferrer.uid);
+          const isStarterBonus = referrerRefs.length < 4;
+          const rewardAmount = isStarterBonus ? 5.00 : 10.00;
+          const refStatus = isStarterBonus ? "Paid" : "Pending";
+
           const newRefLog: ReferralRecord = {
             id: "ref-" + Date.now(),
             referrerId: matchReferrer.uid,
             referredUserId: registeredUid,
             referredName: name.trim(),
-            reward: 10.00,
-            status: "Pending", // Pending Pro upgrade balance trigger
+            reward: rewardAmount,
+            status: refStatus,
             timestamp: new Date().toISOString()
           };
           setReferrals(prev => [newRefLog, ...prev]);
+
+          if (isStarterBonus) {
+            const updatedReferrer = {
+              ...matchReferrer,
+              balance: (matchReferrer.balance || 0) + 5.00
+            };
+            setUsers(prev => prev.map(u => u.uid === matchReferrer.uid ? updatedReferrer : u));
+            await dbUpsertProfile(updatedReferrer);
+          }
         }
       }
 
@@ -131,16 +145,30 @@ export const RegisterScreen: React.FC = () => {
         if (matchReferrer) {
           newProf.referredBy = invitedByCode.trim();
           
+          const referrerRefs = referrals.filter(r => r.referrerId === matchReferrer.uid);
+          const isStarterBonus = referrerRefs.length < 4;
+          const rewardAmount = isStarterBonus ? 5.00 : 10.00;
+          const refStatus = isStarterBonus ? "Paid" : "Pending";
+
           const newRefLog: ReferralRecord = {
             id: "ref-" + Date.now(),
             referrerId: matchReferrer.uid,
             referredUserId: newUid,
             referredName: name,
-            reward: 10.00,
-            status: "Pending",
+            reward: rewardAmount,
+            status: refStatus,
             timestamp: new Date().toISOString()
           };
           setReferrals(prev => [newRefLog, ...prev]);
+
+          if (isStarterBonus) {
+            const updatedReferrer = {
+              ...matchReferrer,
+              balance: (matchReferrer.balance || 0) + 5.00
+            };
+            setUsers(prev => prev.map(u => u.uid === matchReferrer.uid ? updatedReferrer : u));
+            await dbUpsertProfile(updatedReferrer);
+          }
         }
       }
 

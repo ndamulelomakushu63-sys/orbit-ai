@@ -619,6 +619,46 @@ app.post("/api/payfast/notify", async (req, res) => {
         }
 
         console.log(`[PayFast ITN] User ${userId} successfully upgraded to PRO!`);
+
+        // Check for any pending referral for this upgrading user
+        try {
+          const { data: pendingRefs } = await supabase
+            .from('referrals')
+            .select('*')
+            .eq('referred_user_id', userId)
+            .eq('status', 'Pending');
+
+          if (pendingRefs && pendingRefs.length > 0) {
+            for (const ref of pendingRefs) {
+              const rewardVal = Number(ref.reward || 10.00);
+              
+              // 1. Mark referral as Paid
+              await supabase
+                .from('referrals')
+                .update({ status: 'Paid' })
+                .eq('id', ref.id);
+
+              // 2. Fetch referrer profile to increment balance
+              const { data: referrerProfile } = await supabase
+                .from('profiles')
+                .select('balance')
+                .eq('id', ref.referrer_id)
+                .single();
+
+              if (referrerProfile) {
+                const currentBalance = Number(referrerProfile.balance || 0);
+                const newBalance = currentBalance + rewardVal;
+                await supabase
+                  .from('profiles')
+                  .update({ balance: newBalance })
+                  .eq('id', ref.referrer_id);
+                console.log(`[PayFast ITN] Referral reward of R${rewardVal} credited to Referrer ${ref.referrer_id}`);
+              }
+            }
+          }
+        } catch (refErr) {
+          console.error("[PayFast ITN] Error processing upgrade referrals in webhook: ", refErr);
+        }
       }
     } else {
       console.log(`[PayFast ITN] Payment received but status is: ${paymentStatus}. Leaving plan as is.`);

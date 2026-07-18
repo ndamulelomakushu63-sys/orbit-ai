@@ -242,6 +242,35 @@ export default function BusinessModeScreen() {
     }
   };
 
+  // South African town/city coordinate lookup table for accurate fallback sorting
+  const LOCATION_COORDINATES: Record<string, { lat: number; lng: number }> = {
+    'tshikota': { lat: -23.0534, lng: 29.8893 },
+    'louis trichardt': { lat: -23.0471, lng: 29.9032 },
+    'makhado': { lat: -23.0471, lng: 29.9032 },
+    'thohoyandou': { lat: -22.9754, lng: 30.4597 },
+    'giyani': { lat: -23.3150, lng: 30.7187 },
+    'musina': { lat: -22.3486, lng: 30.0521 },
+    'polokwane': { lat: -23.8962, lng: 29.4486 },
+    'pretoria': { lat: -25.7479, lng: 28.2293 },
+    'johannesburg': { lat: -26.2041, lng: 28.0473 },
+    'cape town': { lat: -33.9249, lng: 18.4241 },
+    'durban': { lat: -29.8587, lng: 31.0218 }
+  };
+
+  const getBusinessCoords = (biz: Business): { lat: number; lng: number } => {
+    if (biz.latitude !== undefined && biz.latitude !== null && biz.latitude !== 0) {
+      return { lat: biz.latitude, lng: biz.longitude };
+    }
+    const town = (biz.townCity || "").trim().toLowerCase();
+    for (const [key, coords] of Object.entries(LOCATION_COORDINATES)) {
+      if (town.includes(key)) {
+        return coords;
+      }
+    }
+    // Default fallback is Johannesburg
+    return { lat: -26.2041, lng: 28.0473 };
+  };
+
   // Helper function to calculate GPS distance in km (Haversine Formula)
   const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371; // Earth's radius in km
@@ -404,13 +433,11 @@ export default function BusinessModeScreen() {
 
     if (sortBy === 'nearest') {
       if (userCoords) {
-        const latA = a.latitude !== undefined ? a.latitude : -26.2041;
-        const lngA = a.longitude !== undefined ? a.longitude : 28.0473;
-        const latB = b.latitude !== undefined ? b.latitude : -26.2041;
-        const lngB = b.longitude !== undefined ? b.longitude : 28.0473;
+        const coordsA = getBusinessCoords(a);
+        const coordsB = getBusinessCoords(b);
         
-        const distA = getDistance(userCoords.lat, userCoords.lng, latA, lngA);
-        const distB = getDistance(userCoords.lat, userCoords.lng, latB, lngB);
+        const distA = getDistance(userCoords.lat, userCoords.lng, coordsA.lat, coordsA.lng);
+        const distB = getDistance(userCoords.lat, userCoords.lng, coordsB.lat, coordsB.lng);
         return distA - distB;
       }
       return b.id.localeCompare(a.id);
@@ -437,11 +464,20 @@ export default function BusinessModeScreen() {
   const pageFeatured = currentPage === 1 ? paginatedBusinesses.slice(0, 2) : [];
   const pageLatest = currentPage === 1 ? paginatedBusinesses.slice(2) : paginatedBusinesses;
 
+  // Define nearby distance threshold in km (50km)
+  const NEARBY_THRESHOLD_KM = 50;
+
+  // Check if any business is actually near the user's location
+  const hasNearbyBusinesses = !userCoords ? true : allBusinesses.some(biz => {
+    const coords = getBusinessCoords(biz);
+    const dist = getDistance(userCoords.lat, userCoords.lng, coords.lat, coords.lng);
+    return dist <= NEARBY_THRESHOLD_KM;
+  });
+
   const getDistanceString = (biz: Business): string | null => {
     if (!userCoords) return null;
-    const lat = biz.latitude !== undefined ? biz.latitude : -26.2041;
-    const lng = biz.longitude !== undefined ? biz.longitude : 28.0473;
-    const dist = getDistance(userCoords.lat, userCoords.lng, lat, lng);
+    const coords = getBusinessCoords(biz);
+    const dist = getDistance(userCoords.lat, userCoords.lng, coords.lat, coords.lng);
     return dist < 1 ? `${(dist * 1000).toFixed(0)}m away` : `${dist.toFixed(1)}km away`;
   };
 
@@ -778,6 +814,23 @@ export default function BusinessModeScreen() {
               </View>
             ) : (
               <View className="space-y-6">
+                
+                {/* NEAR ME WARNING IF NO NEARBY LISTINGS */}
+                {isNearMeActive && userCoords && !hasNearbyBusinesses && (
+                  <View className="bg-amber-50/75 border border-amber-200/60 rounded-2xl p-5 flex flex-col items-center text-center space-y-2 select-none">
+                    <MapPin className="w-5 h-5 text-amber-500 shrink-0" />
+                    <Text className="text-sm font-extrabold text-amber-900 block">No businesses found near your current location.</Text>
+                    <Text className="text-xs text-amber-750/90 leading-relaxed max-w-[320px] block font-sans">
+                      There are no registered venues within {NEARBY_THRESHOLD_KM}km of your location. You can browse listings in other areas below, or disable Near Me to see all listings.
+                    </Text>
+                    <TouchableOpacity
+                      onClick={disableNearMe}
+                      className="bg-white border border-amber-200/80 hover:bg-amber-150/30 px-4 py-1.5 rounded-full active:scale-97 transition cursor-pointer mt-1"
+                    >
+                      <Text className="text-xs font-bold text-amber-900 font-sans text-amber-950">Show All Businesses</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 
                 {/* FEATURED BUSINESSES */}
                 {pageFeatured.length > 0 && (
@@ -1514,9 +1567,13 @@ export default function BusinessModeScreen() {
                         </Text>
                       </div>
                       <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                          [selectedBusiness.name, selectedBusiness.physicalAddress, selectedBusiness.villageSuburb, selectedBusiness.townCity, selectedBusiness.province].filter(Boolean).join(', ')
-                        )}`}
+                        href={
+                          selectedBusiness.latitude !== undefined && selectedBusiness.longitude !== undefined
+                            ? `https://www.google.com/maps/search/?api=1&query=${selectedBusiness.latitude},${selectedBusiness.longitude}`
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                [selectedBusiness.name, selectedBusiness.physicalAddress, selectedBusiness.villageSuburb, selectedBusiness.townCity, selectedBusiness.province].filter(Boolean).join(', ')
+                              )}`
+                        }
                         target="_blank"
                         rel="noreferrer"
                         className="bg-blue-600 hover:bg-blue-700 active:scale-97 text-white font-semibold px-4 py-2 rounded-xl text-xs transition flex flex-row items-center gap-1.5 cursor-pointer shadow-3xs shrink-0"
