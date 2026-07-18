@@ -67,8 +67,8 @@ interface AppContextType {
   cardDetails: CardDetails;
   setCardDetails: React.Dispatch<React.SetStateAction<CardDetails>>;
   incrementUsageLimit: (type: 'chat' | 'image' | 'file' | 'camera') => { allowed: boolean; count: number; limit: number };
-  limitModalType: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null;
-  setLimitModalType: (type: 'chat' | 'image' | 'file' | 'camera' | 'premium' | null) => void;
+  limitModalType: 'chat' | 'image' | 'file' | 'camera' | 'premium' | 'guest' | null;
+  setLimitModalType: (type: 'chat' | 'image' | 'file' | 'camera' | 'premium' | 'guest' | null) => void;
   obdiLeads: ObdiLead[];
   setObdiLeads: React.Dispatch<React.SetStateAction<ObdiLead[]>>;
   businessPaymentStatus: 'success' | 'cancelled' | null;
@@ -698,8 +698,34 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [businessPaymentStatus, setBusinessPaymentStatus] = useState<'success' | 'cancelled' | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string>("conv-1");
   const [isAiTyping, setIsAiTyping] = useState<boolean>(false);
-  const [invitedByCode, setInvitedByCode] = useState<string>("ORBIT-SP9210");
-  const [limitModalType, setLimitModalType] = useState<'chat' | 'image' | 'file' | 'camera' | 'premium' | null>(null);
+  const [invitedByCode, setInvitedByCode] = useState<string>(() => {
+    return localStorage.getItem("orbit_invited_by_code") || "ORBIT-SP9210";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("orbit_invited_by_code", invitedByCode);
+  }, [invitedByCode]);
+
+  // Load and check referral code from query params or URL paths
+  useEffect(() => {
+    let refCode = "";
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("ref")) {
+      refCode = searchParams.get("ref") || "";
+    } else {
+      const match = window.location.href.match(/[?&]ref=([^&#]+)/) || window.location.href.match(/\/ref=([^?&#]+)/);
+      if (match) {
+        refCode = match[1];
+      }
+    }
+    
+    if (refCode) {
+      setInvitedByCode(refCode.trim());
+      console.log("[Referral System] Captured referral code from URL:", refCode.trim());
+    }
+  }, []);
+
+  const [limitModalType, setLimitModalType] = useState<'chat' | 'image' | 'file' | 'camera' | 'premium' | 'guest' | null>(null);
 
   const logout = () => {
     supabase.auth.signOut().catch(err => {
@@ -725,6 +751,14 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const triggerChatMessage = async (promptMsg: string, replyToMessageId?: string) => {
     if (!promptMsg.trim()) return;
     const userMsgText = promptMsg;
+
+    if (!currentUser) {
+      const guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0");
+      if (guestCount >= 3) {
+        setLimitModalType('guest');
+        return;
+      }
+    }
 
     // --- STEP 1: CHECK LIMIT BEFORE SENDING ---
     let limitData: any = null;
@@ -898,6 +932,15 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             }
           }
         }
+
+        if (!currentUser) {
+          const guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0") + 1;
+          localStorage.setItem("orbit_anonymous_message_count", String(guestCount));
+          console.log(`[Guest Flow] Guest message sent successfully. Total guest count: ${guestCount}/3`);
+          if (guestCount >= 3) {
+            setLimitModalType('guest');
+          }
+        }
       } else {
         throw new Error(data.error || "Fallback AI error");
       }
@@ -962,7 +1005,14 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const incrementUsageLimit = (type: 'chat' | 'image' | 'file' | 'camera'): { allowed: boolean; count: number; limit: number } => {
-    if (!currentUser) return { allowed: false, count: 0, limit: 0 };
+    if (!currentUser) {
+      const guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0");
+      if (guestCount >= 3) {
+        setLimitModalType('guest');
+        return { allowed: false, count: guestCount, limit: 3 };
+      }
+      return { allowed: true, count: guestCount, limit: 3 };
+    }
     
     const subStatus = currentUser.subscription_status;
     const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly";

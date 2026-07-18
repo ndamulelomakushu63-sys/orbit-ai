@@ -18,7 +18,49 @@ export const ProfileScreen: React.FC = () => {
   const [dataPrivacyConsent, setDataPrivacyConsent] = useState(true);
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return (
+      <SafeAreaView className="bg-slate-50 flex flex-col h-full justify-between">
+        <View className="px-5 py-4 bg-white border-b border-slate-100 flex flex-row items-center gap-3 select-none">
+          <TouchableOpacity 
+            onClick={() => setMobileScreen("chat")}
+            className="p-1.5 hover:bg-slate-50 rounded-full text-slate-600 cursor-pointer"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </TouchableOpacity>
+          <Text className="text-base font-bold text-slate-800 tracking-tight">Account Profile</Text>
+        </View>
+
+        <View className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
+          <View className="w-14 h-14 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+            <User className="w-6 h-6 text-blue-600" />
+          </View>
+          <View className="space-y-2">
+            <Text className="text-lg font-black text-slate-900 tracking-tight">Unlock Your Profile</Text>
+            <Text className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+              Create a free account to customize your profile, save your chat conversations, and unlock more advanced features.
+            </Text>
+          </View>
+          <View className="w-full max-w-xs space-y-3">
+            <TouchableOpacity 
+              onClick={() => setMobileScreen("register")}
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-center text-xs font-bold shadow-xs cursor-pointer"
+            >
+              Create Free Account
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onClick={() => setMobileScreen("login")}
+              className="w-full py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-full text-center text-xs font-bold cursor-pointer"
+            >
+              Sign In
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <BottomNav id="profile_bottom_nav" />
+      </SafeAreaView>
+    );
+  }
 
   const handleUpdateAccount = () => {
     if (!nameVal.trim() || !emailVal.trim()) {

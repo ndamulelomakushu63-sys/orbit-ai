@@ -33,7 +33,47 @@ export const SubscriptionScreen: React.FC = () => {
   const [showCancelSuccessDialog, setShowCancelSuccessDialog] = useState(false);
   const [cancelSuccessMessage, setCancelSuccessMessage] = useState("");
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return (
+      <SafeAreaView className="bg-slate-50 flex flex-col h-full justify-between">
+        <View className="px-5 py-4 bg-white border-b border-slate-100 flex flex-row items-center gap-3 select-none">
+          <TouchableOpacity 
+            onClick={() => setMobileScreen("chat")}
+            className="p-1.5 hover:bg-slate-50 rounded-full text-slate-600 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </TouchableOpacity>
+          <Text className="text-base font-bold text-slate-800 tracking-tight">Upgrade Plan</Text>
+        </View>
+
+        <View className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
+          <View className="w-14 h-14 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+            <Sparkles className="w-6 h-6 text-amber-500" />
+          </View>
+          <View className="space-y-2">
+            <Text className="text-lg font-black text-slate-900 tracking-tight">Create your account first</Text>
+            <Text className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+              To upgrade to Orbit Pro and enjoy unlimited messages, advanced business tools, and agent rewards, please create a free account first.
+            </Text>
+          </View>
+          <View className="w-full max-w-xs space-y-3">
+            <TouchableOpacity 
+              onClick={() => setMobileScreen("register")}
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-center text-xs font-bold shadow-xs cursor-pointer"
+            >
+              Create Free Account
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onClick={() => setMobileScreen("login")}
+              className="w-full py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-full text-center text-xs font-bold cursor-pointer"
+            >
+              Sign In
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleChooseCycle = (cycle: "Monthly" | "Annually") => {
     setSelectedCycle(cycle);

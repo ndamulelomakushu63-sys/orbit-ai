@@ -1301,7 +1301,12 @@ export const HomeChatScreen: React.FC = () => {
         } else if (limitModalType === 'premium') {
           title = "Orbit Pro Required";
           message = "Upgrade to Orbit Pro to unlock premium business tools, referral earnings, and unlimited AI access.";
+        } else if (limitModalType === 'guest') {
+          title = "Create your free Orbit AI account";
+          message = "You're enjoying Orbit AI.\n\nCreate a free account to continue chatting, save conversations, unlock more features, and upgrade to Pro whenever you're ready.";
         }
+
+        const isGuestModal = limitModalType === 'guest';
 
         return (
           <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[9999] p-4 select-none animate-fade-in">
@@ -1310,26 +1315,51 @@ export const HomeChatScreen: React.FC = () => {
                 <Text className="text-lg font-black text-slate-950 tracking-tight block text-left font-sans">
                   {title}
                 </Text>
-                <Text className="text-xs text-slate-600 leading-relaxed block text-left font-sans font-medium">
+                <Text className="text-xs text-slate-600 leading-relaxed block text-left font-sans font-medium whitespace-pre-wrap">
                   {message}
                 </Text>
               </View>
               <View className="flex flex-col gap-2">
-                <TouchableOpacity 
-                  onClick={() => {
-                    setLimitModalType(null);
-                    setMobileScreen("upgrade");
-                  }}
-                  className="py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-center text-xs font-bold cursor-pointer transition active:scale-98"
-                >
-                  Upgrade to Pro
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  onClick={() => setLimitModalType(null)}
-                  className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-center text-xs font-bold cursor-pointer transition"
-                >
-                  Maybe Later
-                </TouchableOpacity>
+                {isGuestModal ? (
+                  <>
+                    <TouchableOpacity 
+                      onClick={() => {
+                        setLimitModalType(null);
+                        setMobileScreen("register");
+                      }}
+                      className="py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-center text-xs font-bold cursor-pointer transition active:scale-98"
+                    >
+                      Create Free Account
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onClick={() => {
+                        setLimitModalType(null);
+                        setMobileScreen("login");
+                      }}
+                      className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-center text-xs font-bold cursor-pointer transition"
+                    >
+                      Sign In
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity 
+                      onClick={() => {
+                        setLimitModalType(null);
+                        setMobileScreen("upgrade");
+                      }}
+                      className="py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-center text-xs font-bold cursor-pointer transition active:scale-98"
+                    >
+                      Upgrade to Pro
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onClick={() => setLimitModalType(null)}
+                      className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-center text-xs font-bold cursor-pointer transition"
+                    >
+                      Maybe Later
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             </View>
           </div>

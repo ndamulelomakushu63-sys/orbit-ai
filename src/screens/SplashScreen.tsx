@@ -7,11 +7,7 @@ export const SplashScreen: React.FC = () => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (currentUser) {
-        setMobileScreen("chat");
-      } else {
-        setMobileScreen("login");
-      }
+      setMobileScreen("chat");
     }, 2000);
     return () => clearTimeout(timer);
   }, [currentUser, setMobileScreen]);
