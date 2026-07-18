@@ -30,7 +30,50 @@ import { Business, ObdiLead } from '../types';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
 
 // High-quality South African small business listings as fallback default directory data
-const MOCK_BUSINESSES: Business[] = [];
+const MOCK_BUSINESSES: Business[] = [
+  {
+    id: 'sunset-lounge-demo',
+    name: 'Sunset Lounge & Entertainment',
+    ownerName: 'Thabo Molapo',
+    category: 'Entertainment',
+    description: 'Sunset Lounge & Entertainment is a premium entertainment venue offering live music, DJs, weekend events, delicious food, refreshing drinks, VIP experiences, private celebrations, and unforgettable nightlife.',
+    townCity: 'Johannesburg',
+    province: 'Gauteng',
+    physicalAddress: 'Gwigwi Mrwebi Street, Newtown',
+    villageSuburb: 'Newtown',
+    phoneNumber: '+27 11 555 1234',
+    whatsappNumber: '+27 11 555 1234',
+    email: 'info@sunsetlounge.co.za',
+    openingHours: 'Monday–Thursday: 12:00–23:00, Friday–Saturday: 12:00–02:00, Sunday: 12:00–22:00',
+    startingPrice: 'R150',
+    rating: 4.9,
+    popularity: 145,
+    isPublic: true,
+    isPaid: true,
+    status: 'Approved',
+    socialMediaLinks: {
+      website: 'https://www.sunsetlounge.co.za',
+      facebook: 'https://facebook.com/sunsetloungenewtown',
+      instagram: 'https://instagram.com/sunsetloungenewtown'
+    },
+    photos: [
+      'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1490914327627-9fe8d52f4d90?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=800&q=80'
+    ],
+    specials: [
+      'Weekend Chill: Half price cocktails every Friday from 16:00 to 19:00!',
+      'Sunday Soul Sessions: Buy any platter and get a complimentary bottle of house wine.',
+      'VIP Birthday Package: Free entry for up to 10 guests, 1 complimentary champagne bottle, and reserved VIP lounge booths (Booking required).'
+    ],
+    latitude: -26.2012,
+    longitude: 28.0315
+  }
+];
 
 const CATEGORY_GALLERIES: Record<string, string[]> = {
   'Services': [
@@ -770,6 +813,11 @@ export default function BusinessModeScreen() {
                             <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
                               <div className="space-y-1">
                                 <Text className="text-base font-semibold text-slate-900 group-hover:text-blue-600 transition truncate block">{biz.name}</Text>
+                                <div className="flex items-center gap-1.5 my-1 select-none">
+                                  <span className="text-amber-500 font-bold text-[11px]">★★★★★</span>
+                                  <span className="text-[11px] font-extrabold text-slate-700">{scoreRating.toFixed(1)}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">({biz.popularity || 145})</span>
+                                </div>
                                 <Text className="text-xs text-slate-500 line-clamp-2 leading-relaxed block">{biz.description}</Text>
                               </div>
                               <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
@@ -829,7 +877,12 @@ export default function BusinessModeScreen() {
                                   <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-500 uppercase tracking-wider">{biz.category}</span>
                                 </div>
                                 <Text className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition block truncate">{biz.name}</Text>
-                                <Text className="text-[11px] text-slate-400 font-sans block truncate">Owner: {biz.ownerName}</Text>
+                                <div className="flex items-center gap-1 my-0.5 select-none">
+                                  <span className="text-amber-500 font-bold text-[10px]">★</span>
+                                  <span className="text-[10.5px] font-extrabold text-slate-700">{scoreRating.toFixed(1)}</span>
+                                  <span className="text-[10px] text-slate-400">({biz.popularity || 145})</span>
+                                </div>
+                                <Text className="text-[11px] text-slate-450 font-sans block truncate font-semibold">Owner: {biz.ownerName}</Text>
                                 <Text className="text-xs text-slate-500 line-clamp-1 leading-relaxed block font-sans">{biz.description}</Text>
                               </div>
                               
@@ -1300,6 +1353,13 @@ export default function BusinessModeScreen() {
                   <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight font-sans leading-tight">
                     {selectedBusiness.name}
                   </h2>
+                  <div className="flex items-center gap-1.5 mt-1.5 select-none">
+                    <span className="text-amber-500 font-bold text-sm">★★★★★</span>
+                    <span className="text-xs font-bold text-slate-700 ml-1">
+                      {(selectedBusiness.rating || 4.9).toFixed(1)}/5.0
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">({selectedBusiness.popularity || 145} reviews)</span>
+                  </div>
                 </div>
 
                 <div className="bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
