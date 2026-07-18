@@ -106,11 +106,26 @@ export const HomeChatScreen: React.FC = () => {
 
   const activeMessages = chatMessages.filter(m => m.conversationId === activeConversationId);
 
-  // Auto scroll to latest replies
+  // Auto scroll to latest replies and handle keyboard viewport changes
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const scrollToBottom = () => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    };
+    scrollToBottom();
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", scrollToBottom);
     }
+    window.addEventListener("resize", scrollToBottom);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", scrollToBottom);
+      }
+      window.removeEventListener("resize", scrollToBottom);
+    };
   }, [chatMessages, isAiTyping]);
 
   useEffect(() => {

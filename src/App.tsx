@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppStateProvider } from './services/state';
 import { AppNavigator } from './navigation/AppNavigator';
 import { AdminDashboardScreen } from './screens/AdminDashboardScreen';
@@ -22,6 +22,88 @@ function AppContent() {
   const [selectedNativeFileIdx, setSelectedNativeFileIdx] = useState<number>(0);
   const [copiedSuccess, setCopiedSuccess] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
+
+  const [viewportHeight, setViewportHeight] = useState<number | string>("100dvh");
+  const [offsetTop, setOffsetTop] = useState<number>(0);
+  const [isMobileLayout, setIsMobileLayout] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileLayout(window.innerWidth < 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileLayout) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+      return;
+    }
+
+    // Lock body scroll on mobile layout to prevent bouncing/shifting
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+
+    const handleViewportChange = () => {
+      if (window.visualViewport) {
+        setViewportHeight(window.visualViewport.height);
+        setOffsetTop(window.visualViewport.offsetTop);
+      } else {
+        setViewportHeight(window.innerHeight);
+        setOffsetTop(0);
+      }
+    };
+
+    const handleScrollReset = () => {
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleViewportChange);
+      window.visualViewport.addEventListener("scroll", handleViewportChange);
+    }
+    window.addEventListener("resize", handleViewportChange);
+    
+    // Initial call
+    handleViewportChange();
+
+    // Reset layout scroll when input is blurred to avoid blank whitespace gap
+    const handleFocusOut = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        setTimeout(() => {
+          handleScrollReset();
+          handleViewportChange();
+        }, 120);
+      }
+    };
+
+    document.addEventListener("focusout", handleFocusOut);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleViewportChange);
+        window.visualViewport.removeEventListener("scroll", handleViewportChange);
+      }
+      window.removeEventListener("resize", handleViewportChange);
+      document.removeEventListener("focusout", handleFocusOut);
+      
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
+  }, [isMobileLayout]);
 
   const handleCopyCode = () => {
     const codeToCopy = NATIVE_FILES[selectedNativeFileIdx].code;
@@ -328,7 +410,18 @@ export default function TabsLayout() {
               The application itself occupies the simulated native screen elegantly, adjusting beautifully to different widths.
               Fits portrait format on desktop, and goes full screen on mobile devices!
             */}
-            <div className="w-full h-[100dvh] md:h-[780px] md:aspect-[9/19] md:max-w-[420px] bg-white shadow-2xl rounded-none md:rounded-[42px] border-0 md:border-8 border-slate-900 overflow-hidden relative flex flex-col fixed inset-0 md:relative z-40">
+            <div 
+              className="w-full h-[100dvh] md:h-[780px] md:aspect-[9/19] md:max-w-[420px] bg-white shadow-2xl rounded-none md:rounded-[42px] border-0 md:border-8 border-slate-900 overflow-hidden relative flex flex-col fixed inset-0 md:relative z-40"
+              style={
+                isMobileLayout 
+                  ? { 
+                      height: typeof viewportHeight === 'number' ? `${viewportHeight}px` : viewportHeight,
+                      top: `${offsetTop}px`,
+                      bottom: 'auto'
+                    } 
+                  : {}
+              }
+            >
               <AppNavigator />
             </div>
           </div>
