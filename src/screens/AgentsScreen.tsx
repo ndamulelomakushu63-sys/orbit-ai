@@ -8,12 +8,15 @@ export const AgentsScreen: React.FC = () => {
   const { 
     currentUser, 
     setUsers,
-    setMobileScreen 
+    setMobileScreen,
+    referrals
   } = useAppState();
 
   const [copiedCode, setCopiedCode] = useState(false);
 
   if (!currentUser) return null;
+
+  const userReferralsCount = referrals.filter(r => r.referrerId === currentUser.uid).length;
 
   const handleCopyCode = () => {
     if (currentUser.referralCode) {
@@ -133,7 +136,7 @@ export const AgentsScreen: React.FC = () => {
           <View className="flex flex-row justify-between items-center pt-8">
             <Text className="text-base text-black font-bold font-sans">Referrals</Text>
             <Text className="text-base text-black font-bold font-sans">
-              0/200
+              {userReferralsCount}/200
             </Text>
           </View>
 

@@ -3,7 +3,7 @@ import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from '../compon
 import { Compass, Mail, Lock, User, AlertCircle } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { UserPlan, UserProfile, ReferralRecord } from '../types';
-import { supabase, dbUpsertProfile } from '../services/supabase';
+import { supabase, dbUpsertProfile, dbUpsertReferral } from '../services/supabase';
 
 export const RegisterScreen: React.FC = () => {
   const { users, setUsers, referrals, setReferrals, setCurrentUser, setMobileScreen, invitedByCode } = useAppState();
@@ -95,6 +95,7 @@ export const RegisterScreen: React.FC = () => {
             timestamp: new Date().toISOString()
           };
           setReferrals(prev => [newRefLog, ...prev]);
+          await dbUpsertReferral(newRefLog);
 
           if (isStarterBonus) {
             const updatedReferrer = {
@@ -160,6 +161,7 @@ export const RegisterScreen: React.FC = () => {
             timestamp: new Date().toISOString()
           };
           setReferrals(prev => [newRefLog, ...prev]);
+          await dbUpsertReferral(newRefLog);
 
           if (isStarterBonus) {
             const updatedReferrer = {

@@ -1,2 +1,7 @@
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /orbit-ai-admin/
+
+Sitemap: https://orbitai.co.za/sitemap.xml
