@@ -252,6 +252,28 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
+// Helper function to generate PayFast MD5 signature according to PayFast official documentation specs
+function generatePayfastSignature(data: Record<string, any>, passphrase?: string): { pfParamString: string; signature: string } {
+  let pfOutput = "";
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key) && key !== "signature") {
+      const val = data[key];
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        pfOutput += `${key}=${encodeURIComponent(String(val).trim()).replace(/%20/g, "+")}&`;
+      }
+    }
+  }
+
+  let pfParamString = pfOutput.slice(0, -1);
+
+  if (passphrase && passphrase.trim() !== "" && passphrase !== "null" && passphrase !== "undefined") {
+    pfParamString += `&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, "+")}`;
+  }
+
+  const signature = crypto.createHash("md5").update(pfParamString).digest("hex");
+  return { pfParamString, signature };
+}
+
 // Real PayFast Payment Initiation Checkout Endpoint
 app.post("/api/payfast/checkout", async (req, res) => {
   try {
@@ -340,7 +362,7 @@ app.post("/api/payfast/checkout", async (req, res) => {
       data.custom_str2 = businessId;
     }
 
-    // 5. Log the exact payload being sent to PayFast (excluding Merchant Key) so we can inspect:
+    // Log the exact payload being sent to PayFast
     console.log("=== PAYFAST PAYLOAD LOG (server.ts) ===");
     console.log("email_address:", data.email_address);
     console.log("amount:", data.amount);
@@ -351,36 +373,23 @@ app.post("/api/payfast/checkout", async (req, res) => {
     console.log("notify_url:", data.notify_url);
     console.log("===========================");
 
-    // Construct parameter string for MD5 signature (no URL encoding, empty params excluded)
-    let pfParamString = "";
-    for (const key in data) {
-      if (data.hasOwnProperty(key) && data[key] !== undefined && data[key] !== null && data[key] !== "") {
-        pfParamString += `${key}=${String(data[key]).trim()}&`;
-      }
-    }
-    pfParamString = pfParamString.slice(0, -1);
+    // Generate MD5 signature using official PayFast URL-encoding rules
+    const { pfParamString, signature } = generatePayfastSignature(data, passphrase);
 
-    if (passphrase) {
-      pfParamString += `&passphrase=${passphrase.trim()}`;
-    }
+    console.log("[PayFast Checkout] Built pfParamString:", pfParamString.replace(merchantKey, "MASKED"));
+    console.log("[PayFast Checkout] Generated Signature:", signature);
 
-    console.log("[PayFast Checkout] Built pfParamString (excluding passphrase):", pfParamString.replace(merchantKey, "MASKED"));
-
-    // Generate MD5 signature using top-level imported crypto
-    const signature = crypto.createHash('md5').update(pfParamString).digest('hex');
-
-    // Build redirect URL with URL-encoded parameters (RFC 3986 style encoding)
+    // Build redirect URL with matching URL-encoded parameters (spaces as '+')
     const queryParts: string[] = [];
     for (const key in data) {
-      if (data[key] !== undefined && data[key] !== null) {
-        queryParts.push(`${key}=${encodeURIComponent(data[key])}`);
+      if (data.hasOwnProperty(key) && data[key] !== undefined && data[key] !== null && String(data[key]).trim() !== "") {
+        const val = String(data[key]).trim();
+        queryParts.push(`${key}=${encodeURIComponent(val).replace(/%20/g, "+")}`);
       }
     }
     queryParts.push(`signature=${signature}`);
     const queryString = queryParts.join("&");
 
-    // 2. Select between Sandbox and Live endpoints matching the environment
-    // If merchantId is the default sandbox merchant or sandbox is explicitly configured, use sandbox endpoint.
     const isSandbox = merchantId === "10000100" || process.env.PAYFAST_SANDBOX === "true";
     const checkoutBaseUrl = isSandbox 
       ? "https://sandbox.payfast.co.za/eng/process" 
@@ -393,7 +402,6 @@ app.post("/api/payfast/checkout", async (req, res) => {
 
     res.json({ checkoutUrl });
   } catch (error: any) {
-    // 3. Log the exact backend error details
     console.error("[PayFast Checkout Error] Exact server failure stack:", error);
     res.status(500).json({ 
       error: error.message || "Failed to initiate PayFast checkout session due to server error" 
@@ -409,25 +417,10 @@ app.post("/api/payfast/notify", async (req, res) => {
 
     const pfData = { ...req.body };
     const pfSignature = pfData.signature;
-    delete pfData.signature;
 
-    // 1. Signature Verification (regenerate signature without URL-encoding, skip blank/undefined keys)
-    let pfParamString = "";
-    // Note: fields should maintain the same sequence for verification as received/defined
-    for (const key in pfData) {
-      if (pfData.hasOwnProperty(key) && pfData[key] !== undefined && pfData[key] !== null && pfData[key] !== "") {
-        pfParamString += `${key}=${String(pfData[key]).trim()}&`;
-      }
-    }
-    pfParamString = pfParamString.slice(0, -1);
-
+    // 1. Signature Verification using PayFast official MD5 algorithm
     const passphrase = process.env.PAYFAST_PASSPHRASE;
-    if (passphrase) {
-      pfParamString += `&passphrase=${passphrase.trim()}`;
-    }
-
-    const crypto = await import("crypto");
-    const calculatedSignature = crypto.createHash('md5').update(pfParamString).digest('hex');
+    const { pfParamString, signature: calculatedSignature } = generatePayfastSignature(pfData, passphrase);
 
     if (calculatedSignature !== pfSignature) {
       console.error("[PayFast ITN] Signature Mismatch! Calculated:", calculatedSignature, "Received:", pfSignature);

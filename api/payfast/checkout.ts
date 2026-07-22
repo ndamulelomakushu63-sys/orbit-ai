@@ -1,5 +1,26 @@
 import crypto from "crypto";
 
+function generatePayfastSignature(data: Record<string, any>, passphrase?: string): { pfParamString: string; signature: string } {
+  let pfOutput = "";
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key) && key !== "signature") {
+      const val = data[key];
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        pfOutput += `${key}=${encodeURIComponent(String(val).trim()).replace(/%20/g, "+")}&`;
+      }
+    }
+  }
+
+  let pfParamString = pfOutput.slice(0, -1);
+
+  if (passphrase && passphrase.trim() !== "" && passphrase !== "null" && passphrase !== "undefined") {
+    pfParamString += `&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, "+")}`;
+  }
+
+  const signature = crypto.createHash("md5").update(pfParamString).digest("hex");
+  return { pfParamString, signature };
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
@@ -7,7 +28,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { userId, plan, email, name } = req.body || {};
+    const { userId, plan, email, name, businessId } = req.body || {};
     if (!userId || !plan) {
       console.error("[PayFast Checkout] Missing required fields:", { userId, plan });
       return res.status(400).json({ error: "userId and plan are required fields" });
@@ -37,7 +58,6 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Please verify your email before purchasing." });
     }
 
-    // 1. Log and verify Merchant ID and Merchant Key are being read correctly from Environment Variables
     const merchantId = process.env.PAYFAST_MERCHANT_ID || "10000100";
     const merchantKey = process.env.PAYFAST_MERCHANT_KEY || "46f0z5809up2u";
     const passphrase = process.env.PAYFAST_PASSPHRASE;
@@ -50,14 +70,23 @@ export default async function handler(req: any, res: any) {
     const protocol = req.headers["x-forwarded-proto"] || "https";
     const origin = process.env.APP_URL || `${protocol}://${host}`;
 
-    const returnUrl = `${origin}?payment_success=true`;
-    const cancelUrl = `${origin}?payment_cancelled=true`;
+    let returnUrl = `${origin}?payment_success=true`;
+    let cancelUrl = `${origin}?payment_cancelled=true`;
+    if (plan === "business-registration" && businessId) {
+      returnUrl += `&plan=business-registration&business_id=${businessId}`;
+      cancelUrl += `&plan=business-registration&business_id=${businessId}`;
+    }
     const notifyUrl = `${origin}/api/payfast/notify`;
 
-    const amount = plan === "Yearly" || plan === "Annually" ? "1188.00" : "99.99";
-    const itemName = plan === "Yearly" || plan === "Annually" 
-      ? "Orbit AI Pro Yearly" 
-      : "Orbit AI Pro Monthly";
+    let amount = "99.99";
+    let itemName = "Orbit AI Pro Monthly";
+    if (plan === "Yearly" || plan === "Annually") {
+      amount = "1188.00";
+      itemName = "Orbit AI Pro Yearly";
+    } else if (plan === "business-registration") {
+      amount = "159.00";
+      itemName = "Orbit AI Business Registration";
+    }
 
     // Split name into first and last
     const nameParts = (name || "Orbit AI User").split(" ");
@@ -79,7 +108,10 @@ export default async function handler(req: any, res: any) {
       custom_str1: plan
     };
 
-    // 5. Log the exact payload being sent to PayFast (excluding Merchant Key) so we can inspect:
+    if (plan === "business-registration" && businessId) {
+      data.custom_str2 = businessId;
+    }
+
     console.log("=== PAYFAST PAYLOAD LOG (checkout.ts) ===");
     console.log("email_address:", data.email_address);
     console.log("amount:", data.amount);
@@ -90,29 +122,16 @@ export default async function handler(req: any, res: any) {
     console.log("notify_url:", data.notify_url);
     console.log("===========================");
 
-    // Construct parameter string for MD5 signature (no URL encoding, empty params excluded)
-    let pfParamString = "";
-    for (const key in data) {
-      if (data.hasOwnProperty(key) && data[key] !== undefined && data[key] !== null && data[key] !== "") {
-        pfParamString += `${key}=${String(data[key]).trim()}&`;
-      }
-    }
-    pfParamString = pfParamString.slice(0, -1);
+    const { pfParamString, signature } = generatePayfastSignature(data, passphrase);
 
-    if (passphrase) {
-      pfParamString += `&passphrase=${passphrase.trim()}`;
-    }
+    console.log("[PayFast Checkout] Built pfParamString:", pfParamString.replace(merchantKey, "MASKED"));
+    console.log("[PayFast Checkout] Generated Signature:", signature);
 
-    console.log("[PayFast Checkout] Built pfParamString (excluding passphrase):", pfParamString.replace(merchantKey, "MASKED"));
-
-    // Generate MD5 signature
-    const signature = crypto.createHash("md5").update(pfParamString).digest("hex");
-
-    // Build redirect URL with URL-encoded parameters (RFC 3986 style encoding)
     const queryParts: string[] = [];
     for (const key in data) {
-      if (data[key] !== undefined && data[key] !== null) {
-        queryParts.push(`${key}=${encodeURIComponent(data[key])}`);
+      if (data.hasOwnProperty(key) && data[key] !== undefined && data[key] !== null && String(data[key]).trim() !== "") {
+        const val = String(data[key]).trim();
+        queryParts.push(`${key}=${encodeURIComponent(val).replace(/%20/g, "+")}`);
       }
     }
     queryParts.push(`signature=${signature}`);

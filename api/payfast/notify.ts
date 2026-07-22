@@ -1,6 +1,27 @@
 import crypto from "crypto";
 import { supabase } from "../../src/services/supabase.js";
 
+function generatePayfastSignature(data: Record<string, any>, passphrase?: string): { pfParamString: string; signature: string } {
+  let pfOutput = "";
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key) && key !== "signature") {
+      const val = data[key];
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        pfOutput += `${key}=${encodeURIComponent(String(val).trim()).replace(/%20/g, "+")}&`;
+      }
+    }
+  }
+
+  let pfParamString = pfOutput.slice(0, -1);
+
+  if (passphrase && passphrase.trim() !== "" && passphrase !== "null" && passphrase !== "undefined") {
+    pfParamString += `&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, "+")}`;
+  }
+
+  const signature = crypto.createHash("md5").update(pfParamString).digest("hex");
+  return { pfParamString, signature };
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
@@ -13,23 +34,10 @@ export default async function handler(req: any, res: any) {
 
     const pfData = { ...req.body };
     const pfSignature = pfData.signature;
-    delete pfData.signature;
 
-    // 1. Signature Verification (regenerate signature without URL-encoding, skip blank/undefined keys)
-    let pfParamString = "";
-    for (const key in pfData) {
-      if (pfData.hasOwnProperty(key) && pfData[key] !== undefined && pfData[key] !== null && pfData[key] !== "") {
-        pfParamString += `${key}=${String(pfData[key]).trim()}&`;
-      }
-    }
-    pfParamString = pfParamString.slice(0, -1);
-
+    // 1. Signature Verification using official PayFast MD5 algorithm
     const passphrase = process.env.PAYFAST_PASSPHRASE;
-    if (passphrase) {
-      pfParamString += `&passphrase=${passphrase.trim()}`;
-    }
-
-    const calculatedSignature = crypto.createHash("md5").update(pfParamString).digest("hex");
+    const { pfParamString, signature: calculatedSignature } = generatePayfastSignature(pfData, passphrase);
 
     if (calculatedSignature !== pfSignature) {
       console.error("[PayFast ITN] Signature Mismatch! Calculated:", calculatedSignature, "Received:", pfSignature);
