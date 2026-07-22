@@ -1,12 +1,59 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+:root {
+  --app-height: 100dvh;
+}
+
 @layer base {
-  body {
+  html, body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    height: var(--app-height, 100dvh);
+    overscroll-behavior-y: none;
   }
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Mobile viewport keyboard fix rules */
+@media (max-width: 767px) {
+  html, body {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    height: 100%;
+    height: var(--app-height, 100dvh);
+    touch-action: manipulation;
+  }
+
+  #root {
+    width: 100%;
+    height: 100%;
+    height: var(--app-height, 100dvh);
+    overflow: hidden;
+  }
+}
+
+@media (min-width: 768px) {
+  html, body {
+    position: static;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  #root {
+    position: static;
+    height: auto;
+    min-height: 100vh;
   }
 }
 

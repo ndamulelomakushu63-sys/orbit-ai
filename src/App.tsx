@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppStateProvider } from './services/state';
 import { AppNavigator } from './navigation/AppNavigator';
 import { AdminDashboardScreen } from './screens/AdminDashboardScreen';
@@ -22,6 +22,65 @@ function AppContent() {
   const [selectedNativeFileIdx, setSelectedNativeFileIdx] = useState<number>(0);
   const [copiedSuccess, setCopiedSuccess] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
+
+  useEffect(() => {
+    // Permanent fix for mobile keyboard viewport resize & whitespace bug on Android and iOS
+    const resetWindowScroll = () => {
+      if (window.scrollY !== 0 || document.body.scrollTop !== 0 || document.documentElement.scrollTop !== 0) {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+      }
+    };
+
+    const updateAppHeight = () => {
+      resetWindowScroll();
+      const vv = window.visualViewport;
+      const currentHeight = vv ? vv.height : window.innerHeight;
+      document.documentElement.style.setProperty('--app-height', `${currentHeight}px`);
+    };
+
+    const handleFocusOut = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        resetWindowScroll();
+        requestAnimationFrame(resetWindowScroll);
+        setTimeout(updateAppHeight, 50);
+        setTimeout(updateAppHeight, 150);
+        setTimeout(updateAppHeight, 300);
+      }
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        setTimeout(updateAppHeight, 100);
+      }
+    };
+
+    window.addEventListener('resize', updateAppHeight);
+    window.addEventListener('orientationchange', updateAppHeight);
+    window.addEventListener('focusout', handleFocusOut);
+    window.addEventListener('focusin', handleFocusIn);
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateAppHeight);
+      window.visualViewport.addEventListener('scroll', updateAppHeight);
+    }
+
+    updateAppHeight();
+
+    return () => {
+      window.removeEventListener('resize', updateAppHeight);
+      window.removeEventListener('orientationchange', updateAppHeight);
+      window.removeEventListener('focusout', handleFocusOut);
+      window.removeEventListener('focusin', handleFocusIn);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateAppHeight);
+        window.visualViewport.removeEventListener('scroll', updateAppHeight);
+      }
+    };
+  }, []);
 
   const handleCopyCode = () => {
     const codeToCopy = NATIVE_FILES[selectedNativeFileIdx].code;
@@ -328,7 +387,10 @@ export default function TabsLayout() {
               The application itself occupies the simulated native screen elegantly, adjusting beautifully to different widths.
               Fits portrait format on desktop, and goes full screen on mobile devices!
             */}
-            <div className="w-full h-[100dvh] md:h-[780px] md:aspect-[9/19] md:max-w-[420px] bg-white shadow-2xl rounded-none md:rounded-[42px] border-0 md:border-8 border-slate-900 overflow-hidden relative flex flex-col fixed inset-0 md:relative z-40">
+            <div 
+              className="w-full h-[100dvh] md:h-[780px] md:aspect-[9/19] md:max-w-[420px] bg-white shadow-2xl rounded-none md:rounded-[42px] border-0 md:border-8 border-slate-900 overflow-hidden relative flex flex-col fixed inset-0 md:relative z-40"
+              style={{ height: 'var(--app-height, 100dvh)' }}
+            >
               <AppNavigator />
             </div>
           </div>

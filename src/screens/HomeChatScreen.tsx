@@ -1263,7 +1263,7 @@ export const HomeChatScreen: React.FC = () => {
       )}
 
       {/* WHATSAPP WHITESPACE-OPTIMIZED INPUT BAR */}
-      <View className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex flex-row items-center gap-2 select-none">
+      <View className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex flex-row items-center gap-2 select-none shrink-0">
         
         {/* INPUT TIER CONTAINER */}
         <View className="flex-1 bg-white border border-slate-200/80 rounded-full px-3.5 py-1 flex flex-row items-center shadow-3xs">
