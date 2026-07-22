@@ -4,7 +4,7 @@ import { Sparkles, User, Send, RefreshCw, AlertCircle, Plus, Shield, Check, Imag
 import { FormattedMessage } from '../components/FormattedMessage';
 import { useAppState } from '../services/state';
 import { UserPlan, ChatMessage } from '../types';
-import { Reply, Trash2, X } from 'lucide-react';
+import { Reply, Trash2, X, Download, Share2 } from 'lucide-react';
 import { BottomNav } from '../components/BottomNav';
 
 interface MessageWithParsedAttachments {
@@ -78,6 +78,13 @@ export const HomeChatScreen: React.FC = () => {
   const [showRefund, setShowRefund] = useState(false);
   const [showCancellation, setShowCancellation] = useState(false);
   const [showContact, setShowContact] = useState(false);
+
+  // AI Image Generation states
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [generatingPromptText, setGeneratingPromptText] = useState("");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // States for Reply and Delete features
   const [selectedMessageForMenu, setSelectedMessageForMenu] = useState<ChatMessage | null>(null);
@@ -412,12 +419,146 @@ export const HomeChatScreen: React.FC = () => {
         return;
       }
 
-      const promptText = prompt("Enter prompt for AI Image generation (e.g., 'A modern Cape Town skyline at sunset'):");
-      if (!promptText || !promptText.trim()) return;
+      setImagePrompt("");
+      setShowImageModal(true);
+    }
+  };
 
-      alert(`AI Image generation simulated successfully: "${promptText}"`);
-      const fakeImageText = `[AI Generated Image: "${promptText}" - Resolution: 1024x1024]`;
-      setInputText(prev => prev + (prev ? " " : "") + fakeImageText);
+  const handleDownloadImage = async (url: string, fileName?: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName || `orbit-ai-image-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleShareImage = async (url: string, promptText: string) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Orbit AI Generated Image',
+          text: promptText ? `AI Image: "${promptText}"` : 'Check out this AI image from Orbit AI!',
+          url: url
+        });
+        return;
+      } catch (e) {
+        // Fallback to clipboard copy
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setToastMessage("Image link copied to clipboard!");
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (e) {
+      setToastMessage("Image link: " + url);
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
+
+  const handleRegenerateImage = (promptText: string) => {
+    const textToUse = promptText || "";
+    setImagePrompt(textToUse);
+    setShowImageModal(true);
+  };
+
+  const handleGenerateImageSubmit = async (customPrompt?: string) => {
+    const promptToUse = (customPrompt || imagePrompt).trim();
+    if (!promptToUse) return;
+
+    setShowImageModal(false);
+    setImagePrompt("");
+
+    const convId = activeConversationId;
+    const nowIso = new Date().toISOString();
+
+    // Add User Message to Chat
+    const userMsgId = `user-img-${Date.now()}`;
+    const userMsg: ChatMessage = {
+      id: userMsgId,
+      conversationId: convId,
+      message: `Create AI Image: "${promptToUse}"`,
+      role: "user",
+      timestamp: nowIso
+    };
+
+    setChatMessages(prev => [...prev, userMsg]);
+    setIsGeneratingImage(true);
+    setGeneratingPromptText(promptToUse);
+
+    try {
+      const seed = Math.floor(Math.random() * 1000000);
+      const encodedPrompt = encodeURIComponent(promptToUse);
+      const generatedUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}`;
+
+      // Preload image to ensure generation completion
+      await new Promise((resolve) => {
+        const img = new Image();
+        img.src = generatedUrl;
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        setTimeout(() => resolve(true), 8000);
+      });
+
+      const aiMsgId = `ai-img-${Date.now()}`;
+      const attachment = [{
+        id: `att-img-${Date.now()}`,
+        name: `Orbit_AI_${Date.now()}.png`,
+        type: 'image' as const,
+        url: generatedUrl,
+        prompt: promptToUse,
+        sizeStr: "1024x1024",
+        isAiGenerated: true
+      }];
+
+      const aiMsgText = serializeMessageAttachments(
+        `Here is your generated image for: "${promptToUse}"`,
+        attachment
+      );
+
+      const aiMsg: ChatMessage = {
+        id: aiMsgId,
+        conversationId: convId,
+        message: aiMsgText,
+        role: "model",
+        timestamp: new Date().toISOString()
+      };
+
+      setChatMessages(prev => [...prev, aiMsg]);
+
+      // Update conversation last message
+      setConversations(c => c.map(item => {
+        if (item.id === convId) {
+          return {
+            ...item,
+            lastMessage: `Generated AI Image for "${promptToUse}"`,
+            timestamp: new Date().toISOString()
+          };
+        }
+        return item;
+      }));
+    } catch (err) {
+      console.error("Image generation error:", err);
+      const errorMsgId = `ai-img-err-${Date.now()}`;
+      const errorMsg: ChatMessage = {
+        id: errorMsgId,
+        conversationId: convId,
+        message: "Image generation failed. Please try again.",
+        role: "model",
+        timestamp: new Date().toISOString()
+      };
+      setChatMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsGeneratingImage(false);
+      setGeneratingPromptText("");
     }
   };
 
@@ -730,19 +871,48 @@ export const HomeChatScreen: React.FC = () => {
                           <View className="flex flex-col gap-2 mb-2 w-full max-w-[280px]">
                             {msgAttachments.map((att: any) => {
                               if (att.type === 'image') {
+                                const isAiGenerated = msg.role === 'model' || att.isAiGenerated || att.prompt;
                                 return (
-                                  <TouchableOpacity
-                                    key={att.id}
-                                    onClick={() => setZoomImageUrl(att.url)}
-                                    className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-black/5 bg-slate-50 shadow-3xs cursor-pointer active:scale-[0.99] transition"
-                                  >
-                                    <img 
-                                      src={att.url} 
-                                      className="w-full h-full object-cover" 
-                                      alt={att.name} 
-                                      referrerPolicy="no-referrer"
-                                    />
-                                  </TouchableOpacity>
+                                  <View key={att.id} className="flex flex-col gap-2 w-full">
+                                    <TouchableOpacity
+                                      onClick={() => setZoomImageUrl(att.url)}
+                                      className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-black/5 bg-slate-50 shadow-3xs cursor-pointer active:scale-[0.99] transition"
+                                    >
+                                      <img 
+                                        src={att.url} 
+                                        className="w-full h-full object-cover" 
+                                        alt={att.name || "AI Generated Image"} 
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    </TouchableOpacity>
+
+                                    {/* Action buttons under AI generated image */}
+                                    {isAiGenerated && (
+                                      <View className="flex flex-row items-center gap-1.5 pt-1 border-t border-slate-200/60 w-full select-none">
+                                        <TouchableOpacity
+                                          onClick={() => handleDownloadImage(att.url, att.name)}
+                                          className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 transition cursor-pointer active:scale-95 shadow-3xs"
+                                        >
+                                          <Download className="w-3 h-3 text-slate-500 shrink-0" />
+                                          <span>Download</span>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                          onClick={() => handleShareImage(att.url, att.prompt || cleanText)}
+                                          className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 transition cursor-pointer active:scale-95 shadow-3xs"
+                                        >
+                                          <Share2 className="w-3 h-3 text-slate-500 shrink-0" />
+                                          <span>Share</span>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                          onClick={() => handleRegenerateImage(att.prompt || cleanText)}
+                                          className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl text-[10px] font-bold text-blue-600 transition cursor-pointer active:scale-95 shadow-3xs"
+                                        >
+                                          <RefreshCw className="w-3 h-3 text-blue-600 shrink-0" />
+                                          <span>Regenerate</span>
+                                        </TouchableOpacity>
+                                      </View>
+                                    )}
+                                  </View>
                                 );
                               } else {
                                 return (
@@ -797,6 +967,31 @@ export const HomeChatScreen: React.FC = () => {
               </View>
             );
           })
+        )}
+
+        {isGeneratingImage && (
+          <View className="flex flex-col items-start w-full my-2 animate-fade-in">
+            <View className="max-w-[85%] bg-slate-50 border border-slate-200/80 p-4 rounded-2xl rounded-tl-none shadow-3xs flex flex-col gap-3">
+              <View className="flex flex-row items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-blue-600 animate-spin" style={{ animationDuration: '3s' }} />
+                </div>
+                <View className="flex flex-col text-left">
+                  <Text className="text-xs font-bold text-slate-900 font-sans block">
+                    Generating your image...
+                  </Text>
+                  <Text className="text-[11px] text-slate-500 font-sans block mt-0.5">
+                    Please wait while Orbit AI creates your image.
+                  </Text>
+                </View>
+              </View>
+              
+              {/* Animated loading progress bar */}
+              <View className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden relative">
+                <div className="h-full bg-blue-600 rounded-full animate-pulse w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600" />
+              </View>
+            </View>
+          </View>
         )}
 
         {isAiTyping && (
@@ -1485,6 +1680,74 @@ export const HomeChatScreen: React.FC = () => {
           <div className="text-center pb-4">
             <Text className="text-white/50 text-[10px] font-mono">Pinch to zoom / double tap supported natively</Text>
           </div>
+        </div>
+      )}
+
+      {/* CREATE AI IMAGE MODAL */}
+      {showImageModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 select-none animate-fade-in">
+          <View className="bg-white rounded-3xl p-6 w-full max-w-md border border-slate-200/80 shadow-2xl flex flex-col space-y-4 text-left">
+            <View className="flex flex-row items-center justify-between border-b border-slate-100 pb-3">
+              <View className="flex flex-col text-left">
+                <Text className="text-xl font-black text-slate-900 tracking-tight block font-sans">
+                  Create AI Image
+                </Text>
+                <Text className="text-xs text-slate-500 font-sans block mt-0.5">
+                  Describe the image you want Orbit AI to generate.
+                </Text>
+              </View>
+              <TouchableOpacity 
+                onClick={() => setShowImageModal(false)}
+                className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </TouchableOpacity>
+            </View>
+
+            <View className="flex flex-col space-y-2">
+              <textarea 
+                className="w-full h-32 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none font-sans"
+                placeholder="Describe your image... e.g. A futuristic city at sunset with flying cars."
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleGenerateImageSubmit();
+                  }
+                }}
+                autoFocus
+              />
+            </View>
+
+            <View className="flex flex-row items-center justify-end gap-2 pt-2">
+              <TouchableOpacity 
+                onClick={() => setShowImageModal(false)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancel
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onClick={() => handleGenerateImageSubmit()}
+                disabled={!imagePrompt.trim()}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition flex flex-row items-center gap-1.5 ${
+                  imagePrompt.trim() 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-98 shadow-sm' 
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Generate Image</span>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </div>
+      )}
+
+      {/* TOAST NOTIFICATION */}
+      {toastMessage && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[10000] bg-slate-900 text-white text-xs font-semibold py-2 px-4 rounded-full shadow-lg animate-fade-in flex items-center gap-2 pointer-events-none">
+          <span>{toastMessage}</span>
         </div>
       )}
 
