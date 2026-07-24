@@ -53,7 +53,11 @@ export {
   Orbit,
   Paperclip,
   Mic,
-  Save
+  Save,
+  Users,
+  Play,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
 
 

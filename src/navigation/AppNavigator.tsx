@@ -19,6 +19,7 @@ import { SideHustleScreen } from '../screens/SideHustleScreen';
 import { BusinessBuilderScreen } from '../screens/BusinessBuilderScreen';
 import BusinessModeScreen from '../screens/BusinessModeScreen';
 import { TaskModeScreen } from '../screens/TaskModeScreen';
+import { OrbitRewardsScreen } from '../screens/OrbitRewardsScreen';
 import { PremiumLockScreen } from '../components/PremiumLockScreen';
 
 export const AppNavigator: React.FC = () => {
@@ -100,6 +101,8 @@ export const AppNavigator: React.FC = () => {
         return <BusinessBuilderScreen />;
       case "business-mode":
         return <BusinessModeScreen />;
+      case "orbit-rewards":
+        return <OrbitRewardsScreen />;
       default:
         return <SplashScreen />;
     }

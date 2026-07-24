@@ -700,3 +700,134 @@ export async function dbFetchUserRegistrations(email: string): Promise<any[] | n
   }
 }
 
+// --- 13. ORBIT REWARDS DB OPERATIONS ---
+export async function dbFetchRewardHistory(userId: string): Promise<any[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('reward_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false });
+    if (error) throw error;
+    if (!data) return [];
+    return data.map(item => ({
+      id: item.id,
+      userId: item.user_id,
+      adId: item.ad_id,
+      adTitle: item.ad_title,
+      rewardAmount: Number(item.reward_amount),
+      status: item.status,
+      timestamp: item.timestamp
+    }));
+  } catch (err) {
+    console.warn("Supabase reward history fetch failed:", err);
+    return null;
+  }
+}
+
+export async function dbInsertRewardHistoryItem(item: any): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('reward_history')
+      .insert({
+        id: item.id,
+        user_id: item.userId,
+        ad_id: item.adId,
+        ad_title: item.adTitle,
+        reward_amount: item.rewardAmount,
+        status: item.status || 'verified',
+        timestamp: item.timestamp || new Date().toISOString()
+      });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase reward history insert failed:", err);
+    return false;
+  }
+}
+
+export async function dbFetchRewardBalance(userId: string): Promise<any | null> {
+  try {
+    const { data, error } = await supabase
+      .from('reward_balances')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      userId: data.user_id,
+      totalEarnings: Number(data.total_earnings || 0),
+      monthlyEarnings: Number(data.monthly_earnings || 0),
+      todayAdCount: Number(data.today_ad_count || 0),
+      lastAdDate: data.last_ad_date || new Date().toISOString().split('T')[0],
+      updatedAt: data.updated_at
+    };
+  } catch (err) {
+    console.warn("Supabase reward balance fetch failed:", err);
+    return null;
+  }
+}
+
+export async function dbUpsertRewardBalance(balance: any): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('reward_balances')
+      .upsert({
+        user_id: balance.userId,
+        total_earnings: balance.totalEarnings,
+        monthly_earnings: balance.monthlyEarnings,
+        today_ad_count: balance.todayAdCount,
+        last_ad_date: balance.lastAdDate,
+        updated_at: new Date().toISOString()
+      });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase reward balance upsert failed:", err);
+    return false;
+  }
+}
+
+export async function dbFetchOrbitRewardRecord(userId: string): Promise<any | null> {
+  try {
+    const { data, error } = await supabase
+      .from('orbit_rewards')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      id: data.id,
+      userId: data.user_id,
+      unlocked: data.unlocked,
+      verifiedReferralsCount: data.verified_referrals_count,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
+  } catch (err) {
+    console.warn("Supabase orbit reward record fetch failed:", err);
+    return null;
+  }
+}
+
+export async function dbUpsertOrbitRewardRecord(rec: any): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('orbit_rewards')
+      .upsert({
+        id: rec.id,
+        user_id: rec.userId,
+        unlocked: rec.unlocked,
+        verified_referrals_count: rec.verifiedReferralsCount,
+        updated_at: new Date().toISOString()
+      });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase orbit reward record upsert failed:", err);
+    return false;
+  }
+}
+

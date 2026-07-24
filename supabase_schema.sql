@@ -708,5 +708,82 @@ CREATE INDEX IF NOT EXISTS idx_businesses_user_id ON public.businesses(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON public.support_tickets(user_id);
 
+-- ==========================================
+-- 14. ORBIT REWARDS TABLES
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS public.orbit_rewards (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    unlocked BOOLEAN DEFAULT FALSE,
+    verified_referrals_count INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.reward_history (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    ad_id TEXT NOT NULL,
+    ad_title TEXT NOT NULL,
+    reward_amount NUMERIC NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'verified',
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.reward_balances (
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+    total_earnings NUMERIC DEFAULT 0,
+    monthly_earnings NUMERIC DEFAULT 0,
+    today_ad_count INT DEFAULT 0,
+    last_ad_date DATE DEFAULT CURRENT_DATE,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.reward_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    max_daily_ads INT DEFAULT 20,
+    min_withdrawal NUMERIC DEFAULT 100,
+    policy_notice TEXT DEFAULT 'Your monthly earnings are calculated according to Orbit Rewards policies and available advertising revenue.',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.orbit_rewards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reward_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reward_balances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reward_settings ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.orbit_rewards TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.reward_history TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.reward_balances TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.reward_settings TO anon, authenticated, service_role;
+
+DROP POLICY IF EXISTS "Allow select orbit_rewards" ON public.orbit_rewards;
+CREATE POLICY "Allow select orbit_rewards" ON public.orbit_rewards FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow write orbit_rewards" ON public.orbit_rewards;
+CREATE POLICY "Allow write orbit_rewards" ON public.orbit_rewards FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow select reward_history" ON public.reward_history;
+CREATE POLICY "Allow select reward_history" ON public.reward_history FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow write reward_history" ON public.reward_history;
+CREATE POLICY "Allow write reward_history" ON public.reward_history FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow select reward_balances" ON public.reward_balances;
+CREATE POLICY "Allow select reward_balances" ON public.reward_balances FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow write reward_balances" ON public.reward_balances;
+CREATE POLICY "Allow write reward_balances" ON public.reward_balances FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow select reward_settings" ON public.reward_settings;
+CREATE POLICY "Allow select reward_settings" ON public.reward_settings FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow write reward_settings" ON public.reward_settings;
+CREATE POLICY "Allow write reward_settings" ON public.reward_settings FOR ALL USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_orbit_rewards_user_id ON public.orbit_rewards(user_id);
+CREATE INDEX IF NOT EXISTS idx_reward_history_user_id ON public.reward_history(user_id);
+
 -- Grants summary confirmation
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;

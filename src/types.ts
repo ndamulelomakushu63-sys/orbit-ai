@@ -182,5 +182,41 @@ export interface Business {
   popularity?: number;
 }
 
+export interface OrbitRewardRecord {
+  id: string;
+  userId: string;
+  unlocked: boolean;
+  verifiedReferralsCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrbitRewardHistoryItem {
+  id: string;
+  userId: string;
+  adId: string;
+  adTitle: string;
+  rewardAmount: number;
+  status: 'verified' | 'pending';
+  timestamp: string;
+}
+
+export interface OrbitRewardBalance {
+  userId: string;
+  totalEarnings: number;
+  monthlyEarnings: number;
+  todayAdCount: number;
+  lastAdDate: string;
+  updatedAt: string;
+}
+
+export interface OrbitRewardSettings {
+  id: string;
+  maxDailyAds: number;
+  minWithdrawal: number;
+  policyNotice: string;
+  updatedAt: string;
+}
+
 
 
