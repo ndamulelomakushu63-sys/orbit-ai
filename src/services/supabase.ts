@@ -796,15 +796,48 @@ export async function dbFetchOrbitRewardRecord(userId: string): Promise<any | nu
       .select('*')
       .eq('user_id', userId)
       .single();
-    if (error) throw error;
-    if (!data) return null;
+      
+    if (error && error.code !== 'PGRST116') {
+      console.warn("Supabase orbit reward record fetch error:", error);
+    }
+    
+    if (data) {
+      return {
+        id: data.id,
+        userId: data.user_id,
+        unlocked: Boolean(data.unlocked),
+        verifiedReferralsCount: Number(data.verified_referrals_count || 0),
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      };
+    }
+
+    // If no record exists yet, check referrals table directly in Supabase
+    const { count, error: countErr } = await supabase
+      .from('referrals')
+      .select('id', { count: 'exact', head: true })
+      .eq('referrer_id', userId);
+
+    const referralCount = (countErr || count === null) ? 0 : count;
+    const isUnlocked = referralCount >= 4;
+    const recId = `orb-rew-${userId}`;
+
+    // Upsert initial orbit_rewards record
+    await supabase.from('orbit_rewards').upsert({
+      id: recId,
+      user_id: userId,
+      unlocked: isUnlocked,
+      verified_referrals_count: referralCount,
+      updated_at: new Date().toISOString()
+    });
+
     return {
-      id: data.id,
-      userId: data.user_id,
-      unlocked: data.unlocked,
-      verifiedReferralsCount: data.verified_referrals_count,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at
+      id: recId,
+      userId,
+      unlocked: isUnlocked,
+      verifiedReferralsCount: referralCount,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
   } catch (err) {
     console.warn("Supabase orbit reward record fetch failed:", err);
@@ -830,4 +863,119 @@ export async function dbUpsertOrbitRewardRecord(rec: any): Promise<boolean> {
     return false;
   }
 }
+
+export async function dbFetchRewardSettings(): Promise<{ maxDailyAds: number; minWithdrawal: number; policyNotice: string } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('reward_settings')
+      .select('*')
+      .eq('id', 'default')
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.warn("Supabase reward settings fetch error:", error);
+    }
+
+    if (data) {
+      return {
+        maxDailyAds: Number(data.max_daily_ads || 20),
+        minWithdrawal: Number(data.min_withdrawal || 100),
+        policyNotice: data.policy_notice || ''
+      };
+    }
+
+    return {
+      maxDailyAds: 20,
+      minWithdrawal: 100,
+      policyNotice: 'Maximum 20 rewarded ads per day per verified user.'
+    };
+  } catch (err) {
+    console.warn("Supabase reward settings fetch failed:", err);
+    return {
+      maxDailyAds: 20,
+      minWithdrawal: 100,
+      policyNotice: ''
+    };
+  }
+}
+
+export async function dbStartAdSession(userId: string, adId: string): Promise<string | null> {
+  try {
+    const sessionId = `ad-sess-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const { error } = await supabase
+      .from('ad_watch_sessions')
+      .insert({
+        id: sessionId,
+        user_id: userId,
+        ad_id: adId,
+        started_at: new Date().toISOString(),
+        status: 'in_progress',
+        reward_claimed: false
+      });
+
+    if (error) throw error;
+    return sessionId;
+  } catch (err) {
+    console.warn("Supabase start ad session failed:", err);
+    return null;
+  }
+}
+
+export async function dbCompleteAdSession(sessionId: string, verificationHash: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('ad_watch_sessions')
+      .update({
+        completed_at: new Date().toISOString(),
+        status: 'completed',
+        verification_hash: verificationHash
+      })
+      .eq('id', sessionId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase complete ad session failed:", err);
+    return false;
+  }
+}
+
+export async function dbClaimAdSession(sessionId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('ad_watch_sessions')
+      .update({
+        reward_claimed: true
+      })
+      .eq('id', sessionId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase claim ad session failed:", err);
+    return false;
+  }
+}
+
+export async function dbInsertAuditLog(userId: string, actionType: string, details?: any): Promise<boolean> {
+  try {
+    const logId = `audit-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const { error } = await supabase
+      .from('reward_audit_logs')
+      .insert({
+        id: logId,
+        user_id: userId,
+        action_type: actionType,
+        details: details || {},
+        created_at: new Date().toISOString()
+      });
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase audit log insert failed:", err);
+    return false;
+  }
+}
+
 

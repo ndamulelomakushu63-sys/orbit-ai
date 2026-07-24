@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
 import { ArrowLeft, AlertCircle, Building, User, Lock, Send, CheckCircle } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { WithdrawalRecord, WithdrawalStatus } from '../types';
-import { supabase } from '../services/supabase';
-
-// Configurable minimum withdrawal amount constant
-const MIN_WITHDRAWAL_AMOUNT = 50;
+import { 
+  supabase, 
+  dbFetchRewardBalance, 
+  dbUpsertRewardBalance, 
+  dbFetchRewardSettings,
+  dbInsertAuditLog,
+  dbUpsertWithdrawal
+} from '../services/supabase';
 
 export const WithdrawScreen: React.FC = () => {
   const { currentUser, setUsers, withdrawals, setWithdrawals, setMobileScreen } = useAppState();
@@ -21,6 +25,43 @@ export const WithdrawScreen: React.FC = () => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [dbAvailableBalance, setDbAvailableBalance] = useState<number | null>(null);
+  const [minWithdrawalAmount, setMinWithdrawalAmount] = useState<number>(50);
+
+  // Load latest balance from reward_balances table in Supabase
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let isMounted = true;
+    const fetchFreshBalance = async () => {
+      try {
+        const settings = await dbFetchRewardSettings();
+        if (settings && isMounted) {
+          setMinWithdrawalAmount(settings.minWithdrawal || 50);
+        }
+
+        const balRecord = await dbFetchRewardBalance(currentUser.uid);
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('balance')
+          .eq('id', currentUser.uid)
+          .single();
+
+        if (isMounted) {
+          const profileBal = Number(profile?.balance || 0);
+          const rewardBal = Number(balRecord?.totalEarnings || profileBal);
+          const maxBal = Math.max(profileBal, rewardBal);
+          setDbAvailableBalance(maxBal);
+        }
+      } catch (err) {
+        console.warn("Failed to load reward balance for withdrawal:", err);
+      }
+    };
+
+    fetchFreshBalance();
+  }, [currentUser?.uid]);
+
+  const activeBalance = dbAvailableBalance !== null ? dbAvailableBalance : (currentUser?.balance || 0);
 
   const handleWithdraw = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -41,14 +82,14 @@ export const WithdrawScreen: React.FC = () => {
     }
 
     const value = parseFloat(amount);
-    if (isNaN(value) || value < MIN_WITHDRAWAL_AMOUNT) {
-      setError(`Please submit a valid cash payout amount starting from R${MIN_WITHDRAWAL_AMOUNT}.00`);
+    if (isNaN(value) || value < minWithdrawalAmount) {
+      setError(`Please submit a valid cash payout amount starting from R${minWithdrawalAmount}.00`);
       setSuccessMessage("");
       return;
     }
 
-    if (value > (currentUser.balance || 0)) {
-      setError(`Requested amount exceeds your current available earnings balance of R${currentUser.balance?.toFixed(2)}.`);
+    if (value > activeBalance) {
+      setError(`Requested amount exceeds your current available earnings balance of R${activeBalance.toFixed(2)}.`);
       setSuccessMessage("");
       return;
     }
@@ -58,7 +99,8 @@ export const WithdrawScreen: React.FC = () => {
     setLoading(true);
 
     try {
-      // Fetch the latest user profile balance directly from Supabase to prevent race conditions or stale local balance bypasses
+      // 1. Fetch the latest user reward_balance & profile balance directly from Supabase
+      const balRecord = await dbFetchRewardBalance(currentUser.uid);
       const { data: profile, error: profileFetchErr } = await supabase
         .from('profiles')
         .select('balance')
@@ -69,17 +111,18 @@ export const WithdrawScreen: React.FC = () => {
         throw new Error(`Failed to verify latest wallet balance from database: ${profileFetchErr.message}`);
       }
 
-      const latestSupabaseBalance = Number(profile?.balance || 0);
+      const latestProfileBal = Number(profile?.balance || 0);
+      const latestRewardBal = Number(balRecord?.totalEarnings || latestProfileBal);
+      const verifiedAvailableBal = Math.max(latestProfileBal, latestRewardBal);
 
-      if (value > latestSupabaseBalance) {
-        setError(`Requested amount exceeds your actual available balance of R${latestSupabaseBalance.toFixed(2)}.`);
+      if (value > verifiedAvailableBal) {
+        setError(`Requested amount exceeds your actual available balance of R${verifiedAvailableBal.toFixed(2)}.`);
         setSuccessMessage("");
         setLoading(false);
         return;
       }
 
-      // B: Prevent duplicate withdrawal requests
-      // Check if user already has an active pending or approved withdrawal request in Supabase
+      // 2. Prevent duplicate withdrawal requests in withdrawal_requests
       const { data: existing, error: checkErr } = await supabase
         .from('withdrawal_requests')
         .select('status')
@@ -95,55 +138,10 @@ export const WithdrawScreen: React.FC = () => {
         return;
       }
 
-      // Save new row into the withdrawal_requests table in Supabase
-      const { data: insertData, error: dbErr } = await supabase
-        .from('withdrawal_requests')
-        .insert({
-          user_id: currentUser.uid,
-          full_name: fullName,
-          email: currentUser.email,
-          amount: value,
-          bank_name: bankName,
-          account_holder: accountHolder,
-          account_number: accountNumber,
-          branch_code: branchCode,
-          account_type: accountType,
-          status: "Pending"
-        })
-        .select();
-
-      if (dbErr) {
-        throw dbErr;
-      }
-
-      // A: Update user's balance inside the profiles table in Supabase
-      const nextBal = latestSupabaseBalance - value;
-      const safeNextBal = nextBal < 0 ? 0 : nextBal;
-
-      const { error: profileErr } = await supabase
-        .from('profiles')
-        .update({ balance: safeNextBal })
-        .eq('id', currentUser.uid);
-
-      if (profileErr) {
-        throw profileErr;
-      }
-
-      // 1. Subtract balance from current user locally
-      setUsers(prev => prev.map(u => {
-        if (u.uid === currentUser.uid) {
-          return {
-            ...u,
-            balance: safeNextBal
-          };
-        }
-        return u;
-      }));
-
-      // 2. Add a record locally so transaction history still shows up in UI
-      const generatedId = (insertData && insertData[0]?.id) || ("with-" + Date.now());
-      const record: WithdrawalRecord = {
-        id: generatedId,
+      // 3. Save new row into withdrawal_requests table in Supabase
+      const reqId = `with-${Date.now()}`;
+      const newRecord: WithdrawalRecord = {
+        id: reqId,
         userId: currentUser.uid,
         userName: currentUser.name,
         userEmail: currentUser.email,
@@ -157,7 +155,37 @@ export const WithdrawScreen: React.FC = () => {
         branchCode,
         accountType
       };
-      setWithdrawals(prev => [record, ...prev]);
+
+      await dbUpsertWithdrawal(newRecord);
+
+      // 4. Update user's balance inside profiles & reward_balances in Supabase
+      const nextBal = verifiedAvailableBal - value;
+      const safeNextBal = nextBal < 0 ? 0 : nextBal;
+
+      await supabase
+        .from('profiles')
+        .update({ balance: safeNextBal })
+        .eq('id', currentUser.uid);
+
+      await dbUpsertRewardBalance({
+        userId: currentUser.uid,
+        totalEarnings: safeNextBal,
+        monthlyEarnings: Number(balRecord?.monthlyEarnings || 0),
+        todayAdCount: Number(balRecord?.todayAdCount || 0),
+        lastAdDate: new Date().toISOString().split('T')[0]
+      });
+
+      // 5. Audit log
+      await dbInsertAuditLog(currentUser.uid, 'WITHDRAWAL_REQUESTED', {
+        amount: value,
+        bankName,
+        requestId: reqId
+      });
+
+      // 6. Update local state
+      setDbAvailableBalance(safeNextBal);
+      setUsers(prev => prev.map(u => u.uid === currentUser.uid ? { ...u, balance: safeNextBal } : u));
+      setWithdrawals(prev => [newRecord, ...prev]);
 
       setSuccessMessage("Withdrawal request submitted successfully.");
       alert("Withdrawal request submitted successfully.");

@@ -13,20 +13,32 @@ import {
   dbFetchRewardHistory, 
   dbInsertRewardHistoryItem,
   dbUpsertWithdrawal,
-  dbUpsertOrbitRewardRecord
+  dbFetchOrbitRewardRecord,
+  dbUpsertOrbitRewardRecord,
+  dbFetchRewardSettings,
+  dbStartAdSession,
+  dbCompleteAdSession,
+  dbClaimAdSession,
+  dbInsertAuditLog
 } from '../services/supabase';
 import { getRewardedAdsService, RewardedAd, AdWatchResult } from '../services/rewardedAds';
-
-const MIN_WITHDRAWAL_AMOUNT = 100;
-const MAX_DAILY_ADS = 20;
 
 export const OrbitRewardsScreen: React.FC = () => {
   const { currentUser, setUsers, referrals, withdrawals, setWithdrawals, setMobileScreen } = useAppState();
 
-  // Read referral progress directly from existing Agent Referral database (no duplicate links)
+  // Read referral progress directly from state / database
   const myReferrals = currentUser ? referrals.filter(r => r.referrerId === currentUser.uid) : [];
-  const verifiedReferralsCount = myReferrals.length;
-  const isUnlocked = verifiedReferralsCount >= 4;
+
+  // Orbit Rewards database state
+  const [dbUnlocked, setDbUnlocked] = useState<boolean>(false);
+  const [dbVerifiedReferralsCount, setDbVerifiedReferralsCount] = useState<number>(0);
+  const [maxDailyAds, setMaxDailyAds] = useState<number>(20);
+  const [minWithdrawal, setMinWithdrawal] = useState<number>(100);
+  const [policyNotice, setPolicyNotice] = useState<string>("");
+
+  // Determine unlock status directly from database record or referral threshold (>=4)
+  const verifiedReferralsCount = Math.max(myReferrals.length, dbVerifiedReferralsCount);
+  const isUnlocked = dbUnlocked || verifiedReferralsCount >= 4;
 
   // Rewards metrics state
   const [todayAdCount, setTodayAdCount] = useState<number>(0);
@@ -37,6 +49,7 @@ export const OrbitRewardsScreen: React.FC = () => {
 
   // Ad playback modal state
   const [activeAdModal, setActiveAdModal] = useState<RewardedAd | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [adCountdown, setAdCountdown] = useState<number>(0);
   const [adTotalDuration, setAdTotalDuration] = useState<number>(0);
   const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
@@ -58,7 +71,7 @@ export const OrbitRewardsScreen: React.FC = () => {
   const [withdrawSuccess, setWithdrawSuccess] = useState<string>("");
   const [withdrawLoading, setWithdrawLoading] = useState<boolean>(false);
 
-  // Load Reward history & balances from Supabase
+  // Load Reward history, settings & balances from Supabase
   useEffect(() => {
     if (!currentUser) return;
 
@@ -69,7 +82,22 @@ export const OrbitRewardsScreen: React.FC = () => {
       try {
         const todayStr = new Date().toISOString().split('T')[0];
 
-        // 1. Fetch balance record
+        // 1. Fetch settings from reward_settings table
+        const settings = await dbFetchRewardSettings();
+        if (settings && isMounted) {
+          setMaxDailyAds(settings.maxDailyAds || 20);
+          setMinWithdrawal(settings.minWithdrawal || 100);
+          if (settings.policyNotice) setPolicyNotice(settings.policyNotice);
+        }
+
+        // 2. Fetch Orbit Rewards record from orbit_rewards table in Supabase
+        const orbitRecord = await dbFetchOrbitRewardRecord(currentUser.uid);
+        if (orbitRecord && isMounted) {
+          setDbUnlocked(orbitRecord.unlocked);
+          setDbVerifiedReferralsCount(orbitRecord.verifiedReferralsCount);
+        }
+
+        // 3. Fetch balance record from reward_balances table in Supabase
         const balRecord = await dbFetchRewardBalance(currentUser.uid);
         if (balRecord && isMounted) {
           if (balRecord.lastAdDate !== todayStr) {
@@ -83,7 +111,7 @@ export const OrbitRewardsScreen: React.FC = () => {
           setLifetimeEarnings(currentUser.balance || 0);
         }
 
-        // 2. Fetch history
+        // 4. Fetch history from reward_history table in Supabase
         const historyData = await dbFetchRewardHistory(currentUser.uid);
         if (historyData && isMounted) {
           setRewardHistory(historyData);
@@ -99,16 +127,14 @@ export const OrbitRewardsScreen: React.FC = () => {
           setMonthlyEarnings(monthSum);
         }
 
-        // 3. Upsert record for orbit_rewards status table
-        await dbUpsertOrbitRewardRecord({
-          id: `orb-rew-${currentUser.uid}`,
-          userId: currentUser.uid,
-          unlocked: verifiedReferralsCount >= 4,
+        // 5. Audit event: screen viewed
+        await dbInsertAuditLog(currentUser.uid, 'ORBIT_REWARDS_VIEWED', {
+          unlocked: orbitRecord?.unlocked || verifiedReferralsCount >= 4,
           verifiedReferralsCount
         });
 
       } catch (err) {
-        console.warn("Error loading reward metrics:", err);
+        console.warn("Error loading reward metrics from Supabase:", err);
       } finally {
         if (isMounted) setLoadingMetrics(false);
       }
@@ -119,14 +145,27 @@ export const OrbitRewardsScreen: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.uid, verifiedReferralsCount]);
+  }, [currentUser?.uid, myReferrals.length]);
 
   // Start watching advert
-  const handleWatchAdClick = (ad: RewardedAd) => {
-    if (todayAdCount >= MAX_DAILY_ADS) {
-      alert(`Daily limit reached (${MAX_DAILY_ADS}/${MAX_DAILY_ADS}). Please return tomorrow to watch more rewarded ads.`);
+  const handleWatchAdClick = async (ad: RewardedAd) => {
+    if (!currentUser) return;
+
+    if (todayAdCount >= maxDailyAds) {
+      alert(`Daily limit reached (${maxDailyAds}/${maxDailyAds}). Please return tomorrow to watch more rewarded ads.`);
       return;
     }
+
+    // Start ad watch session in ad_watch_sessions table
+    const sessionId = await dbStartAdSession(currentUser.uid, ad.id);
+    setActiveSessionId(sessionId);
+
+    // Audit log
+    await dbInsertAuditLog(currentUser.uid, 'AD_WATCH_STARTED', {
+      adId: ad.id,
+      adTitle: ad.title,
+      sessionId
+    });
 
     setActiveAdModal(ad);
     setAdError("");
@@ -142,13 +181,29 @@ export const OrbitRewardsScreen: React.FC = () => {
         setAdCountdown(remaining);
         setAdTotalDuration(total);
       },
-      (result: AdWatchResult) => {
+      async (result: AdWatchResult) => {
         setAdCompleted(true);
         setIsAdPlaying(false);
+
+        // Mark session as completed in ad_watch_sessions table
+        if (sessionId) {
+          const hash = `ver-hash-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+          await dbCompleteAdSession(sessionId, hash);
+          await dbInsertAuditLog(currentUser.uid, 'AD_WATCH_COMPLETED', {
+            adId: ad.id,
+            sessionId,
+            hash
+          });
+        }
       },
-      (errorMsg: string) => {
+      async (errorMsg: string) => {
         setAdError(errorMsg);
         setIsAdPlaying(false);
+        await dbInsertAuditLog(currentUser.uid, 'AD_WATCH_CANCELLED', {
+          adId: ad.id,
+          sessionId,
+          errorMsg
+        });
       }
     );
 
@@ -179,7 +234,12 @@ export const OrbitRewardsScreen: React.FC = () => {
         timestamp: new Date().toISOString()
       };
 
-      // 2. Local state update
+      // 2. Mark reward claimed in ad_watch_sessions table
+      if (activeSessionId) {
+        await dbClaimAdSession(activeSessionId);
+      }
+
+      // 3. Local state update
       setTodayAdCount(newTodayCount);
       setMonthlyEarnings(newMonthly);
       setLifetimeEarnings(newLifetime);
@@ -187,7 +247,7 @@ export const OrbitRewardsScreen: React.FC = () => {
 
       setUsers(prev => prev.map(u => u.uid === currentUser.uid ? { ...u, balance: newBalance } : u));
 
-      // 3. Supabase update
+      // 4. Supabase database update
       await dbInsertRewardHistoryItem(historyItem);
       await dbUpsertRewardBalance({
         userId: currentUser.uid,
@@ -202,8 +262,16 @@ export const OrbitRewardsScreen: React.FC = () => {
         .update({ balance: newBalance })
         .eq('id', currentUser.uid);
 
+      // 5. Audit log
+      await dbInsertAuditLog(currentUser.uid, 'AD_REWARD_CLAIMED', {
+        adId: activeAdModal.id,
+        rewardAmount: rewardVal,
+        sessionId: activeSessionId
+      });
+
       // Close modal
       setActiveAdModal(null);
+      setActiveSessionId(null);
       setAdCompleted(false);
       alert(`Success! You earned R${rewardVal.toFixed(2)} from ${activeAdModal.title}.`);
     } catch (err: any) {
@@ -222,6 +290,7 @@ export const OrbitRewardsScreen: React.FC = () => {
       cancelAdFn();
     }
     setActiveAdModal(null);
+    setActiveSessionId(null);
     setIsAdPlaying(false);
     setAdCompleted(false);
     setAdError("");
@@ -245,14 +314,8 @@ export const OrbitRewardsScreen: React.FC = () => {
     }
 
     const value = parseFloat(withdrawAmount);
-    if (isNaN(value) || value < MIN_WITHDRAWAL_AMOUNT) {
-      setWithdrawError(`Minimum withdrawal amount is R${MIN_WITHDRAWAL_AMOUNT}.00`);
-      setWithdrawSuccess("");
-      return;
-    }
-
-    if (value > (currentUser.balance || 0)) {
-      setWithdrawError(`Requested amount exceeds your available balance of R${(currentUser.balance || 0).toFixed(2)}.`);
+    if (isNaN(value) || value < minWithdrawal) {
+      setWithdrawError(`Minimum withdrawal amount is R${minWithdrawal}.00`);
       setWithdrawSuccess("");
       return;
     }
@@ -262,7 +325,8 @@ export const OrbitRewardsScreen: React.FC = () => {
     setWithdrawLoading(true);
 
     try {
-      // 1. Verify fresh balance from Supabase
+      // 1. Verify fresh balance from reward_balances and profiles in Supabase
+      const balRecord = await dbFetchRewardBalance(currentUser.uid);
       const { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('balance')
@@ -273,14 +337,17 @@ export const OrbitRewardsScreen: React.FC = () => {
         throw new Error(`Failed to verify wallet balance: ${profileErr.message}`);
       }
 
-      const freshBalance = Number(profile?.balance || 0);
-      if (value > freshBalance) {
-        setWithdrawError(`Requested amount exceeds your wallet balance of R${freshBalance.toFixed(2)}.`);
+      const freshProfileBal = Number(profile?.balance || 0);
+      const freshRewardBal = Number(balRecord?.totalEarnings || freshProfileBal);
+      const availableBal = Math.max(freshProfileBal, freshRewardBal);
+
+      if (value > availableBal) {
+        setWithdrawError(`Requested amount exceeds your available balance of R${availableBal.toFixed(2)}.`);
         setWithdrawLoading(false);
         return;
       }
 
-      // 2. Check for duplicate pending requests
+      // 2. Check for duplicate pending requests in withdrawal_requests
       const { data: existingPending } = await supabase
         .from('withdrawal_requests')
         .select('id, status')
@@ -316,14 +383,29 @@ export const OrbitRewardsScreen: React.FC = () => {
       // 4. Upsert withdrawal request to Supabase
       await dbUpsertWithdrawal(newRecord);
 
-      // 5. Update profile balance in Supabase
-      const nextBalance = Math.max(0, freshBalance - value);
+      // 5. Update profile and reward balance in Supabase
+      const nextBalance = Math.max(0, availableBal - value);
       await supabase
         .from('profiles')
         .update({ balance: nextBalance })
         .eq('id', currentUser.uid);
 
-      // 6. Update local state
+      await dbUpsertRewardBalance({
+        userId: currentUser.uid,
+        totalEarnings: nextBalance,
+        monthlyEarnings: monthlyEarnings,
+        todayAdCount: todayAdCount,
+        lastAdDate: new Date().toISOString().split('T')[0]
+      });
+
+      // 6. Log audit event
+      await dbInsertAuditLog(currentUser.uid, 'WITHDRAWAL_REQUESTED', {
+        amount: value,
+        bankName: withdrawBankName,
+        requestId: reqId
+      });
+
+      // 7. Update local state
       setWithdrawals(prev => [newRecord, ...prev]);
       setUsers(prev => prev.map(u => u.uid === currentUser.uid ? { ...u, balance: nextBalance } : u));
 

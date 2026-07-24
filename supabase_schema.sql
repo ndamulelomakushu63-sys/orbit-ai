@@ -709,9 +709,10 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(use
 CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON public.support_tickets(user_id);
 
 -- ==========================================
--- 14. ORBIT REWARDS TABLES
+-- 14. ORBIT REWARDS TABLES, FUNCTIONS & TRIGGERS
 -- ==========================================
 
+-- 1. Orbit Rewards Unlock & Eligibility Status
 CREATE TABLE IF NOT EXISTS public.orbit_rewards (
     id TEXT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -721,25 +722,78 @@ CREATE TABLE IF NOT EXISTS public.orbit_rewards (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.orbit_rewards ADD COLUMN IF NOT EXISTS unlocked BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.orbit_rewards ADD COLUMN IF NOT EXISTS verified_referrals_count INT DEFAULT 0;
+ALTER TABLE public.orbit_rewards ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- 2. Reward Balances & Daily Counters
+CREATE TABLE IF NOT EXISTS public.reward_balances (
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+    total_earnings NUMERIC DEFAULT 0,
+    monthly_earnings NUMERIC DEFAULT 0,
+    pending_earnings NUMERIC DEFAULT 0,
+    approved_earnings NUMERIC DEFAULT 0,
+    today_ad_count INT DEFAULT 0,
+    lifetime_ads_watched INT DEFAULT 0,
+    last_ad_date DATE DEFAULT CURRENT_DATE,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.reward_balances ADD COLUMN IF NOT EXISTS total_earnings NUMERIC DEFAULT 0;
+ALTER TABLE public.reward_balances ADD COLUMN IF NOT EXISTS monthly_earnings NUMERIC DEFAULT 0;
+ALTER TABLE public.reward_balances ADD COLUMN IF NOT EXISTS pending_earnings NUMERIC DEFAULT 0;
+ALTER TABLE public.reward_balances ADD COLUMN IF NOT EXISTS approved_earnings NUMERIC DEFAULT 0;
+ALTER TABLE public.reward_balances ADD COLUMN IF NOT EXISTS today_ad_count INT DEFAULT 0;
+ALTER TABLE public.reward_balances ADD COLUMN IF NOT EXISTS lifetime_ads_watched INT DEFAULT 0;
+ALTER TABLE public.reward_balances ADD COLUMN IF NOT EXISTS last_ad_date DATE DEFAULT CURRENT_DATE;
+ALTER TABLE public.reward_balances ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- 3. Reward History & Verified Log Entries
 CREATE TABLE IF NOT EXISTS public.reward_history (
     id TEXT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
     ad_id TEXT NOT NULL,
     ad_title TEXT NOT NULL,
+    category TEXT,
+    duration_seconds INT DEFAULT 0,
     reward_amount NUMERIC NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'verified',
+    ip_address TEXT,
+    device_info TEXT,
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS public.reward_balances (
-    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
-    total_earnings NUMERIC DEFAULT 0,
-    monthly_earnings NUMERIC DEFAULT 0,
-    today_ad_count INT DEFAULT 0,
-    last_ad_date DATE DEFAULT CURRENT_DATE,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+ALTER TABLE public.reward_history ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE public.reward_history ADD COLUMN IF NOT EXISTS duration_seconds INT DEFAULT 0;
+ALTER TABLE public.reward_history ADD COLUMN IF NOT EXISTS reward_amount NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE public.reward_history ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'verified';
+ALTER TABLE public.reward_history ADD COLUMN IF NOT EXISTS ip_address TEXT;
+ALTER TABLE public.reward_history ADD COLUMN IF NOT EXISTS device_info TEXT;
+
+-- 4. Ad Watch Sessions (Fraud Prevention & Tracking)
+CREATE TABLE IF NOT EXISTS public.ad_watch_sessions (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    ad_id TEXT NOT NULL,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    status TEXT NOT NULL DEFAULT 'in_progress',
+    verification_hash TEXT,
+    reward_claimed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 5. Reward Audit & Security Logs
+CREATE TABLE IF NOT EXISTS public.reward_audit_logs (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    action_type TEXT NOT NULL,
+    details JSONB DEFAULT '{}'::jsonb,
+    ip_address TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. System Global Settings & Threshold Rules
 CREATE TABLE IF NOT EXISTS public.reward_settings (
     id TEXT PRIMARY KEY DEFAULT 'default',
     max_daily_ads INT DEFAULT 20,
@@ -748,42 +802,185 @@ CREATE TABLE IF NOT EXISTS public.reward_settings (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Enable RLS across all Orbit Rewards tables
 ALTER TABLE public.orbit_rewards ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reward_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reward_balances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reward_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ad_watch_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reward_audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reward_settings ENABLE ROW LEVEL SECURITY;
 
+-- Grant permissions to public roles
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.orbit_rewards TO anon, authenticated, service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.reward_history TO anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.reward_balances TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.reward_history TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ad_watch_sessions TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.reward_audit_logs TO anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.reward_settings TO anon, authenticated, service_role;
 
-DROP POLICY IF EXISTS "Allow select orbit_rewards" ON public.orbit_rewards;
-CREATE POLICY "Allow select orbit_rewards" ON public.orbit_rewards FOR SELECT USING (true);
+-- ==========================================
+-- SECURE USER-LEVEL & ADMIN RLS POLICIES
+-- ==========================================
 
-DROP POLICY IF EXISTS "Allow write orbit_rewards" ON public.orbit_rewards;
-CREATE POLICY "Allow write orbit_rewards" ON public.orbit_rewards FOR ALL USING (true);
+-- 1) orbit_rewards
+DROP POLICY IF EXISTS "Users can view their own orbit rewards status" ON public.orbit_rewards;
+CREATE POLICY "Users can view their own orbit rewards status" ON public.orbit_rewards
+    FOR SELECT USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Allow select reward_history" ON public.reward_history;
-CREATE POLICY "Allow select reward_history" ON public.reward_history FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Users can insert/update their own orbit rewards status" ON public.orbit_rewards;
+CREATE POLICY "Users can insert/update their own orbit rewards status" ON public.orbit_rewards
+    FOR ALL USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Allow write reward_history" ON public.reward_history;
-CREATE POLICY "Allow write reward_history" ON public.reward_history FOR ALL USING (true);
+DROP POLICY IF EXISTS "Admins can manage orbit_rewards" ON public.orbit_rewards;
+CREATE POLICY "Admins can manage orbit_rewards" ON public.orbit_rewards
+    FOR ALL USING ((auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
-DROP POLICY IF EXISTS "Allow select reward_balances" ON public.reward_balances;
-CREATE POLICY "Allow select reward_balances" ON public.reward_balances FOR SELECT USING (true);
+-- 2) reward_balances
+DROP POLICY IF EXISTS "Users can view their own reward balance" ON public.reward_balances;
+CREATE POLICY "Users can view their own reward balance" ON public.reward_balances
+    FOR SELECT USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Allow write reward_balances" ON public.reward_balances;
-CREATE POLICY "Allow write reward_balances" ON public.reward_balances FOR ALL USING (true);
+DROP POLICY IF EXISTS "Users can update their own reward balance" ON public.reward_balances;
+CREATE POLICY "Users can update their own reward balance" ON public.reward_balances
+    FOR ALL USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Allow select reward_settings" ON public.reward_settings;
-CREATE POLICY "Allow select reward_settings" ON public.reward_settings FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins can manage reward_balances" ON public.reward_balances;
+CREATE POLICY "Admins can manage reward_balances" ON public.reward_balances
+    FOR ALL USING ((auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
-DROP POLICY IF EXISTS "Allow write reward_settings" ON public.reward_settings;
-CREATE POLICY "Allow write reward_settings" ON public.reward_settings FOR ALL USING (true);
+-- 3) reward_history
+DROP POLICY IF EXISTS "Users can view their own reward history" ON public.reward_history;
+CREATE POLICY "Users can view their own reward history" ON public.reward_history
+    FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own reward history" ON public.reward_history;
+CREATE POLICY "Users can insert their own reward history" ON public.reward_history
+    FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can manage reward_history" ON public.reward_history;
+CREATE POLICY "Admins can manage reward_history" ON public.reward_history
+    FOR ALL USING ((auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+-- 4) ad_watch_sessions
+DROP POLICY IF EXISTS "Users can manage their own ad sessions" ON public.ad_watch_sessions;
+CREATE POLICY "Users can manage their own ad sessions" ON public.ad_watch_sessions
+    FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can manage ad_watch_sessions" ON public.ad_watch_sessions;
+CREATE POLICY "Admins can manage ad_watch_sessions" ON public.ad_watch_sessions
+    FOR ALL USING ((auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+-- 5) reward_audit_logs
+DROP POLICY IF EXISTS "Users can manage their own audit logs" ON public.reward_audit_logs;
+CREATE POLICY "Users can manage their own audit logs" ON public.reward_audit_logs
+    FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can manage reward_audit_logs" ON public.reward_audit_logs;
+CREATE POLICY "Admins can manage reward_audit_logs" ON public.reward_audit_logs
+    FOR ALL USING ((auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+-- 6) reward_settings
+DROP POLICY IF EXISTS "Anyone can view reward settings" ON public.reward_settings;
+CREATE POLICY "Anyone can view reward settings" ON public.reward_settings
+    FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can manage reward settings" ON public.reward_settings;
+CREATE POLICY "Admins can manage reward settings" ON public.reward_settings
+    FOR ALL USING ((auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+-- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_orbit_rewards_user_id ON public.orbit_rewards(user_id);
+CREATE INDEX IF NOT EXISTS idx_reward_balances_user_id ON public.reward_balances(user_id);
 CREATE INDEX IF NOT EXISTS idx_reward_history_user_id ON public.reward_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_reward_history_timestamp ON public.reward_history(timestamp);
+CREATE INDEX IF NOT EXISTS idx_ad_watch_sessions_user_id ON public.ad_watch_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_ad_watch_sessions_status ON public.ad_watch_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_reward_audit_logs_user_id ON public.reward_audit_logs(user_id);
+
+-- ==========================================
+-- AUTOMATIC FUNCTIONS & TRIGGERS
+-- ==========================================
+
+-- 1. Automatic Timestamp Setter
+CREATE OR REPLACE FUNCTION public.set_updated_at_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_set_updated_at_orbit_rewards ON public.orbit_rewards;
+CREATE TRIGGER trigger_set_updated_at_orbit_rewards
+    BEFORE UPDATE ON public.orbit_rewards
+    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at_timestamp();
+
+DROP TRIGGER IF EXISTS trigger_set_updated_at_reward_balances ON public.reward_balances;
+CREATE TRIGGER trigger_set_updated_at_reward_balances
+    BEFORE UPDATE ON public.reward_balances
+    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at_timestamp();
+
+DROP TRIGGER IF EXISTS trigger_set_updated_at_reward_settings ON public.reward_settings;
+CREATE TRIGGER trigger_set_updated_at_reward_settings
+    BEFORE UPDATE ON public.reward_settings
+    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at_timestamp();
+
+-- 2. Daily Ad Limit Auto-Reset Function & Trigger
+CREATE OR REPLACE FUNCTION public.reset_daily_ad_counter_func()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.last_ad_date IS NULL OR NEW.last_ad_date < CURRENT_DATE THEN
+        NEW.today_ad_count := 0;
+        NEW.last_ad_date := CURRENT_DATE;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_reset_daily_ad_counter ON public.reward_balances;
+CREATE TRIGGER trigger_reset_daily_ad_counter
+    BEFORE INSERT OR UPDATE ON public.reward_balances
+    FOR EACH ROW EXECUTE FUNCTION public.reset_daily_ad_counter_func();
+
+-- 3. Automatic Unlock Trigger for Agent Referrals (Unlocks at 4 Referrals)
+CREATE OR REPLACE FUNCTION public.check_and_unlock_orbit_rewards_func()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_referrer_id UUID;
+    v_count INT;
+BEGIN
+    v_referrer_id := NEW.referrer_id;
+    IF v_referrer_id IS NOT NULL THEN
+        -- Count all referrals for this referrer
+        SELECT COUNT(*) INTO v_count
+        FROM public.referrals
+        WHERE referrer_id = v_referrer_id;
+
+        -- Auto-upsert into orbit_rewards table
+        INSERT INTO public.orbit_rewards (id, user_id, unlocked, verified_referrals_count, updated_at)
+        VALUES (
+            'orb-rew-' || v_referrer_id::text,
+            v_referrer_id,
+            (v_count >= 4),
+            v_count,
+            NOW()
+        )
+        ON CONFLICT (id) DO UPDATE
+        SET 
+            verified_referrals_count = v_count,
+            unlocked = (v_count >= 4),
+            updated_at = NOW();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_auto_unlock_orbit_rewards ON public.referrals;
+DROP TRIGGER IF EXISTS trigger_auto_unlock_orbit_rewards ON public.referrals;
+CREATE TRIGGER trigger_auto_unlock_orbit_rewards
+    AFTER INSERT OR UPDATE ON public.referrals
+    FOR EACH ROW EXECUTE FUNCTION public.check_and_unlock_orbit_rewards_func();
 
 -- Grants summary confirmation
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+
