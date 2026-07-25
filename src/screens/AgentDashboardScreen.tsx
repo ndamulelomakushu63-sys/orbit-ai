@@ -205,6 +205,35 @@ export const AgentDashboardScreen: React.FC = () => {
             )}
           </View>
         </View>
+
+        {/* PROGRAM INFORMATION & PUBLISHER POLICY CARD */}
+        <View className="bg-white rounded-3xl border border-slate-200/60 p-5 shadow-2xs space-y-3 text-left">
+          <View className="border-b border-slate-100 pb-2.5 flex flex-row items-center justify-between">
+            <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">Agent Program Terms &amp; Policy</Text>
+            <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full border border-blue-100 font-sans">Publisher Guidelines</span>
+          </View>
+
+          <Text className="text-[11px] text-slate-600 leading-relaxed font-sans">
+            The Orbit Agent Program empowers active community members to earn commission rewards by inviting individuals and organizations to adopt Orbit AI tools.
+          </Text>
+
+          <View className="space-y-1.5 text-[11px] text-slate-600 font-sans">
+            <View className="flex flex-row items-start gap-1.5">
+              <span className="font-bold text-blue-600 shrink-0">•</span>
+              <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">R10 Pro Commission:</strong> Earn R10 credited immediately to your account balance for every referred user who upgrades to Orbit Pro.</Text>
+            </View>
+
+            <View className="flex flex-row items-start gap-1.5">
+              <span className="font-bold text-blue-600 shrink-0">•</span>
+              <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">Milestone Unlocks:</strong> Accumulate 4 verified referrals to automatically unlock full access to Orbit Rewards daily ad earnings.</Text>
+            </View>
+
+            <View className="flex flex-row items-start gap-1.5">
+              <span className="font-bold text-blue-600 shrink-0">•</span>
+              <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">EFT Bank Transfers:</strong> Request withdrawals directly to registered South African bank accounts upon reaching the minimum R100 threshold.</Text>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

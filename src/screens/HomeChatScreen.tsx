@@ -767,46 +767,99 @@ export const HomeChatScreen: React.FC = () => {
          showsVerticalScrollIndicator={false}
        >
          {activeMessages.length === 0 ? (
-           <View className="flex items-center justify-center text-center p-4 space-y-4 my-auto pt-4">
+           <View className="flex flex-col items-center justify-center text-center p-4 space-y-6 my-auto pt-4 max-w-lg mx-auto">
              <View className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center">
                <Orbit className="w-6 h-6 text-blue-500" />
              </View>
-             <View className="space-y-1">
-               <Text className="text-slate-900 font-bold text-sm">Orbit AI Chat Companion</Text>
-               <Text className="text-slate-400 text-xs text-center px-4 leading-relaxed font-sans font-medium">
-                 Ask coding questions, draft professional emails, analyze legal text, or plan business milestones. South Africa's dedicated companion engine is ready.
+             <View className="space-y-1.5">
+               <Text className="text-slate-900 font-bold text-base font-sans">Orbit AI Productivity &amp; Innovation Companion</Text>
+               <Text className="text-slate-500 text-xs text-center px-2 leading-relaxed font-sans font-medium">
+                 South Africa's dedicated AI assistant for career advancement, business creation, legal document drafting, and smart daily automation.
                </Text>
              </View>
              
-             {/* Quick Starters / Suggestions without emojis */}
-             <View className="grid grid-cols-2 gap-2 w-full pt-2 max-w-xs text-left">
+             {/* Quick Starters / Suggestions */}
+             <View className="grid grid-cols-2 gap-2 w-full pt-1 max-w-sm text-left">
               <TouchableOpacity 
                 onClick={() => handleSuggestionClick("Draft a professional POPIA compliance checklist")}
                 className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-[11px] leading-tight hover:border-blue-400 transition text-left cursor-pointer"
               >
-                <Text className="text-[11px] text-slate-600 font-bold font-sans">POPIA quick list</Text>
+                <Text className="text-[11px] text-slate-700 font-bold font-sans">POPIA quick list</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 onClick={() => handleSuggestionClick("Write a python class for compounding interest rates")}
                 className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-[11px] leading-tight hover:border-blue-400 transition text-left cursor-pointer"
               >
-                <Text className="text-[11px] text-slate-600 font-bold font-sans">Write compound interest code</Text>
+                <Text className="text-[11px] text-slate-700 font-bold font-sans">Write compound interest code</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 onClick={() => handleSuggestionClick("Review a sample South African service level agreement outline")}
                 className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-[11px] leading-tight hover:border-blue-400 transition text-left cursor-pointer"
               >
-                <Text className="text-[11px] text-slate-600 font-bold font-sans">SLA document outline</Text>
+                <Text className="text-[11px] text-slate-700 font-bold font-sans">SLA document outline</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 onClick={() => handleSuggestionClick("Draft cold business letters for Pretoria retail space")}
                 className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-[11px] leading-tight hover:border-blue-400 transition text-left cursor-pointer"
               >
-                <Text className="text-[11px] text-slate-600 font-bold font-sans">Business sales letter</Text>
+                <Text className="text-[11px] text-slate-700 font-bold font-sans">Business sales letter</Text>
               </TouchableOpacity>
+            </View>
+
+            {/* PUBLISHER INFORMATION & PLATFORM GUIDANCE CARD FOR ADSENSE COMPLIANCE */}
+            <View className="w-full bg-slate-50/80 border border-slate-200/80 rounded-3xl p-4 space-y-3.5 text-left shadow-2xs mt-4">
+              <View className="border-b border-slate-200/60 pb-2 flex flex-row items-center justify-between">
+                <Text className="text-xs font-bold text-slate-900 font-sans uppercase tracking-wider">About Orbit AI Platform</Text>
+                <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">Publisher Guide</span>
+              </View>
+
+              <Text className="text-[11px] text-slate-600 leading-relaxed font-sans">
+                Orbit AI combines generative artificial intelligence with South African local tools to help users build careers, generate professional documents, register businesses, and earn rewards.
+              </Text>
+
+              <View className="space-y-2">
+                <Text className="text-[11px] font-bold text-slate-800 font-sans">Core Modules &amp; Publisher Features:</Text>
+                
+                <View className="space-y-1.5 text-[11px] text-slate-600 font-sans">
+                  <View className="flex flex-row items-start gap-1.5">
+                    <span className="font-bold text-blue-600 shrink-0">•</span>
+                    <Text className="text-[11px] text-slate-600">
+                      <strong className="text-slate-800">AI Chat Companion:</strong> Multi-lingual natural language assistant supporting code generation, research, math, translation, and analysis.
+                    </Text>
+                  </View>
+
+                  <View className="flex flex-row items-start gap-1.5">
+                    <span className="font-bold text-blue-600 shrink-0">•</span>
+                    <Text className="text-[11px] text-slate-600">
+                      <strong className="text-slate-800">Task Mode Studio:</strong> Step-by-step interview wizard generating ATS-friendly PDF CVs, cover letters, and formal business plans.
+                    </Text>
+                  </View>
+
+                  <View className="flex flex-row items-start gap-1.5">
+                    <span className="font-bold text-blue-600 shrink-0">•</span>
+                    <Text className="text-[11px] text-slate-600">
+                      <strong className="text-slate-800">Business Mode &amp; Directory:</strong> Register local enterprises, publish business profiles, and access AI-generated pitch decks.
+                    </Text>
+                  </View>
+
+                  <View className="flex flex-row items-start gap-1.5">
+                    <span className="font-bold text-blue-600 shrink-0">•</span>
+                    <Text className="text-[11px] text-slate-600">
+                      <strong className="text-slate-800">Agent Referral &amp; Rewards:</strong> Transparent referral commissions (R10 per Pro referral) and verified daily rewarded ad earnings with EFT bank payouts.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View className="pt-2 border-t border-slate-200/60 flex flex-col space-y-1 text-[10px] text-slate-500 font-sans">
+                <Text className="font-bold text-slate-700">Privacy &amp; POPIA Guarantee:</Text>
+                <Text>
+                  Your conversation history and personal details are protected under South African POPIA regulations and encrypted for complete confidentiality.
+                </Text>
+              </View>
             </View>
           </View>
         ) : (

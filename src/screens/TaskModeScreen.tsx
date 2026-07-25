@@ -789,6 +789,35 @@ export const TaskModeScreen: React.FC = () => {
                 );
               })}
             </View>
+
+            {/* PUBLISHER INFORMATION & DOCUMENT STUDIO GUIDE */}
+            <View className="bg-white rounded-3xl border border-slate-200/60 p-5 shadow-3xs space-y-3 text-left mt-2">
+              <View className="border-b border-slate-100 pb-2.5 flex flex-row items-center justify-between">
+                <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">Document Studio &amp; ATS Guidelines</Text>
+                <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full border border-slate-200">Publisher Information</span>
+              </View>
+
+              <Text className="text-[11px] text-slate-600 leading-relaxed font-sans">
+                Task Mode provides specialized document generation tools designed for South African job seekers, entrepreneurs, students, and working professionals.
+              </Text>
+
+              <View className="space-y-1.5 text-[11px] text-slate-600 font-sans">
+                <View className="flex flex-row items-start gap-1.5">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">ATS Compliance:</strong> CV templates follow standardized layout rules, structured headings, and clean font hierarchies compatible with global applicant tracking systems.</Text>
+                </View>
+
+                <View className="flex flex-row items-start gap-1.5">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">PDF Generation:</strong> Export high-resolution A4 PDFs directly from your browser with instant download capabilities.</Text>
+                </View>
+
+                <View className="flex flex-row items-start gap-1.5">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">Local Context:</strong> Outlines and templates tailored specifically for South African CIPC, SETA, and corporate application standards.</Text>
+                </View>
+              </View>
+            </View>
           </View>
         )}
 

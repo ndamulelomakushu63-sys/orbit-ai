@@ -546,6 +546,35 @@ export const OrbitRewardsScreen: React.FC = () => {
               )}
             </View>
 
+            {/* PROGRAM INFORMATION & PUBLISHER POLICY CARD */}
+            <View className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3 text-left">
+              <View className="border-b border-slate-100 pb-2.5 flex flex-row items-center justify-between">
+                <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">Orbit Rewards Program Policy</Text>
+                <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full border border-blue-100">Publisher Guidelines</span>
+              </View>
+
+              <Text className="text-[11px] text-slate-600 leading-relaxed font-sans">
+                The Orbit Rewards system provides an incentivized platform for verified Orbit AI community members. By participating in the referral milestone and watching sponsored adverts, users accumulate real monetary value convertible directly to South African bank accounts.
+              </Text>
+
+              <View className="space-y-1.5 text-[11px] text-slate-600 font-sans">
+                <View className="flex flex-row items-start gap-1.5">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">Verification Threshold:</strong> 4 verified sign-ups or an active Orbit Pro upgrade unlocks full access to daily rewarded ad sessions.</Text>
+                </View>
+
+                <View className="flex flex-row items-start gap-1.5">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">Daily View Cap:</strong> Restricted to 20 verified ad playbacks per 24-hour cycle to prevent system abuse.</Text>
+                </View>
+
+                <View className="flex flex-row items-start gap-1.5">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">EFT Withdrawals:</strong> Minimum withdrawal threshold is R100, disbursed directly via standard South African banking channels within 24–48 hours.</Text>
+                </View>
+              </View>
+            </View>
+
           </View>
         )}
 
