@@ -213,6 +213,14 @@ export const HomeChatScreen: React.FC = () => {
   }, []);
 
   const startCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (cameraFallbackInputRef.current) {
+        cameraFallbackInputRef.current.value = "";
+        cameraFallbackInputRef.current.click();
+      }
+      return;
+    }
+
     setCameraActive(true);
     setCameraError(null);
     // Brief timeout to ensure the modal container rendering completes
@@ -226,7 +234,7 @@ export const HomeChatScreen: React.FC = () => {
           videoRef.current.srcObject = stream;
         }
       } catch (err: any) {
-        console.warn("Camera facingMode:environment failed, trying default: ", err);
+        console.warn("Camera facingMode:environment failed, trying default stream: ", err?.message || err);
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: true });
           streamRef.current = stream;
@@ -234,8 +242,8 @@ export const HomeChatScreen: React.FC = () => {
             videoRef.current.srcObject = stream;
           }
         } catch (fallbackErr: any) {
-          console.error("Camera getUserMedia failed completely: ", fallbackErr);
-          setCameraError("Camera access failed or was denied. Iframe security constraints may block media access. Use the native file picker fallback below instead.");
+          console.warn("Camera getUserMedia not permitted or blocked in iframe: ", fallbackErr?.message || fallbackErr);
+          setCameraError("Camera access was denied or is blocked by browser iframe policies. Tap below to use your device's native camera or file selector instead.");
         }
       }
     }, 100);
@@ -1066,7 +1074,7 @@ export const HomeChatScreen: React.FC = () => {
             className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
           >
             <Camera className="w-5 h-5 text-slate-500" />
-            <Text className="text-[9px] font-bold text-slate-600">Camera Roll</Text>
+            <Text className="text-[9px] font-bold text-slate-600">Camera</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -1074,7 +1082,7 @@ export const HomeChatScreen: React.FC = () => {
             className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
           >
             <Image className="w-5 h-5 text-slate-500" />
-            <Text className="text-[9px] font-bold text-slate-600">Photo Library</Text>
+            <Text className="text-[9px] font-bold text-slate-600">Photos</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -1082,7 +1090,7 @@ export const HomeChatScreen: React.FC = () => {
             className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
           >
             <FileText className="w-5 h-5 text-slate-500" />
-            <Text className="text-[9px] font-bold text-slate-600">Browse Files</Text>
+            <Text className="text-[9px] font-bold text-slate-600">Files</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
