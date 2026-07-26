@@ -940,11 +940,7 @@ app.post("/api/business-builder", async (req, res) => {
       });
     }
 
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-    });
-
-    const prompt = `Formulate a comprehensive, educational business concept and 30-day launch plan based on the following questionnaire details:
+    const prompt = `Formulate a comprehensive, educational business concept, Business Health Score, and 30-day launch plan based on the following questionnaire details:
 - Proposed Business Idea: ${businessIdea}
 - Industry: ${industry}
 - Location/Country: ${country || "Any"}
@@ -960,7 +956,6 @@ CRITICAL RULES:
 
 Generate a structured business blueprint containing:
 1. exactly 5 creative Business Name suggestions with catchy slogans.
-- Each suggestion must have 'name' and 'tagline' keys.
 2. a thorough Business Description detailing the model.
 3. a detailed Target Audience profiling.
 4. a realistic Revenue Model mapping out potential channels.
@@ -970,6 +965,12 @@ Generate a structured business blueprint containing:
 8. a detailed 30-Day Launch Plan outlining specific daily or weekly tasks.
 9. a creative Social Media Strategy outlining platforms and content themes.
 10. an objective Risk Assessment highlighting challenges and how to safely navigate them.
+11. a Business Health Score object containing:
+    - 'score': an integer rating from 0 to 100 assessing overall viability
+    - 'strengths': an array of 3 key strengths of this business proposal
+    - 'improvements': an array of 2-3 areas that need work or initial caution
+    - 'breakdown': score numbers for 'branding', 'businessModel', 'marketing', 'sales', 'financials', 'launchReadiness'
+    - 'recommendations': a paragraph of practical next steps to boost the score.
 
 Format the response as a valid JSON object matching this schema structure:
 {
@@ -984,17 +985,29 @@ Format the response as a valid JSON object matching this schema structure:
   "pricingSuggestions": "...",
   "launchPlan30Day": ["...", "..."],
   "socialMediaStrategy": "...",
-  "riskAssessment": "..."
+  "riskAssessment": "...",
+  "healthScore": {
+    "score": 92,
+    "strengths": ["...", "..."],
+    "improvements": ["...", "..."],
+    "breakdown": {
+      "branding": 90,
+      "businessModel": 92,
+      "marketing": 88,
+      "sales": 90,
+      "financials": 85,
+      "launchReadiness": 95
+    },
+    "recommendations": "..."
+  }
 }`;
 
     console.log("Calling OpenAI for Business Builder on server with inputs:", { industry, country, startingBudget });
 
-    console.log("Calling OpenAI Chat Completion API on Express (Business Builder) via AI-Helper...");
-
     const messages = [
       {
         role: "system",
-        content: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested."
+        content: "You are the Orbit AI Business Builder consultant, an educational business planner. You help users structure realistic business ideas into launch plans with health scores. You never promise profits, success, or offer investment or legal advice. You maintain a helpful, detailed, and highly safe tone, outputting structured JSON according to the schema requested."
       },
       {
         role: "user",
@@ -1017,6 +1030,57 @@ Format the response as a valid JSON object matching this schema structure:
       error: error.message || "An unexpected error occurred.",
       details: String(error)
     });
+  }
+});
+
+// Secure endpoint for AI Business Coach follow-up advice
+app.post("/api/business-coach", async (req, res) => {
+  try {
+    const { question, businessContext, chatHistory } = req.body;
+    if (!question) {
+      return res.status(400).json({ error: "Question is required" });
+    }
+
+    const contextSummary = businessContext 
+      ? `User's Generated Business Context:
+- Name Suggestions: ${JSON.stringify(businessContext.businessNames || [])}
+- Description: ${businessContext.businessDescription || ''}
+- Target Audience: ${businessContext.targetAudience || ''}
+- Revenue Model: ${businessContext.revenueModel || ''}
+- Marketing Plan: ${businessContext.marketingPlan || ''}
+- Pricing: ${businessContext.pricingSuggestions || ''}
+- Health Score: ${businessContext.healthScore?.score || 'N/A'}/100`
+      : "General Business Consultation";
+
+    const messages = [
+      {
+        role: "system",
+        content: `You are the Orbit AI Business Coach, an expert, practical, highly supportive startup consultant and advisor.
+${contextSummary}
+
+Provide detailed, actionable, highly tailored advice for the user's question.
+- If asked for ads, social posts, or sales pitches, write out ready-to-use copy.
+- If asked about pricing, customer acquisition, investors, or scaling, provide clear step-by-step instructions.
+- Format responses cleanly with bold headings and structured bullet points.
+- Maintain an encouraging, professional, educational tone.`
+      },
+      ...(chatHistory || []).map((m: any) => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text
+      })),
+      {
+        role: "user",
+        content: question
+      }
+    ];
+
+    const responseData = await fetchChatCompletion(messages, 0.7);
+    const answer = responseData.choices?.[0]?.message?.content || "I apologize, I could not generate a response right now. Please try again.";
+
+    return res.json({ answer });
+  } catch (error: any) {
+    console.error("Business Coach API Error:", error);
+    return res.status(500).json({ error: error.message || "An error occurred with the AI Business Coach." });
   }
 });
 
