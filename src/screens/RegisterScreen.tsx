@@ -283,11 +283,6 @@ export const RegisterScreen: React.FC = () => {
             />
           </View>
 
-          {invitedByCode && (
-            <View className="px-5 py-1 text-slate-400 text-[10px] text-center font-mono font-medium">
-              Referral code active: <Text className="text-blue-600 font-bold font-mono">{invitedByCode}</Text>
-            </View>
-          )}
           
           <TouchableOpacity 
             onClick={() => handleSignUp()}
