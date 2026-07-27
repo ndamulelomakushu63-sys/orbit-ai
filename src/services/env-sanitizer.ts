@@ -5,6 +5,10 @@
  */
 
 export function sanitizeEnv() {
+  if (typeof process === 'undefined' || !process || !process.env) {
+    return;
+  }
+
   const rawKey = process.env.OPENAI_API_KEY;
   if (!rawKey) return;
 

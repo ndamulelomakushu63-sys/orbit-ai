@@ -35,28 +35,24 @@ let rawUrl: string | undefined;
 let rawKey: string | undefined;
 
 try {
-  // Use a dynamic Function evaluation to hide import.meta from static analysis and bundlers
-  const meta = new Function("return import.meta")();
-  rawUrl = meta?.env?.VITE_SUPABASE_URL;
-  rawKey = meta?.env?.VITE_SUPABASE_ANON_KEY;
+  rawUrl = import.meta.env?.VITE_SUPABASE_URL;
+  rawKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
 } catch (e) {
   // Safe fallback if import.meta is not defined in the environment
 }
 
-if (!rawUrl && typeof process !== 'undefined') {
-  rawUrl = process.env?.VITE_SUPABASE_URL;
+if (!rawUrl && typeof process !== 'undefined' && process?.env) {
+  rawUrl = process.env.VITE_SUPABASE_URL;
 }
-if (!rawKey && typeof process !== 'undefined') {
-  rawKey = process.env?.VITE_SUPABASE_ANON_KEY;
+if (!rawKey && typeof process !== 'undefined' && process?.env) {
+  rawKey = process.env.VITE_SUPABASE_ANON_KEY;
 }
 
 const supabaseUrl = getValidUrl(rawUrl, DEFAULT_SUPABASE_URL);
 const supabaseAnonKey = getValidKey(rawKey, DEFAULT_SUPABASE_ANON_KEY);
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "CRITICAL CONFIGURATION ERROR: Required Supabase environment variables (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY) are missing, empty, or invalid placeholders. Please set them in your environment configuration before running Orbit AI."
-  );
+  console.warn("Required Supabase environment variables are missing or empty. Using default project credentials.");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

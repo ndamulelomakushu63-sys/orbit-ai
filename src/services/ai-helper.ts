@@ -11,7 +11,7 @@ import './env-sanitizer.js';
  */
 
 export async function fetchChatCompletion(messages: any[], temperature: number = 0.7): Promise<any> {
-  const openaiApiKey = process.env.OPENAI_API_KEY;
+  const openaiApiKey = typeof process !== 'undefined' && process?.env ? process.env.OPENAI_API_KEY : undefined;
 
   console.log(`[AI-Helper] Starting Chat Completion request. OpenAI key available: ${!!openaiApiKey}`);
 

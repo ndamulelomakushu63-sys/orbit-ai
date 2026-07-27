@@ -78,12 +78,29 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+function safeGetStorageJson<T>(key: string, fallback: T): T {
+  try {
+    const item = localStorage.getItem(key);
+    if (!item) return fallback;
+    return JSON.parse(item) as T;
+  } catch (err) {
+    console.warn(`[state.tsx] Failed to read/parse localStorage key "${key}":`, err);
+    return fallback;
+  }
+}
+
+function safeSetStorageJson(key: string, value: any): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.warn(`[state.tsx] Failed to write localStorage key "${key}":`, err);
+  }
+}
+
 export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // --- 1. Load users array from localStorage or build defaults ---
   const [users, setUsers] = useState<UserProfile[]>(() => {
-    const local = localStorage.getItem("orbit_users");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<UserProfile[]>("orbit_users", [
       {
         uid: "user-1",
         name: "Solly Molapisi",
@@ -117,16 +134,18 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         referralCode: "ORBIT-AA3921",
         createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
       }
-    ];
+    ]);
   });
 
   // Current session User
   const [currentUser, setCurrentUserInternal] = useState<UserProfile | null>(() => {
-    const local = localStorage.getItem("orbit_current_user_uid");
-    if (local) {
-      const match = users.find(u => u.uid === local);
-      if (match) return match;
-    }
+    try {
+      const local = localStorage.getItem("orbit_current_user_uid");
+      if (local) {
+        const match = users.find(u => u.uid === local);
+        if (match) return match;
+      }
+    } catch (e) {}
     return null;
   });
 
@@ -140,19 +159,19 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [users, currentUser]);
 
   const setCurrentUser = (user: UserProfile | null) => {
-    if (user) {
-      localStorage.setItem("orbit_current_user_uid", user.uid);
-    } else {
-      localStorage.removeItem("orbit_current_user_uid");
-    }
+    try {
+      if (user) {
+        localStorage.setItem("orbit_current_user_uid", user.uid);
+      } else {
+        localStorage.removeItem("orbit_current_user_uid");
+      }
+    } catch (e) {}
     setCurrentUserInternal(user);
   };
 
   // --- Subscriptions array ---
   const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>(() => {
-    const local = localStorage.getItem("orbit_subscriptions");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<SubscriptionRecord[]>("orbit_subscriptions", [
       {
         id: "sub-1",
         userId: "user-2",
@@ -162,14 +181,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         renewalDate: new Date(Date.now() + 300 * 24 * 60 * 60 * 1000).toISOString(),
         createdAt: new Date(Date.now() - 65 * 24 * 60 * 60 * 1000).toISOString()
       }
-    ];
+    ]);
   });
 
   // --- Referral records ---
   const [referrals, setReferrals] = useState<ReferralRecord[]>(() => {
-    const local = localStorage.getItem("orbit_referrals");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<ReferralRecord[]>("orbit_referrals", [
       {
         id: "ref-1",
         referrerId: "user-2",
@@ -188,14 +205,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         status: "Paid",
         timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()
       }
-    ];
+    ]);
   });
 
   // --- Withdrawals ---
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>(() => {
-    const local = localStorage.getItem("orbit_withdrawals");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<WithdrawalRecord[]>("orbit_withdrawals", [
       {
         id: "with-1",
         userId: "user-2",
@@ -222,14 +237,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         status: WithdrawalStatus.PENDING,
         timestamp: new Date(Date.now() - 4 * 12 * 60 * 60 * 1000).toISOString()
       }
-    ];
+    ]);
   });
 
   // --- Conversations ---
   const [conversations, setConversations] = useState<Conversation[]>(() => {
-    const local = localStorage.getItem("orbit_conversations");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<Conversation[]>("orbit_conversations", [
       {
         id: "conv-1",
         title: "Coding interactive components",
@@ -242,14 +255,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         lastMessage: "Hello! I am Orbit AI, your South African AI virtual companion.",
         timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       }
-    ];
+    ]);
   });
 
   // --- Messages ---
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
-    const local = localStorage.getItem("orbit_messages");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<ChatMessage[]>("orbit_messages", [
       {
         id: "msg-1",
         conversationId: "conv-1",
@@ -278,14 +289,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         role: "model",
         timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       }
-    ];
+    ]);
   });
 
   // --- 8. Custom Agents list ---
   const [agents, setAgents] = useState<AIAgent[]>(() => {
-    const local = localStorage.getItem("orbit_agents");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<AIAgent[]>("orbit_agents", [
       {
         id: "agent-1",
         name: "Standard Orbit Assistant",
@@ -314,19 +323,21 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         description: "Elite coder providing premium TypeScript & React Native solutions.",
         systemPrompt: "You are Skhokho Code Mentor. You are an elite veteran programmer. Guide the user through technical implementations, debugging React Native files, and custom designs with code snippets. Do not use emojis in your responses."
       }
-    ];
+    ]);
   });
 
   // --- 9. Active AI Agent ID ---
   const [activeAgentId, setActiveAgentId] = useState<string>(() => {
-    return localStorage.getItem("orbit_active_agent_id") || "agent-1";
+    try {
+      return localStorage.getItem("orbit_active_agent_id") || "agent-1";
+    } catch (e) {
+      return "agent-1";
+    }
   });
 
   // --- 10. Notifications log ---
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const local = localStorage.getItem("orbit_notifications");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<AppNotification[]>("orbit_notifications", [
       {
         id: "notif-1",
         title: "Welcome to Orbit AI",
@@ -343,14 +354,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         read: true,
         type: "agent"
       }
-    ];
+    ]);
   });
 
   // --- 11. Support Tickets ---
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
-    const local = localStorage.getItem("orbit_support_tickets");
-    if (local) return JSON.parse(local);
-    return [
+    return safeGetStorageJson<SupportTicket[]>("orbit_support_tickets", [
       {
         id: "ticket-1",
         subject: "Trial Period Cancellations",
@@ -359,43 +368,40 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
         reply: "Yes. In accordance with our Version 1 billing policies, you may cancel your subscription within 7 days. Your payment history and plans can be managed under the Payments portal."
       }
-    ];
+    ]);
   });
 
   // --- 12. Billing/Card Details ---
   const [cardDetails, setCardDetails] = useState<CardDetails>(() => {
-    const local = localStorage.getItem("orbit_card_details");
-    if (local) return JSON.parse(local);
-    return {
+    return safeGetStorageJson<CardDetails>("orbit_card_details", {
       cardNumber: "4000 1234 5678 9012",
       expiry: "12/29",
       cvv: "321",
       cardholderName: "Sipho Khumalo"
-    };
+    });
   });
 
-
-
   const [obdiLeads, setObdiLeads] = useState<ObdiLead[]>(() => {
-    const local = localStorage.getItem("orbit_obdi_leads");
-    if (local) return JSON.parse(local);
-    return [];
+    return safeGetStorageJson<ObdiLead[]>("orbit_obdi_leads", []);
   });
 
   // Sync to localStorage
-  useEffect(() => { localStorage.setItem("orbit_users", JSON.stringify(users)); }, [users]);
-  useEffect(() => { localStorage.setItem("orbit_subscriptions", JSON.stringify(subscriptions)); }, [subscriptions]);
-  useEffect(() => { localStorage.setItem("orbit_referrals", JSON.stringify(referrals)); }, [referrals]);
-  useEffect(() => { localStorage.setItem("orbit_withdrawals", JSON.stringify(withdrawals)); }, [withdrawals]);
-  useEffect(() => { localStorage.setItem("orbit_conversations", JSON.stringify(conversations)); }, [conversations]);
-  useEffect(() => { localStorage.setItem("orbit_messages", JSON.stringify(chatMessages)); }, [chatMessages]);
-  useEffect(() => { localStorage.setItem("orbit_agents", JSON.stringify(agents)); }, [agents]);
-  useEffect(() => { localStorage.setItem("orbit_active_agent_id", activeAgentId); }, [activeAgentId]);
-  useEffect(() => { localStorage.setItem("orbit_notifications", JSON.stringify(notifications)); }, [notifications]);
-  useEffect(() => { localStorage.setItem("orbit_support_tickets", JSON.stringify(supportTickets)); }, [supportTickets]);
-  useEffect(() => { localStorage.setItem("orbit_card_details", JSON.stringify(cardDetails)); }, [cardDetails]);
-
-  useEffect(() => { localStorage.setItem("orbit_obdi_leads", JSON.stringify(obdiLeads)); }, [obdiLeads]);
+  useEffect(() => { safeSetStorageJson("orbit_users", users); }, [users]);
+  useEffect(() => { safeSetStorageJson("orbit_subscriptions", subscriptions); }, [subscriptions]);
+  useEffect(() => { safeSetStorageJson("orbit_referrals", referrals); }, [referrals]);
+  useEffect(() => { safeSetStorageJson("orbit_withdrawals", withdrawals); }, [withdrawals]);
+  useEffect(() => { safeSetStorageJson("orbit_conversations", conversations); }, [conversations]);
+  useEffect(() => { safeSetStorageJson("orbit_messages", chatMessages); }, [chatMessages]);
+  useEffect(() => { safeSetStorageJson("orbit_agents", agents); }, [agents]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("orbit_active_agent_id", activeAgentId);
+    } catch (e) {}
+  }, [activeAgentId]);
+  useEffect(() => { safeSetStorageJson("orbit_notifications", notifications); }, [notifications]);
+  useEffect(() => { safeSetStorageJson("orbit_support_tickets", supportTickets); }, [supportTickets]);
+  useEffect(() => { safeSetStorageJson("orbit_card_details", cardDetails); }, [cardDetails]);
+  useEffect(() => { safeSetStorageJson("orbit_obdi_leads", obdiLeads); }, [obdiLeads]);
 
   // --- SUPABASE SYNC AND STARTUP LOADERS ---
   const [supabaseLoading, setSupabaseLoading] = useState<boolean>(true);
@@ -699,11 +705,17 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [activeConversationId, setActiveConversationId] = useState<string>("conv-1");
   const [isAiTyping, setIsAiTyping] = useState<boolean>(false);
   const [invitedByCode, setInvitedByCode] = useState<string>(() => {
-    return localStorage.getItem("orbit_invited_by_code") || "ORBIT-SP9210";
+    try {
+      return localStorage.getItem("orbit_invited_by_code") || "ORBIT-SP9210";
+    } catch (e) {
+      return "ORBIT-SP9210";
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem("orbit_invited_by_code", invitedByCode);
+    try {
+      localStorage.setItem("orbit_invited_by_code", invitedByCode);
+    } catch (e) {}
   }, [invitedByCode]);
 
   // Load and check referral code from query params or URL paths
@@ -753,7 +765,10 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const userMsgText = promptMsg;
 
     if (!currentUser) {
-      const guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0");
+      let guestCount = 0;
+      try {
+        guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0");
+      } catch (e) {}
       if (guestCount >= 3) {
         setLimitModalType('guest');
         return;
@@ -934,8 +949,11 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
 
         if (!currentUser) {
-          const guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0") + 1;
-          localStorage.setItem("orbit_anonymous_message_count", String(guestCount));
+          let guestCount = 1;
+          try {
+            guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0") + 1;
+            localStorage.setItem("orbit_anonymous_message_count", String(guestCount));
+          } catch (e) {}
           console.log(`[Guest Flow] Guest message sent successfully. Total guest count: ${guestCount}/3`);
           if (guestCount >= 3) {
             setLimitModalType('guest');
@@ -1006,7 +1024,10 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const incrementUsageLimit = (type: 'chat' | 'image' | 'file' | 'camera'): { allowed: boolean; count: number; limit: number } => {
     if (!currentUser) {
-      const guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0");
+      let guestCount = 0;
+      try {
+        guestCount = Number(localStorage.getItem("orbit_anonymous_message_count") || "0");
+      } catch (e) {}
       if (guestCount >= 3) {
         setLimitModalType('guest');
         return { allowed: false, count: guestCount, limit: 3 };
