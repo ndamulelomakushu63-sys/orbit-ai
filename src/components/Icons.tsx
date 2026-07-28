@@ -57,7 +57,9 @@ export {
   Users,
   Play,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Target,
+  BookOpen
 } from 'lucide-react';
 
 

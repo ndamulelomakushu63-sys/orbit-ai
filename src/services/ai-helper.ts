@@ -21,7 +21,7 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       console.log("[AI-Helper] Attempting to call OpenAI Chat Completion API via official SDK with timeout...");
       const openai = new OpenAI({
         apiKey: openaiApiKey,
-        timeout: 6000 // 6 seconds timeout to prevent Vercel Serverless Function timeout of 10s
+        timeout: 25000 // 25 seconds timeout to allow complex CV, cover letter, and multi-section completions
       });
 
       const completion = await openai.chat.completions.create({

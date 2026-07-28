@@ -17,22 +17,64 @@ export default async function handler(req: any, res: any) {
     let prompt = "";
 
     if (taskType === "cv") {
-      prompt = `Write a professional, high-fidelity curriculum vitae (CV) for the following individual:
-- Full Name: ${inputs.fullName}
-- Key Skills: ${inputs.skills}
-- Work Experience: ${inputs.experience}
-- Education Background: ${inputs.education}
+      const jobDescBlock = inputs.jobDescription ? `\n- TARGET JOB DESCRIPTION TO TAILOR FOR: ${inputs.jobDescription}` : "";
 
-CRITICAL RULES:
-1. Format this professionally with clean spacing and clear layout.
-2. Structure the CV into standard sections:
-   - PROFESSIONAL SUMMARY (a powerful paragraph highlighting their skills and experience)
-   - KEY SKILLS & COMPETENCIES (formatted as bullet points)
-   - PROFESSIONAL WORK EXPERIENCE (ordered chronologically, detailed and professional)
-   - ACADEMIC EDUCATION & TRAINING (detailed qualifications, institutions, and years)
-   - PROFESSIONAL REFERENCES (provide clear placeholder/structured fields like 'Available on request' or formatted reference boxes)
-3. Do NOT include any emojis in the response.
-4. Keep the text professional, concise, and highly employer-friendly.`;
+      prompt = `You are a World-Class Executive Career Consultant and ATS Optimization Specialist for global recruitment in 2026.
+Generate a complete, high-fidelity Curriculum Vitae (CV), a matching professional Cover Letter, an ATS & Quality Audit Score, and AI Career Coaching guidance.
+
+USER PROFILED INPUTS:
+- Full Name: ${inputs.fullName || "Candidate Name"}
+- Target Position / Title: ${inputs.position || "Professional Candidate"}
+- Contact Details:
+  * Phone: ${inputs.phoneNumber || "Not provided"}
+  * Email: ${inputs.email || "Not provided"}
+  * Location (City & Country): ${inputs.location || "Not provided"}
+  * LinkedIn: ${inputs.linkedIn || "Not provided"}
+  * Portfolio/Website: ${inputs.portfolio || "Not provided"}
+- Highest Education: ${inputs.educationLevel || inputs.education || "Not provided"}
+- Institution & Graduation Date: ${inputs.educationInstitution || "Not provided"}
+- Work Experience Summary: ${inputs.experience || "Entry level / Transitioning"}
+- Key Skills: ${inputs.skills || "General Professional Skills"}
+- Spoken Languages: ${inputs.languages || "English"}
+- Certifications & Licences: ${inputs.certificates || "None"}
+- Key Projects: ${inputs.projects || "None"}
+- Personal Achievements: ${inputs.achievements || "None"}
+- References Preference: ${inputs.includeReferences || "Available upon request"}
+- Additional Context: ${inputs.extra || "None"}
+- Preferred CV Theme: ${inputs.style || "Professional"}${jobDescBlock}
+
+CRITICAL INSTRUCTIONS & RULES:
+1. Conduct an automatic grammar, spelling, punctuation, and structural validation across every line.
+2. Ensure strict ATS compliance: standard headings, clean spacing, bullet points with powerful action verbs, and no complex tables/graphics.
+3. Every Work Experience entry MUST include bullet points with quantifiable achievements, percentages, or metrics where applicable.
+4. Categorize Skills explicitly into:
+   - Technical Skills
+   - Professional Skills
+   - Soft Skills
+5. References MUST default to "Available upon request" unless specific reference contact details were explicitly provided.
+6. If a target job description was provided above, tailor the summary, experience bullets, and skill keywords specifically to match that job description for maximum ATS relevance!
+
+MUST RETURN A VALID JSON OBJECT ONLY (NO MARKDOWN CODEBLOCKS, NO WRAPPER TEXT) WITH THIS EXACT SCHEMA:
+{
+  "cv": "Full markdown text of the CV following standard headings:\\n# [FULL NAME]\\n### [PROFESSIONAL TITLE]\\nPhone: [Phone] | Email: [Email] | Location: [Location] | LinkedIn: [LinkedIn] | Portfolio: [Portfolio]\\n\\n## PROFESSIONAL SUMMARY\\n(3-5 powerful, value-driven sentences with metrics)\\n\\n## SKILLS & COMPETENCIES\\n### Technical Skills\\n* ...\\n### Professional Skills\\n* ...\\n### Soft Skills\\n* ...\\n\\n## WORK EXPERIENCE\\n(Detailed positions with company, location, dates, responsibilities, and quantified bullet points)\\n\\n## EDUCATION & QUALIFICATIONS\\n(Qualification, Institution, Graduation Date)\\n\\n## CERTIFICATIONS & LICENCES\\n(Relevant certifications/licences)\\n\\n## KEY PROJECTS\\n(If applicable)\\n\\n## LANGUAGES\\n(Languages with proficiency levels)\\n\\n## REFERENCES\\n(Available upon request or details)",
+
+  "coverLetter": "A complete, tailored 3-4 paragraph Cover Letter in formal business letter format matching the target position and candidate background.",
+
+  "score": {
+    "atsScore": 95,
+    "qualityScore": 96,
+    "strengths": ["Strong action verbs", "Quantified achievements", "Clean ATS section hierarchy"],
+    "weaknesses": ["Could add more industry-specific certifications"],
+    "suggestions": ["Include target job key terms if applying to automated HR portals"]
+  },
+
+  "careerCoach": {
+    "interviewTips": ["Highlight your experience with quantifiable project metrics", "Prepare behavioral stories using the STAR method"],
+    "missingSkills": ["Advanced Cloud Architecture", "Data Analytics & Dashboarding"],
+    "careerRecommendations": ["Senior Lead Specialist", "Technical Project Consultant"],
+    "recommendedCourses": ["Google Professional Certificate", "AWS Certified Developer"]
+  }
+}`;
     } else if (taskType === "business_plan") {
       prompt = `Write a comprehensive, professional, and structured Business Plan outline for:
 - Business Name: ${inputs.businessName}
@@ -131,6 +173,28 @@ CRITICAL RULES:
     const responseData = await fetchChatCompletion(messages, 0.5);
 
     const replyText = responseData.choices?.[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
+
+    if (taskType === "cv") {
+      try {
+        let cleanStr = replyText.trim();
+        if (cleanStr.startsWith("```json")) {
+          cleanStr = cleanStr.replace(/^```json/, "").replace(/```$/, "").trim();
+        } else if (cleanStr.startsWith("```")) {
+          cleanStr = cleanStr.replace(/^```/, "").replace(/```$/, "").trim();
+        }
+        const parsed = JSON.parse(cleanStr);
+        return res.status(200).json({
+          result: parsed.cv || replyText,
+          coverLetter: parsed.coverLetter || "",
+          score: parsed.score || null,
+          careerCoach: parsed.careerCoach || null
+        });
+      } catch (jsonErr) {
+        console.warn("CV JSON parse warning, falling back to raw text:", jsonErr);
+        return res.status(200).json({ result: replyText });
+      }
+    }
+
     return res.status(200).json({ result: replyText });
   } catch (error: any) {
     console.error("Task Mode Generator Vercel API Error (full details):", error);

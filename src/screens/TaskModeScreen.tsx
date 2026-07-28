@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
 import { 
   ArrowLeft, Sparkles, FileText, Mail, HelpCircle, 
-  User, Check, Copy, Download, RefreshCw, AlertCircle, Trash2
+  User, Check, Copy, Download, RefreshCw, AlertCircle, Trash2,
+  Award, Briefcase, Target, BookOpen
 } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { BottomNav } from '../components/BottomNav';
@@ -39,8 +40,23 @@ const INTERVIEW_STEPS = [
   },
   {
     key: "location",
-    question: "Which city and province do you live in?",
-    placeholder: "e.g. Pretoria, Gauteng"
+    question: "Which city and country do you live in?",
+    placeholder: "e.g. Pretoria, South Africa"
+  },
+  {
+    key: "linkedIn",
+    question: "What is your LinkedIn profile link or username? (Optional, or type 'Skip')",
+    placeholder: "e.g. linkedin.com/in/solly-molapisi or 'Skip'"
+  },
+  {
+    key: "portfolio",
+    question: "Do you have a personal website, portfolio, or GitHub link? (Optional, or type 'Skip')",
+    placeholder: "e.g. sollydev.co.za or 'Skip'"
+  },
+  {
+    key: "jobDescription",
+    question: "Are you applying for a specific job? If so, paste the job description or requirements here so I can tailor your CV specifically to pass their ATS filters! (Optional, or type 'Skip')",
+    placeholder: "Paste job description or type 'Skip'"
   },
   {
     key: "educationLevel",
@@ -72,14 +88,19 @@ const INTERVIEW_STEPS = [
     placeholder: "e.g. React Native, TypeScript, Client Relations, Project Management"
   },
   {
-    key: "languages",
-    question: "Which languages do you speak?",
-    placeholder: "e.g. English, Tshivenda, Zulu"
-  },
-  {
     key: "certificates",
     question: "Do you have any certificates, professional licences, or drivers licences?",
     placeholder: "e.g. AWS Certified Developer, Code 10 Drivers Licence, or 'None'"
+  },
+  {
+    key: "projects",
+    question: "Have you completed any notable key projects or portfolios you would like included?",
+    placeholder: "e.g. Built E-commerce Platform for 10k monthly users, or 'None'"
+  },
+  {
+    key: "languages",
+    question: "Which languages do you speak?",
+    placeholder: "e.g. English, Tshivenda, Zulu"
   },
   {
     key: "hobbies",
@@ -98,8 +119,8 @@ const INTERVIEW_STEPS = [
   },
   {
     key: "extra",
-    question: "Is there anything else you would like me to include in your CV? (Feel free to type details such as 'I enjoy charity work', 'I volunteer at church', 'I own a small business', 'I am willing to relocate', etc. I will intelligently decide where these belong!)",
-    placeholder: "e.g. I volunteer at church and am willing to relocate"
+    question: "Is there anything else you would like me to include in your CV? (e.g. 'I volunteer at church', 'willing to relocate', etc.)",
+    placeholder: "e.g. Willing to relocate, own personal transport"
   },
   {
     key: "style",
@@ -165,6 +186,25 @@ export const TaskModeScreen: React.FC = () => {
   const [isEditingResult, setIsEditingResult] = useState(false);
   const [copiedSuccess, setCopiedSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Enhanced CV Output States
+  const [coverLetterText, setCoverLetterText] = useState("");
+  const [cvScoreData, setCvScoreData] = useState<{
+    atsScore: number;
+    qualityScore: number;
+    strengths: string[];
+    weaknesses: string[];
+    suggestions: string[];
+  } | null>(null);
+  const [careerCoachData, setCareerCoachData] = useState<{
+    interviewTips: string[];
+    missingSkills: string[];
+    careerRecommendations: string[];
+    recommendedCourses: string[];
+  } | null>(null);
+  const [activeResultTab, setActiveResultTab] = useState<"cv" | "coverLetter" | "score" | "careerCoach">("cv");
+  const [jobDescInput, setJobDescInput] = useState("");
+  const [isTailoringJob, setIsTailoringJob] = useState(false);
 
   // Input States
   const [cvName, setCvName] = useState("");
@@ -316,16 +356,20 @@ export const TaskModeScreen: React.FC = () => {
         phoneNumber: interviewAnswers.phoneNumber || "",
         email: interviewAnswers.email || "",
         location: interviewAnswers.location || "",
+        linkedIn: interviewAnswers.linkedIn || "",
+        portfolio: interviewAnswers.portfolio || "",
+        jobDescription: interviewAnswers.jobDescription || jobDescInput || "",
         educationLevel: interviewAnswers.educationLevel || "",
         educationInstitution: interviewAnswers.educationInstitution || "",
         hasExperience: interviewAnswers.hasExperience || "",
         experience: interviewAnswers.experience || "",
         skills: interviewAnswers.skills || "",
-        languages: interviewAnswers.languages || "",
         certificates: interviewAnswers.certificates || "",
+        projects: interviewAnswers.projects || "",
+        languages: interviewAnswers.languages || "",
         hobbies: interviewAnswers.hobbies || "",
         achievements: interviewAnswers.achievements || "",
-        includeReferences: interviewAnswers.includeReferences || "",
+        includeReferences: interviewAnswers.includeReferences || "Available upon request",
         extra: interviewAnswers.extra || "",
         style: cvStyle
       };
@@ -376,6 +420,10 @@ export const TaskModeScreen: React.FC = () => {
       const data = await response.json();
       if (data.result) {
         setResultText(data.result);
+        if (data.coverLetter) setCoverLetterText(data.coverLetter);
+        if (data.score) setCvScoreData(data.score);
+        if (data.careerCoach) setCareerCoachData(data.careerCoach);
+        setActiveResultTab("cv");
         setActiveStep("result");
       } else {
         throw new Error(data.error || "Failed to generate result. Please try again.");
@@ -386,6 +434,124 @@ export const TaskModeScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReTailorJob = async () => {
+    if (!jobDescInput.trim()) return;
+    setIsTailoringJob(true);
+    setErrorMessage("");
+
+    try {
+      const inputs = {
+        fullName: interviewAnswers.fullName || "Candidate",
+        position: interviewAnswers.position || "",
+        phoneNumber: interviewAnswers.phoneNumber || "",
+        email: interviewAnswers.email || "",
+        location: interviewAnswers.location || "",
+        linkedIn: interviewAnswers.linkedIn || "",
+        portfolio: interviewAnswers.portfolio || "",
+        jobDescription: jobDescInput,
+        educationLevel: interviewAnswers.educationLevel || "",
+        educationInstitution: interviewAnswers.educationInstitution || "",
+        hasExperience: interviewAnswers.hasExperience || "",
+        experience: interviewAnswers.experience || "",
+        skills: interviewAnswers.skills || "",
+        certificates: interviewAnswers.certificates || "",
+        projects: interviewAnswers.projects || "",
+        languages: interviewAnswers.languages || "",
+        hobbies: interviewAnswers.hobbies || "",
+        achievements: interviewAnswers.achievements || "",
+        includeReferences: interviewAnswers.includeReferences || "Available upon request",
+        extra: interviewAnswers.extra || "",
+        style: cvStyle
+      };
+
+      const response = await fetch("/api/task-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskType: "cv",
+          inputs
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to re-tailor CV.");
+      }
+
+      const data = await response.json();
+      if (data.result) {
+        setResultText(data.result);
+        if (data.coverLetter) setCoverLetterText(data.coverLetter);
+        if (data.score) setCvScoreData(data.score);
+        if (data.careerCoach) setCareerCoachData(data.careerCoach);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage("Could not re-tailor CV. Please try again.");
+    } finally {
+      setIsTailoringJob(false);
+    }
+  };
+
+  const handleDownloadDOCX = (textToExport?: string, titlePrefix?: string) => {
+    const content = textToExport || (activeResultTab === "coverLetter" ? coverLetterText : resultText);
+    const prefix = titlePrefix || (activeResultTab === "coverLetter" ? "Cover_Letter" : "CV");
+    const name = (interviewAnswers.fullName || "OrbitAI").replace(/\s+/g, '_');
+    const fileName = `${name}_${prefix}_${cvStyle}.docx`;
+
+    const htmlHeader = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>${prefix}</title>
+        <style>
+          @page { size: 8.5in 11in; margin: 1.0in; }
+          body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; line-height: 1.45; color: #2d3748; }
+          h1 { font-size: 20pt; color: #1a365d; margin-bottom: 4pt; font-weight: bold; text-align: center; }
+          h2 { font-size: 12pt; color: #2b6cb0; border-bottom: 1.5pt solid #2b6cb0; padding-bottom: 2pt; margin-top: 14pt; margin-bottom: 6pt; font-weight: bold; text-transform: uppercase; }
+          h3 { font-size: 11pt; color: #2d3748; margin-top: 8pt; font-weight: bold; }
+          h4 { font-size: 10.5pt; color: #4a5568; margin-top: 6pt; font-weight: bold; }
+          p { margin-bottom: 4pt; text-align: justify; }
+          ul { margin-top: 2pt; margin-bottom: 6pt; padding-left: 18pt; }
+          li { margin-bottom: 3pt; }
+          hr { border: 0; border-top: 1pt solid #e2e8f0; margin: 12pt 0; }
+        </style>
+      </head>
+      <body>
+    `;
+
+    let htmlBody = content
+      .split('\n')
+      .map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return '<br/>';
+        if (line.startsWith('# ')) return `<h1>${line.substring(2)}</h1>`;
+        if (line.startsWith('## ')) return `<h2>${line.substring(3)}</h2>`;
+        if (line.startsWith('### ')) return `<h3>${line.substring(4)}</h3>`;
+        if (line.startsWith('#### ')) return `<h4>${line.substring(5)}</h4>`;
+        if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) return `<li>${trimmed.substring(2)}</li>`;
+        if (trimmed === '---') return '<hr/>';
+        return `<p>${line}</p>`;
+      })
+      .join('');
+
+    htmlBody = htmlBody.replace(/(<li>.*?<\/li>)+/g, (match) => `<ul>${match}</ul>`);
+
+    const fullHtml = htmlHeader + htmlBody + `</body></html>`;
+
+    const blob = new Blob(['\ufeff', fullHtml], {
+      type: 'application/msword'
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const renderStyledCVPreview = (text: string, style: string) => {
@@ -1265,83 +1431,371 @@ export const TaskModeScreen: React.FC = () => {
             
             <View className="bg-emerald-600/5 border border-emerald-100 p-3 rounded-2xl flex flex-row items-center gap-2 text-emerald-900 select-none">
               <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-              <Text className="text-[11px] font-bold font-sans">Task Compiled Successfully!</Text>
+              <Text className="text-[11px] font-bold font-sans">
+                {selectedTask.id === "cv" ? "CV & Career Suite Generated Successfully!" : "Task Compiled Successfully!"}
+              </Text>
             </View>
 
-            {/* ACTION ROW */}
-            <View className="flex flex-row gap-2 select-none">
-              <TouchableOpacity 
-                onClick={handleCopy}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5"
-              >
-                {copiedSuccess ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="text-emerald-700">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy</span>
-                  </>
+            {/* CV SPECIFIC MULTI-FEATURE TABS */}
+            {selectedTask.id === "cv" && (
+              <View className="flex flex-row bg-slate-100 p-1 rounded-2xl gap-1 border border-slate-200 select-none">
+                <TouchableOpacity
+                  onClick={() => setActiveResultTab("cv")}
+                  className={`flex-1 py-2 rounded-xl text-center text-[10.5px] font-bold transition flex flex-row items-center justify-center gap-1 cursor-pointer ${
+                    activeResultTab === "cv" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>CV Document</span>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onClick={() => setActiveResultTab("coverLetter")}
+                  className={`flex-1 py-2 rounded-xl text-center text-[10.5px] font-bold transition flex flex-row items-center justify-center gap-1 cursor-pointer ${
+                    activeResultTab === "coverLetter" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Cover Letter</span>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onClick={() => setActiveResultTab("score")}
+                  className={`flex-1 py-2 rounded-xl text-center text-[10.5px] font-bold transition flex flex-row items-center justify-center gap-1 cursor-pointer ${
+                    activeResultTab === "score" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Award className="w-3.5 h-3.5 text-amber-500" />
+                  <span>ATS Score</span>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onClick={() => setActiveResultTab("careerCoach")}
+                  className={`flex-1 py-2 rounded-xl text-center text-[10.5px] font-bold transition flex flex-row items-center justify-center gap-1 cursor-pointer ${
+                    activeResultTab === "careerCoach" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Briefcase className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Career Coach</span>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* TAB 1: CV DOCUMENT VIEW */}
+            {(selectedTask.id !== "cv" || activeResultTab === "cv") && (
+              <View className="space-y-4">
+                {/* STYLE PICKER FOR CV */}
+                {selectedTask.id === "cv" && (
+                  <View className="bg-slate-50 border border-slate-200 p-2.5 rounded-2xl flex flex-row items-center justify-between gap-1 select-none">
+                    <Text className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0">CV Theme:</Text>
+                    <View className="flex flex-row gap-1 overflow-x-auto">
+                      {(["Professional", "Modern", "Executive", "Minimal", "Creative"] as const).map((st) => (
+                        <TouchableOpacity
+                          key={st}
+                          onClick={() => setCvStyle(st)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                            cvStyle === st ? "bg-slate-900 text-white shadow-2xs" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          {st}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
                 )}
-              </TouchableOpacity>
 
-              <TouchableOpacity 
-                onClick={() => setIsEditingResult(!isEditingResult)}
-                className={`flex-1 py-2.5 border rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5 ${
-                  isEditingResult 
-                    ? 'bg-blue-50 border-blue-200 text-blue-700' 
-                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
-                }`}
-              >
-                <span>{isEditingResult ? "Preview" : "Edit Outcome"}</span>
-              </TouchableOpacity>
+                {/* ACTION ROW */}
+                <View className="flex flex-row gap-2 select-none">
+                  <TouchableOpacity 
+                    onClick={handleCopy}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5"
+                  >
+                    {copiedSuccess ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </TouchableOpacity>
 
-              <TouchableOpacity 
-                onClick={handleDownloadPDF}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 border border-blue-500 text-white rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>PDF</span>
-              </TouchableOpacity>
-            </View>
+                  <TouchableOpacity 
+                    onClick={() => setIsEditingResult(!isEditingResult)}
+                    className={`flex-1 py-2.5 border rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5 ${
+                      isEditingResult 
+                        ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                        : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <span>{isEditingResult ? "Preview" : "Edit Outcome"}</span>
+                  </TouchableOpacity>
 
-            {/* RESULT CONTENT CONTAINER */}
-            {isEditingResult ? (
-              <textarea
-                value={resultText}
-                onChange={(e) => setResultText(e.target.value)}
-                className="w-full min-h-[360px] p-4 bg-white border border-slate-200 rounded-3xl outline-none focus:border-blue-400 font-mono text-xs text-slate-800"
-              />
-            ) : selectedTask.id === "cv" ? (
-              renderStyledCVPreview(resultText, cvStyle)
-            ) : (
-              <View className="bg-white p-5 border border-slate-200/60 rounded-3xl shadow-3xs overflow-auto">
-                <Text className="text-xs text-slate-800 leading-relaxed font-sans whitespace-pre-wrap block text-left">
-                  {resultText}
-                </Text>
+                  <TouchableOpacity 
+                    onClick={() => handleDownloadPDF(resultText, "CV")}
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 border border-blue-500 text-white rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>PDF</span>
+                  </TouchableOpacity>
+
+                  {selectedTask.id === "cv" && (
+                    <TouchableOpacity 
+                      onClick={() => handleDownloadDOCX(resultText, "CV")}
+                      className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 border border-indigo-500 text-white rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>DOCX</span>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* RESULT CONTENT DISPLAY */}
+                {isEditingResult ? (
+                  <textarea
+                    value={resultText}
+                    onChange={(e) => setResultText(e.target.value)}
+                    className="w-full min-h-[380px] p-4 bg-white border border-slate-200 rounded-3xl outline-none focus:border-blue-400 font-mono text-xs text-slate-800"
+                  />
+                ) : selectedTask.id === "cv" ? (
+                  renderStyledCVPreview(resultText, cvStyle)
+                ) : (
+                  <View className="bg-white p-5 border border-slate-200/60 rounded-3xl shadow-3xs overflow-auto">
+                    <Text className="text-xs text-slate-800 leading-relaxed font-sans whitespace-pre-wrap block text-left">
+                      {resultText}
+                    </Text>
+                  </View>
+                )}
+
+                {/* JOB DESCRIPTION RE-TAILORING PANEL FOR CV */}
+                {selectedTask.id === "cv" && (
+                  <View className="bg-slate-50 border border-slate-200 p-4 rounded-3xl space-y-3">
+                    <View className="flex flex-row items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <Text className="text-xs font-extrabold text-slate-900 font-sans">
+                        Tailor CV for a Specific Job Advert
+                      </Text>
+                    </View>
+                    <Text className="text-[11px] text-slate-500 font-sans leading-relaxed block">
+                      Paste a target job description below. Orbit AI will intelligently re-align your professional summary, key experience bullet points, and ATS keywords to maximize your matching score for that specific employer.
+                    </Text>
+                    <textarea
+                      placeholder="Paste target job advert or job requirements here..."
+                      value={jobDescInput}
+                      onChange={(e) => setJobDescInput(e.target.value)}
+                      className="w-full min-h-[80px] p-3 bg-white border border-slate-200 rounded-2xl outline-none focus:border-blue-500 text-xs text-slate-800 font-sans resize-none"
+                    />
+                    <TouchableOpacity
+                      onClick={handleReTailorJob}
+                      disabled={isTailoringJob || !jobDescInput.trim()}
+                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl text-center text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isTailoringJob ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 text-white animate-spin" />
+                          <span>AI Re-Tailoring CV & Cover Letter...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 text-white" />
+                          <span>Re-Tailor CV for this Job Description</span>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* TAB 2: COVER LETTER VIEW */}
+            {selectedTask.id === "cv" && activeResultTab === "coverLetter" && (
+              <View className="space-y-4">
+                <View className="flex flex-row gap-2 select-none">
+                  <TouchableOpacity 
+                    onClick={() => {
+                      navigator.clipboard.writeText(coverLetterText);
+                      setCopiedSuccess(true);
+                      setTimeout(() => setCopiedSuccess(false), 2000);
+                    }}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5"
+                  >
+                    {copiedSuccess ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Letter</span>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onClick={() => handleDownloadPDF(coverLetterText, "Cover_Letter")}
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 border border-blue-500 text-white rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>PDF</span>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onClick={() => handleDownloadDOCX(coverLetterText, "Cover_Letter")}
+                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 border border-indigo-500 text-white rounded-xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>DOCX</span>
+                  </TouchableOpacity>
+                </View>
+
+                <View className="bg-white p-6 border border-slate-200 rounded-3xl shadow-3xs">
+                  <Text className="text-xs text-slate-800 leading-relaxed font-sans whitespace-pre-wrap block text-left">
+                    {coverLetterText || "Generating cover letter..."}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* TAB 3: ATS & CV QUALITY SCORE */}
+            {selectedTask.id === "cv" && activeResultTab === "score" && (
+              <View className="space-y-4">
+                {/* METRICS ROW */}
+                <View className="grid grid-cols-2 gap-3">
+                  <View className="bg-blue-50/60 border border-blue-100 p-4 rounded-3xl text-center">
+                    <Text className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest block mb-1">ATS Compliance Score</Text>
+                    <Text className="text-3xl font-black text-blue-900 block font-sans">
+                      {cvScoreData?.atsScore || 95}<span className="text-sm font-normal text-blue-600">/100</span>
+                    </Text>
+                    <Text className="text-[10px] text-blue-700 mt-1 block">Compatible with Workday, Taleo &amp; Greenhouse</Text>
+                  </View>
+
+                  <View className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-3xl text-center">
+                    <Text className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest block mb-1">Quality &amp; Impact</Text>
+                    <Text className="text-3xl font-black text-emerald-900 block font-sans">
+                      {cvScoreData?.qualityScore || 96}<span className="text-sm font-normal text-emerald-600">/100</span>
+                    </Text>
+                    <Text className="text-[10px] text-emerald-700 mt-1 block">Grammar, Layout &amp; Metrics Verified</Text>
+                  </View>
+                </View>
+
+                {/* STRENGTHS */}
+                <View className="bg-white p-4 border border-slate-200 rounded-3xl space-y-2">
+                  <Text className="text-xs font-extrabold text-slate-900 font-sans flex flex-row items-center gap-1.5">
+                    <Check className="w-4 h-4 text-emerald-500" /> Key Strengths Identified
+                  </Text>
+                  <View className="space-y-1.5 pt-1">
+                    {(cvScoreData?.strengths || [
+                      "ATS-friendly clean structural heading hierarchy",
+                      "Action verbs used across professional work experience",
+                      "Quantified metrics and achievement outcomes included",
+                      "Contact details and professional references cleanly formatted"
+                    ]).map((str, idx) => (
+                      <View key={idx} className="flex flex-row items-start gap-2">
+                        <Text className="text-emerald-500 text-xs font-bold">•</Text>
+                        <Text className="text-xs text-slate-700 font-sans leading-relaxed">{str}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                {/* SUGGESTIONS & IMPROVEMENTS */}
+                <View className="bg-white p-4 border border-slate-200 rounded-3xl space-y-2">
+                  <Text className="text-xs font-extrabold text-slate-900 font-sans flex flex-row items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-blue-500" /> Optimization Recommendations
+                  </Text>
+                  <View className="space-y-1.5 pt-1">
+                    {(cvScoreData?.suggestions || [
+                      "Keep job titles consistent across both CV and LinkedIn profile",
+                      "Re-tailor keywords if applying for specialized enterprise roles",
+                      "Consider adding vendor-specific cloud or leadership certificates"
+                    ]).map((sug, idx) => (
+                      <View key={idx} className="flex flex-row items-start gap-2">
+                        <Text className="text-blue-500 text-xs font-bold">•</Text>
+                        <Text className="text-xs text-slate-700 font-sans leading-relaxed">{sug}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* TAB 4: AI CAREER COACH */}
+            {selectedTask.id === "cv" && activeResultTab === "careerCoach" && (
+              <View className="space-y-4">
+                {/* INTERVIEW STRATEGY */}
+                <View className="bg-white p-4 border border-slate-200 rounded-3xl space-y-2">
+                  <Text className="text-xs font-extrabold text-slate-900 font-sans flex flex-row items-center gap-1.5">
+                    <Briefcase className="w-4 h-4 text-indigo-600" /> Interview Strategy &amp; Prep Tips
+                  </Text>
+                  <View className="space-y-1.5 pt-1">
+                    {(careerCoachData?.interviewTips || [
+                      "Prepare 2-3 STAR method stories highlighting measurable achievements from past roles.",
+                      "Be ready to elaborate on your primary technical skills with real-world project examples.",
+                      "Research the employer's market position and align your personal value proposition with their mission."
+                    ]).map((tip, idx) => (
+                      <View key={idx} className="flex flex-row items-start gap-2">
+                        <Text className="text-indigo-600 text-xs font-bold">{idx + 1}.</Text>
+                        <Text className="text-xs text-slate-700 font-sans leading-relaxed">{tip}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                {/* IN-DEMAND MISSING SKILLS & COURSES */}
+                <View className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <View className="bg-white p-4 border border-slate-200 rounded-3xl space-y-2">
+                    <Text className="text-xs font-extrabold text-slate-900 font-sans flex flex-row items-center gap-1.5">
+                      <Target className="w-4 h-4 text-amber-500" /> High-Impact Skills to Acquire
+                    </Text>
+                    <View className="space-y-1.5 pt-1">
+                      {(careerCoachData?.missingSkills || [
+                        "Advanced Data Analytics & Dashboards",
+                        "Agile & Scrum Project Methodology",
+                        "Cloud Platform Fundamentals (AWS / Azure)"
+                      ]).map((sk, idx) => (
+                        <View key={idx} className="flex flex-row items-center gap-2">
+                          <Text className="text-amber-500 text-xs font-bold">•</Text>
+                          <Text className="text-xs text-slate-700 font-sans">{sk}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View className="bg-white p-4 border border-slate-200 rounded-3xl space-y-2">
+                    <Text className="text-xs font-extrabold text-slate-900 font-sans flex flex-row items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-teal-600" /> Recommended Courses &amp; Certs
+                    </Text>
+                    <View className="space-y-1.5 pt-1">
+                      {(careerCoachData?.recommendedCourses || [
+                        "Google Professional Career Certificates",
+                        "AWS Certified Cloud Practitioner",
+                        "PMI Agile Certified Practitioner (PMI-ACP)"
+                      ]).map((crs, idx) => (
+                        <View key={idx} className="flex flex-row items-center gap-2">
+                          <Text className="text-teal-600 text-xs font-bold">•</Text>
+                          <Text className="text-xs text-slate-700 font-sans">{crs}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
               </View>
             )}
 
             {/* OPTIONS PANEL */}
             <View className="flex flex-col gap-2 select-none pt-2">
               <TouchableOpacity 
-                onClick={handleDownloadPDF}
-                className="w-full py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-xl text-center text-xs font-bold cursor-pointer transition flex flex-row items-center justify-center gap-2"
-              >
-                <Download className="w-4 h-4 text-blue-600" />
-                <span>Download Instant PDF Copy</span>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
                 onClick={() => {
                   setActiveStep("input");
                   setIsEditingResult(false);
                 }}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-250 text-slate-500 rounded-xl text-center text-[11px] font-bold cursor-pointer transition"
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-250 text-slate-600 rounded-xl text-center text-[11px] font-bold cursor-pointer transition"
               >
-                Make Adjustments to Inputs
+                Return to Interview / Modify Answers
               </TouchableOpacity>
             </View>
 
