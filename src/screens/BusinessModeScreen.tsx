@@ -151,6 +151,7 @@ export default function BusinessModeScreen() {
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isNearMeActive, setIsNearMeActive] = useState(false);
   const [loadingGPS, setLoadingGPS] = useState(false);
+  const [showLocationPermissionModal, setShowLocationPermissionModal] = useState(false);
 
   // Form registration state
   const [formStep, setFormStep] = useState<1 | 2>(1); // 1 = Form fields, 2 = PayFast Checkout redirect / simulation
@@ -292,40 +293,35 @@ export default function BusinessModeScreen() {
 
     setLoadingGPS(true);
     if (!navigator.geolocation) {
-      // Fallback to default Louis Trichardt coordinate if not supported
-      setUserCoords({
-        lat: -23.0471,
-        lng: 29.9032
-      });
-      setIsNearMeActive(true);
-      setSortBy('nearest');
       setLoadingGPS(false);
+      setShowLocationPermissionModal(true);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserCoords({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
-        setIsNearMeActive(true);
-        setSortBy('nearest'); // Automatically switch sorting to nearest
-        setLoadingGPS(false);
-      },
-      (error) => {
-        console.warn("GPS retrieval error (using Louis Trichardt fallback):", error);
-        // Graceful fallback to Louis Trichardt center so distance sorting works perfectly in sandboxed iframe previews
-        setUserCoords({
-          lat: -23.0471,
-          lng: 29.9032
-        });
-        setIsNearMeActive(true);
-        setSortBy('nearest');
-        setLoadingGPS(false);
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-    );
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserCoords({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+          setIsNearMeActive(true);
+          setSortBy('nearest'); // Automatically switch sorting to nearest
+          setLoadingGPS(false);
+          setShowLocationPermissionModal(false);
+        },
+        (error) => {
+          console.warn("GPS permission or retrieval error:", error);
+          setLoadingGPS(false);
+          setShowLocationPermissionModal(true);
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
+      );
+    } catch (err) {
+      console.error("Geolocation request failed:", err);
+      setLoadingGPS(false);
+      setShowLocationPermissionModal(true);
+    }
   };
 
   const disableNearMe = () => {
@@ -735,7 +731,7 @@ export default function BusinessModeScreen() {
               </View>
 
               {/* Filter by Location (supports townCity, Suburb, Village, Province) */}
-              <View className="space-y-2">
+              <View id="location-filter-section" className="space-y-2">
                 <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-0.5 block">Filter by Location</Text>
                 <View className="flex flex-row overflow-x-auto pb-1 gap-2 scrollbar-none">
                   {LOCATIONS.map((loc) => (
@@ -1670,6 +1666,78 @@ export default function BusinessModeScreen() {
         )}
 
       </ScrollView>
+
+      {/* Location Permission Modal for Android / Overlay / Permission Failures */}
+      <AnimatePresence>
+        {showLocationPermissionModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white border border-slate-200/80 rounded-2xl max-w-md w-full p-6 shadow-2xl relative overflow-hidden space-y-5 text-left"
+            >
+              <div className="flex items-start justify-between">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                  <Navigation className="w-6 h-6 text-blue-600" />
+                </div>
+                <button
+                  onClick={() => setShowLocationPermissionModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <Text className="text-lg font-black text-slate-900 tracking-tight font-sans block">
+                  Location Permission Needed
+                </Text>
+                <div className="text-xs text-slate-600 leading-relaxed font-sans space-y-2 block">
+                  <p className="block">
+                    Orbit AI couldn't request your location because another app is displaying over your screen.
+                  </p>
+                  <p className="block">
+                    Please close any floating bubbles, chat heads, screen overlays, or screen recording tools and try again.
+                  </p>
+                  <p className="block font-medium text-slate-700">
+                    You can also continue by selecting your city manually.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-2">
+                <button
+                  onClick={() => {
+                    setShowLocationPermissionModal(false);
+                    setTimeout(() => {
+                      handleNearMe();
+                    }, 200);
+                  }}
+                  className="w-full sm:flex-1 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold py-3 px-4 rounded-xl text-xs transition cursor-pointer shadow-xs text-center flex items-center justify-center gap-2"
+                >
+                  <Navigation className="w-4 h-4 text-white" />
+                  <span>Try Again</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowLocationPermissionModal(false);
+                    setTimeout(() => {
+                      document.getElementById('location-filter-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 200);
+                  }}
+                  className="w-full sm:flex-1 bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-700 border border-slate-200 font-bold py-3 px-4 rounded-xl text-xs transition cursor-pointer text-center flex items-center justify-center gap-2"
+                >
+                  <MapPin className="w-4 h-4 text-slate-500" />
+                  <span>Choose City Instead</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </SafeAreaView>
   );
