@@ -285,43 +285,88 @@ export default function BusinessModeScreen() {
     return R * c;
   };
 
-  const handleNearMe = () => {
+  const handleNearMe = async () => {
     if (isNearMeActive) {
       disableNearMe();
       return;
     }
 
     setLoadingGPS(true);
+    setShowLocationPermissionModal(false);
+
     if (!navigator.geolocation) {
       setLoadingGPS(false);
       setShowLocationPermissionModal(true);
       return;
     }
 
+    const retrievePosition = (options: PositionOptions) => {
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setUserCoords({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            });
+            setIsNearMeActive(true);
+            setSortBy('nearest'); // Automatically switch sorting to nearest
+            setLoadingGPS(false);
+            setShowLocationPermissionModal(false);
+          },
+          (error) => {
+            console.warn("GPS permission or retrieval error:", error);
+            setLoadingGPS(false);
+
+            // Detect genuine permission failures (PERMISSION_DENIED = 1 or overlay/blocked messages)
+            const isPermissionDenied =
+              error.code === error.PERMISSION_DENIED ||
+              error.code === 1 ||
+              (!!error.message && (
+                error.message.toLowerCase().includes('denied') ||
+                error.message.toLowerCase().includes('overlay') ||
+                error.message.toLowerCase().includes('permission') ||
+                error.message.toLowerCase().includes('blocked')
+              ));
+
+            if (isPermissionDenied) {
+              setShowLocationPermissionModal(true);
+            } else {
+              // For non-permission errors (e.g., POSITION_UNAVAILABLE or TIMEOUT),
+              // do NOT show the permission modal. Fallback to default center location.
+              setUserCoords({
+                lat: -23.0471,
+                lng: 29.9032
+              });
+              setIsNearMeActive(true);
+              setSortBy('nearest');
+              setShowLocationPermissionModal(false);
+            }
+          },
+          options
+        );
+      } catch (err) {
+        console.error("Geolocation request failed:", err);
+        setLoadingGPS(false);
+        setShowLocationPermissionModal(true);
+      }
+    };
+
     try {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserCoords({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-          setIsNearMeActive(true);
-          setSortBy('nearest'); // Automatically switch sorting to nearest
-          setLoadingGPS(false);
-          setShowLocationPermissionModal(false);
-        },
-        (error) => {
-          console.warn("GPS permission or retrieval error:", error);
+      if (navigator.permissions && navigator.permissions.query) {
+        const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+        if (permissionStatus.state === 'denied') {
           setLoadingGPS(false);
           setShowLocationPermissionModal(true);
-        },
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
-      );
+          return;
+        }
+      }
     } catch (err) {
-      console.error("Geolocation request failed:", err);
-      setLoadingGPS(false);
-      setShowLocationPermissionModal(true);
+      console.warn("Permissions API check skipped or unsupported:", err);
     }
+
+    // Permission is either 'granted' or 'prompt'.
+    // Retrieve position normally without displaying custom modal.
+    retrievePosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 });
   };
 
   const disableNearMe = () => {
