@@ -2,26 +2,36 @@ import OpenAI from 'openai';
 import './env-sanitizer.js';
 
 /**
- * AI Helper Utility
- * Implements a robust OpenAI Chat Completion fetch wrapper with automatic
- * seamless fallback to Gemini API if OpenAI fails.
- * If both OpenAI and Gemini APIs fail (e.g., due to invalid API keys or blocked services),
- * it falls back to a highly realistic, context-aware local generator to ensure the app
- * remains fully functional and reliable for the end-user.
+ * AI Provider Abstraction Layer & Switching Service
+ * Supports switching between AI providers using the AI_PROVIDER environment variable:
+ * - openai (PRODUCTION default): Uses OpenAI GPT-4o-mini via OPENAI_API_KEY
+ * - groq (TESTING): Uses Groq LLaMA-3.3-70b-versatile via GROQ_API_KEY
+ * - gemini (TESTING): Uses Google Gemini 2.5-flash via GEMINI_API_KEY
  */
-
 export async function fetchChatCompletion(messages: any[], temperature: number = 0.7): Promise<any> {
-  const openaiApiKey = typeof process !== 'undefined' && process?.env ? process.env.OPENAI_API_KEY : undefined;
+  const provider = (typeof process !== 'undefined' && process?.env?.AI_PROVIDER
+    ? process.env.AI_PROVIDER
+    : 'openai'
+  ).toLowerCase().trim();
 
-  console.log(`[AI-Helper] Starting Chat Completion request. OpenAI key available: ${!!openaiApiKey}`);
+  console.log(`[AI-Helper] Active AI_PROVIDER configured: '${provider}'`);
 
-  // Try OpenAI first if the key is defined
-  if (openaiApiKey && !openaiApiKey.includes("your_openai_api_key_here")) {
+  // ==========================================
+  // PROVIDER 1: OPENAI (PRODUCTION DEFAULT)
+  // ==========================================
+  if (provider === 'openai') {
+    const openaiApiKey = typeof process !== 'undefined' && process?.env ? process.env.OPENAI_API_KEY : undefined;
+    if (!openaiApiKey || openaiApiKey.includes("your_openai_api_key_here")) {
+      const errMsg = "OpenAI API call failed: OPENAI_API_KEY environment variable is missing or set to a placeholder. Please configure OPENAI_API_KEY or switch AI_PROVIDER to 'groq' or 'gemini' for testing.";
+      console.error(`[AI-Helper] ${errMsg}`);
+      throw new Error(errMsg);
+    }
+
     try {
-      console.log("[AI-Helper] Attempting to call OpenAI Chat Completion API via official SDK with timeout...");
+      console.log("[AI-Helper] Routing request to OpenAI Chat Completion API (gpt-4o-mini)...");
       const openai = new OpenAI({
         apiKey: openaiApiKey,
-        timeout: 25000 // 25 seconds timeout to allow complex CV, cover letter, and multi-section completions
+        timeout: 25000 // 25 seconds timeout for complex completions
       });
 
       const completion = await openai.chat.completions.create({
@@ -37,34 +47,145 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       console.error("Error Status:", err.status || err.statusCode || "N/A");
       console.error("Error Code:", err.code || "N/A");
       console.error("Error Message:", err.message || "N/A");
-      console.error("Full Error Object:", err);
-      
-      // Propagate the specific OpenAI error so the caller can return the authentic details to the client
-      throw err;
+      throw new Error(`OpenAI API call failed (gpt-4o-mini): ${err.message || String(err)}`);
     }
-  } else {
-    console.warn("[AI-Helper] OpenAI API key is missing or set to placeholder. Proceeding directly to local fallback...");
   }
 
-  // Final absolute safe fallback: Local realistic mock generator
-  console.log("[AI-Helper] Running high-fidelity local content generator...");
-  try {
-    const text = generateLocalFallbackResponse(messages);
-    return {
-      choices: [
-        {
-          message: {
-            role: "assistant",
-            content: text
+  // ==========================================
+  // PROVIDER 2: GROQ (TESTING)
+  // ==========================================
+  if (provider === 'groq') {
+    const groqApiKey = typeof process !== 'undefined' && process?.env ? process.env.GROQ_API_KEY : undefined;
+    if (!groqApiKey || groqApiKey.includes("your_groq_api_key_here")) {
+      const errMsg = "Groq API call failed: GROQ_API_KEY environment variable is missing or set to a placeholder. Please configure GROQ_API_KEY in your Vercel/environment settings.";
+      console.error(`[AI-Helper] ${errMsg}`);
+      throw new Error(errMsg);
+    }
+
+    try {
+      console.log("[AI-Helper] Routing request to Groq API (llama-3.3-70b-versatile)...");
+      const groqClient = new OpenAI({
+        apiKey: groqApiKey,
+        baseURL: "https://api.groq.com/openai/v1",
+        timeout: 25000
+      });
+
+      const completion = await groqClient.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages,
+        temperature
+      });
+
+      console.log("[AI-Helper] Groq API call succeeded!");
+      return completion;
+    } catch (err: any) {
+      console.error("[AI-Helper] Groq API SDK call failed!");
+      console.error("Error Status:", err.status || err.statusCode || "N/A");
+      console.error("Error Message:", err.message || "N/A");
+      throw new Error(`Groq API call failed (llama-3.3-70b-versatile): ${err.message || String(err)}`);
+    }
+  }
+
+  // ==========================================
+  // PROVIDER 3: GOOGLE GEMINI (TESTING)
+  // ==========================================
+  if (provider === 'gemini') {
+    const geminiApiKey = typeof process !== 'undefined' && process?.env ? process.env.GEMINI_API_KEY : undefined;
+    if (!geminiApiKey || geminiApiKey.includes("your_gemini_api_key_here")) {
+      const errMsg = "Gemini API call failed: GEMINI_API_KEY environment variable is missing or set to a placeholder. Please configure GEMINI_API_KEY in your Vercel/environment settings.";
+      console.error(`[AI-Helper] ${errMsg}`);
+      throw new Error(errMsg);
+    }
+
+    try {
+      console.log("[AI-Helper] Routing request to Google Gemini API (gemini-2.5-flash)...");
+
+      // Extract system instructions and format user/assistant turns
+      let systemInstructionText = "";
+      const formattedContents: any[] = [];
+
+      for (const msg of messages) {
+        const contentStr = msg.content || "";
+        if (msg.role === "system") {
+          systemInstructionText += (systemInstructionText ? "\n\n" : "") + contentStr;
+        } else {
+          const geminiRole = (msg.role === "assistant" || msg.role === "model") ? "model" : "user";
+          // Avoid duplicate adjacent roles for Gemini REST API
+          if (formattedContents.length > 0 && formattedContents[formattedContents.length - 1].role === geminiRole) {
+            formattedContents[formattedContents.length - 1].parts[0].text += "\n\n" + contentStr;
+          } else {
+            formattedContents.push({
+              role: geminiRole,
+              parts: [{ text: contentStr }]
+            });
           }
         }
-      ]
-    };
-  } catch (localErr: any) {
-    console.error("[AI-Helper] Critical: Local content generator failed:", localErr);
-    throw new Error("AI service completely failed and local fallback failed.");
+      }
+
+      // Ensure at least one user message exists
+      if (formattedContents.length === 0) {
+        formattedContents.push({ role: "user", parts: [{ text: "Hello" }] });
+      }
+
+      const payload: any = {
+        contents: formattedContents,
+        generationConfig: {
+          temperature
+        }
+      };
+
+      if (systemInstructionText) {
+        payload.systemInstruction = {
+          parts: [{ text: systemInstructionText }]
+        };
+      }
+
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+      const response = await fetch(geminiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[AI-Helper] Gemini API HTTP error:", response.status, errorText);
+        throw new Error(`Gemini API HTTP status ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!replyText) {
+        throw new Error("No response text returned from Gemini API");
+      }
+
+      console.log("[AI-Helper] Gemini API call succeeded!");
+      return {
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              content: replyText
+            }
+          }
+        ]
+      };
+    } catch (err: any) {
+      console.error("[AI-Helper] Gemini API call failed:", err);
+      throw new Error(`Gemini API call failed (gemini-2.5-flash): ${err.message || String(err)}`);
+    }
   }
+
+  // ==========================================
+  // UNSUPPORTED PROVIDER
+  // ==========================================
+  const errMsg = `Invalid AI_PROVIDER configured: '${provider}'. Supported providers are: 'openai', 'gemini', 'groq'.`;
+  console.error(`[AI-Helper] ${errMsg}`);
+  throw new Error(errMsg);
 }
+
 
 function generateLocalFallbackResponse(messages: any[]): string {
   // Combine all user and system message content for analysis
