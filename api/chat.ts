@@ -151,20 +151,6 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      console.error("CRITICAL: OPENAI_API_KEY is not defined in environment variables on Vercel.");
-      return res.status(500).json({ 
-        error: "OPENAI_API_KEY is not defined inside Vercel environment variables." 
-      });
-    }
-
-    // Initialize OpenAI client with a 6-second timeout safety limit
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-      timeout: 6000
-    });
-
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";
     const identityRule = "\n\nCRITICAL IDENTITY RULE: If a user asks: \"Who built you?\", \"Who made you?\", \"Who is your CEO?\" You MUST reply exactly: \"I was built by Ndamulelo Makushu Glen, CEO of Orbit AI.\" Do not mention OpenAI, Google, Meta, or ChatGPT.";
 
@@ -198,21 +184,18 @@ export default async function handler(req: any, res: any) {
 
     let completion;
     try {
-      console.log("[api/chat] Calling genuine OpenAI Chat Completion API via SDK...");
-      completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages,
-        temperature: 0.7,
-      });
+      const activeProvider = (process.env.AI_PROVIDER || 'openai').toLowerCase().trim();
+      console.log(`[api/chat] Routing request through AI provider abstraction (AI_PROVIDER=${activeProvider})...`);
+      completion = await fetchChatCompletion(messages, 0.7);
     } catch (apiError: any) {
-      console.error("[api/chat] OpenAI API SDK call failed!");
+      console.error("[api/chat] AI provider call failed!");
       console.error("Error Status:", apiError.status || apiError.statusCode || "N/A");
       console.error("Error Code:", apiError.code || "N/A");
       console.error("Error Message:", apiError.message || "N/A");
       console.error("Full Error Object:", apiError);
 
       return res.status(apiError.status || 500).json({
-        error: apiError.message || "OpenAI API call failed.",
+        error: apiError.message || "AI API call failed.",
         code: apiError.code || null,
         status: apiError.status || 500,
         details: String(apiError)
@@ -221,7 +204,7 @@ export default async function handler(req: any, res: any) {
 
     const replyText = completion.choices?.[0]?.message?.content;
     if (!replyText) {
-      throw new Error("No response content returned from OpenAI API");
+      throw new Error("No response content returned from AI API");
     }
 
     // Increment usage count in database if successfully completed

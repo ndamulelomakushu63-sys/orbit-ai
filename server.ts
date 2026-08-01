@@ -162,18 +162,6 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      console.warn("WARNING: OPENAI_API_KEY is not defined inside environment variables.");
-      return res.status(500).json({ 
-        error: "OPENAI_API_KEY is not defined inside backend environment variables." 
-      });
-    }
-
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-    });
-
     const basePrompt = systemPrompt || "You are Orbit AI, an intelligent, modern, friendly, and affordable mobile AI assistant. Help the user with direct, useful, clean answers. Keep responses formatted with markdown where helpful, and keep mobile reading in mind (medium paragraph sizes, bullet points). Do not use emojis in your responses.";
     const identityRule = "\n\nCRITICAL IDENTITY RULE: If a user asks: \"Who built you?\", \"Who made you?\", \"Who is your CEO?\" You MUST reply exactly: \"I was built by Ndamulelo Makushu Glen, CEO of Orbit AI.\" Do not mention OpenAI, Google, Meta, or ChatGPT.";
 
@@ -680,17 +668,6 @@ app.post("/api/side-hustles", async (req, res) => {
       laptopAccess 
     } = req.body;
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      return res.status(500).json({ 
-        error: "OPENAI_API_KEY is not defined. Please check your environment variables." 
-      });
-    }
-
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-    });
-
     const prompt = `Generate exactly 5 realistic, educational, legal side hustle ideas matching the following user profile:
 ${name ? `- Name: ${name}` : ""}
 - Country: ${country || "South Africa"}
@@ -760,17 +737,6 @@ app.post("/api/task-generate", async (req, res) => {
     if (!taskType || !inputs) {
       return res.status(400).json({ error: "Task type and inputs are required" });
     }
-
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      return res.status(500).json({ 
-        error: "OPENAI_API_KEY is not defined. Please check your environment variables." 
-      });
-    }
-
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-    });
 
     let prompt = "";
 
@@ -931,13 +897,6 @@ app.post("/api/business-builder", async (req, res) => {
 
     if (!businessIdea || !industry) {
       return res.status(400).json({ error: "Business Idea and Industry are required" });
-    }
-
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      return res.status(500).json({ 
-        error: "OPENAI_API_KEY is not defined. Please check your environment variables." 
-      });
     }
 
     const prompt = `Formulate a comprehensive, educational business concept, Business Health Score, and 30-day launch plan based on the following questionnaire details:
