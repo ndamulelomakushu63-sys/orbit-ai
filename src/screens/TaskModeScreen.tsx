@@ -139,42 +139,42 @@ export const TaskModeScreen: React.FC = () => {
       title: "Write CV",
       description: "Create a complete, professional, employer-ready curriculum vitae.",
       icon: User,
-      color: "bg-blue-50 text-blue-600 border-blue-100"
+      color: "bg-blue-50 text-blue-600 border-blue-200"
     },
     {
       id: "business_plan",
       title: "Business Plan",
       description: "Draft an executive Business Plan outline with full structural sections.",
-      icon: Sparkles, // reusing Sparkles for professional feel
-      color: "bg-amber-50 text-amber-600 border-amber-100"
+      icon: Sparkles,
+      color: "bg-slate-100 text-slate-700 border-slate-200"
     },
     {
       id: "email",
       title: "Professional Email",
       description: "Compose polished, persuasive, and grammatically flawless emails.",
       icon: Mail,
-      color: "bg-emerald-50 text-emerald-600 border-emerald-100"
+      color: "bg-slate-100 text-slate-700 border-slate-200"
     },
     {
       id: "social_media",
       title: "Social Media Post",
       description: "Draft engaging, high-converting social media posts with hashtags.",
       icon: Sparkles,
-      color: "bg-indigo-50 text-indigo-600 border-indigo-100"
+      color: "bg-slate-100 text-slate-700 border-slate-200"
     },
     {
       id: "summarize",
       title: "Summarize Document",
       description: "Upload a PDF or document and receive a concise executive summary.",
       icon: FileText,
-      color: "bg-rose-50 text-rose-600 border-rose-100"
+      color: "bg-slate-100 text-slate-700 border-slate-200"
     },
     {
       id: "assignment",
       title: "Assignment Helper",
       description: "Get structured academic assignment guidelines, definitions, and templates.",
       icon: HelpCircle,
-      color: "bg-teal-50 text-teal-600 border-teal-100"
+      color: "bg-slate-100 text-slate-700 border-slate-200"
     }
   ];
 
@@ -927,62 +927,33 @@ export const TaskModeScreen: React.FC = () => {
         
         {/* STEP 1: TASK SELECTION GRID */}
         {activeStep === "grid" && (
-          <View className="space-y-4">
-            <View className="bg-blue-600/5 border border-blue-100 p-4 rounded-3xl text-left">
-              <Text className="text-xs font-bold text-blue-900 block font-sans">DO IT FOR ME</Text>
-              <Text className="text-[11px] text-slate-600 mt-1 block leading-relaxed font-sans font-medium">
-                Skip the back-and-forth chat. Provide simple criteria for your requested task, and our advanced AI generator will compile the completed file instantly.
+          <View className="space-y-6 max-w-4xl mx-auto w-full pt-4">
+            <View className="space-y-1 text-left">
+              <Text className="text-lg font-semibold text-slate-900 font-sans">AI Document Studio</Text>
+              <Text className="text-xs text-slate-500 font-normal font-sans">
+                Select a specialized tool to generate clean, executive-ready documents and reports.
               </Text>
             </View>
 
-            <View className="grid grid-cols-1 gap-3">
+            <View className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 overflow-hidden shadow-2xs">
               {tasks.map(task => {
                 const IconComponent = task.icon;
                 return (
                   <TouchableOpacity
                     key={task.id}
                     onClick={() => handleSelectTask(task)}
-                    className="bg-white p-4 border border-slate-200/50 hover:border-blue-400 rounded-3xl flex flex-row gap-4 items-center shadow-3xs cursor-pointer transition active:scale-99 text-left"
+                    className="p-4 hover:bg-slate-50/80 flex flex-row gap-4 items-center cursor-pointer transition select-none text-left"
                   >
-                    <View className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${task.color}`}>
-                      <IconComponent className="w-5 h-5" />
+                    <View className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${task.color}`}>
+                      <IconComponent className="w-4 h-4" />
                     </View>
                     <View className="flex-1 min-w-0">
-                      <Text className="text-sm font-bold text-slate-800 leading-tight block truncate font-sans">{task.title}</Text>
-                      <Text className="text-[11px] text-slate-450 mt-1 block leading-tight font-medium font-sans">{task.description}</Text>
+                      <Text className="text-sm font-semibold text-slate-900 leading-tight block truncate font-sans">{task.title}</Text>
+                      <Text className="text-xs text-slate-500 mt-0.5 block leading-relaxed font-normal font-sans">{task.description}</Text>
                     </View>
                   </TouchableOpacity>
                 );
               })}
-            </View>
-
-            {/* PUBLISHER INFORMATION & DOCUMENT STUDIO GUIDE */}
-            <View className="bg-white rounded-3xl border border-slate-200/60 p-5 shadow-3xs space-y-3 text-left mt-2">
-              <View className="border-b border-slate-100 pb-2.5 flex flex-row items-center justify-between">
-                <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">Document Studio &amp; ATS Guidelines</Text>
-                <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full border border-slate-200">Publisher Information</span>
-              </View>
-
-              <Text className="text-[11px] text-slate-600 leading-relaxed font-sans">
-                Task Mode provides specialized document generation tools designed for South African job seekers, entrepreneurs, students, and working professionals.
-              </Text>
-
-              <View className="space-y-1.5 text-[11px] text-slate-600 font-sans">
-                <View className="flex flex-row items-start gap-1.5">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">ATS Compliance:</strong> CV templates follow standardized layout rules, structured headings, and clean font hierarchies compatible with global applicant tracking systems.</Text>
-                </View>
-
-                <View className="flex flex-row items-start gap-1.5">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">PDF Generation:</strong> Export high-resolution A4 PDFs directly from your browser with instant download capabilities.</Text>
-                </View>
-
-                <View className="flex flex-row items-start gap-1.5">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">Local Context:</strong> Outlines and templates tailored specifically for South African CIPC, SETA, and corporate application standards.</Text>
-                </View>
-              </View>
             </View>
           </View>
         )}

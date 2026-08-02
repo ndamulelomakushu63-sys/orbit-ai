@@ -511,292 +511,237 @@ export const BusinessBuilderScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView id="business_builder_screen" className="bg-slate-50 flex flex-col h-full justify-between">
+    <SafeAreaView id="business_builder_screen" className="bg-white flex flex-col h-full justify-between">
       {/* HEADER SECTION */}
-      <View className="px-5 py-4 bg-white border-b border-slate-100 flex flex-row items-center justify-between select-none">
+      <View className="px-6 py-4 bg-white border-b border-slate-100 flex flex-row items-center justify-between select-none">
         <View className="flex flex-row items-center gap-3">
           <TouchableOpacity 
             onClick={() => setMobileScreen('chat')}
-            className="p-1.5 hover:bg-slate-50 rounded-full text-slate-600 cursor-pointer"
+            className="p-2 hover:bg-slate-100 rounded-full text-slate-600 cursor-pointer transition"
           >
             <ArrowLeft className="w-5 h-5" />
           </TouchableOpacity>
-          <Text className="text-base font-bold text-slate-800 tracking-tight">AI Business Builder</Text>
+          <Text className="text-base font-semibold text-slate-900 tracking-tight">AI Business Builder</Text>
         </View>
       </View>
 
-      <ScrollView className="flex-1 bg-slate-50 p-4" contentContainerClassName="space-y-6 pb-8">
-        {/* HERO TITLE BLOCK */}
-        <View className="space-y-1 text-left px-1">
-          <Text className="text-2xl font-extrabold text-slate-900 tracking-tight font-sans">
-            AI Business Builder
-          </Text>
-          <Text className="text-sm text-slate-500 leading-relaxed font-sans font-medium">
-            Describe your business idea and Orbit AI will generate a complete launch plan.
-          </Text>
-        </View>
-
-        {/* INPUT FORM */}
-        <View className="bg-white p-6 border border-slate-200/50 rounded-3xl space-y-4 shadow-sm">
-          {errorMessage && (
-            <View className="p-3 bg-red-50 border border-red-100 rounded-2xl flex flex-row items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-              <Text className="text-xs text-red-700 font-semibold leading-tight">{errorMessage}</Text>
+      <ScrollView className="flex-1 bg-white p-6" contentContainerClassName="max-w-3xl mx-auto w-full space-y-8 pb-12">
+        {!plan ? (
+          <View className="space-y-8 text-left">
+            {/* HERO TITLE BLOCK */}
+            <View className="space-y-2">
+              <Text className="text-3xl font-bold text-slate-900 tracking-tight font-sans">
+                AI Business Builder
+              </Text>
+              <Text className="text-base text-slate-600 leading-relaxed font-sans">
+                Describe your business idea and Orbit AI will construct a comprehensive, professional enterprise launch blueprint.
+              </Text>
             </View>
-          )}
 
-          {/* Business Idea */}
-          <View className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-0.5">Business Idea</label>
-            <textarea
-              value={businessIdea}
-              onChange={(e) => setBusinessIdea(e.target.value)}
-              placeholder="What product or service are you planning to offer? Detail your main concept..."
-              className="w-full h-24 p-4 rounded-2xl bg-slate-50/70 border border-slate-200/50 text-slate-800 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-sans resize-none"
-            />
-          </View>
+            {/* INPUT FORM */}
+            <View className="space-y-5">
+              {errorMessage && (
+                <View className="p-4 bg-red-50 border border-red-200 rounded-xl flex flex-row items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <Text className="text-sm text-red-700 font-medium leading-tight">{errorMessage}</Text>
+                </View>
+              )}
 
-          {/* Industry Selection */}
-          <View className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-0.5">Industry</label>
-            <select
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-              className="w-full p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/50 text-slate-800 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-sans cursor-pointer"
-            >
-              <option value="Services">Services (Cleaning, Consulting, etc.)</option>
-              <option value="E-commerce">E-commerce / Retail Shop</option>
-              <option value="Technology">Technology &amp; Software</option>
-              <option value="Food &amp; Beverage">Food, Drinks &amp; Catering</option>
-              <option value="Education">Education &amp; Training</option>
-              <option value="Creative &amp; Design">Creative, Design &amp; Content</option>
-              <option value="Other">Other Industry Sector</option>
-            </select>
-          </View>
-
-          {/* Starting Budget Selection */}
-          <View className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-0.5">Startup Budget</label>
-            <select
-              value={startingBudget}
-              onChange={(e) => setStartingBudget(e.target.value)}
-              className="w-full p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/50 text-slate-800 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-sans cursor-pointer"
-            >
-              <option value="Minimal (R0 - R500)">Minimal (R0 - R500)</option>
-              <option value="R500 - R2000">R500 - R2000</option>
-              <option value="R2000 - R10000">R2000 - R10000</option>
-              <option value="R10000+">R10000+</option>
-            </select>
-          </View>
-
-          {/* Target Customers */}
-          <View className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-0.5">Target Customers</label>
-            <input
-              type="text"
-              value={targetCustomers}
-              onChange={(e) => setTargetCustomers(e.target.value)}
-              placeholder="e.g. Local students, coffee lovers, busy working parents..."
-              className="w-full p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/50 text-slate-800 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-sans"
-            />
-          </View>
-
-          {/* Experience Level */}
-          <View className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-0.5">Your Experience Level</label>
-            <select
-              value={experienceLevel}
-              onChange={(e) => setExperienceLevel(e.target.value)}
-              className="w-full p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/50 text-slate-800 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-sans cursor-pointer"
-            >
-              <option value="Beginner">Beginner (No prior business experience)</option>
-              <option value="Intermediate">Intermediate (Some project or management experience)</option>
-              <option value="Expert">Expert (Have owned or launched a business before)</option>
-            </select>
-          </View>
-
-          {/* Create Plan Button */}
-          <TouchableOpacity
-            onClick={handleBuildPlan}
-            disabled={loading}
-            className={`w-full py-4 rounded-full flex flex-row items-center justify-center gap-2 mt-4 transition cursor-pointer select-none ${
-              loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-98'
-            }`}
-          >
-            {loading ? (
-              <>
-                <RefreshCw className="w-4 h-4 text-white animate-spin" />
-                <Text className="text-white font-bold text-sm">Formulating Your Blueprint...</Text>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 text-white" />
-                <Text className="text-white font-bold text-sm">Create Business Plan</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* RESULTS SYSTEM */}
-        {plan && (
-          <View className="space-y-5">
-            {/* ACTION BAR: COPY PLAN & DOWNLOAD PDF */}
-            <View className="bg-white border border-slate-200/60 rounded-3xl p-4 shadow-2xs space-y-3">
-              <View className="flex flex-row items-center justify-between">
-                <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">Blueprint Actions</Text>
-                {copySuccess && (
-                  <View className="flex flex-row items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    <Check className="w-3 h-3 text-emerald-600" />
-                    <Text className="text-[10px] font-bold">Copied to Clipboard!</Text>
-                  </View>
-                )}
+              {/* Business Idea */}
+              <View className="space-y-2">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Business Concept or Idea</label>
+                <textarea
+                  value={businessIdea}
+                  onChange={(e) => setBusinessIdea(e.target.value)}
+                  placeholder="What product or service are you planning to offer? Describe your core vision..."
+                  className="w-full h-28 px-4 py-3.5 rounded-xl bg-white border border-slate-200 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-blue-600 transition font-sans resize-none"
+                />
               </View>
 
-              <View className="grid grid-cols-2 gap-2.5">
+              <View className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Industry Selection */}
+                <View className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Industry Sector</label>
+                  <select
+                    value={industry}
+                    onChange={(e) => setIndustry(e.target.value)}
+                    className="w-full px-4 py-3.5 rounded-xl bg-white border border-slate-200 text-slate-900 text-sm focus:outline-none focus:border-blue-600 transition font-sans cursor-pointer"
+                  >
+                    <option value="Services">Services (Cleaning, Consulting, etc.)</option>
+                    <option value="E-commerce">E-commerce / Retail Shop</option>
+                    <option value="Technology">Technology &amp; Software</option>
+                    <option value="Food &amp; Beverage">Food, Drinks &amp; Catering</option>
+                    <option value="Education">Education &amp; Training</option>
+                    <option value="Creative &amp; Design">Creative, Design &amp; Content</option>
+                    <option value="Other">Other Industry Sector</option>
+                  </select>
+                </View>
+
+                {/* Starting Budget Selection */}
+                <View className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Startup Budget</label>
+                  <select
+                    value={startingBudget}
+                    onChange={(e) => setStartingBudget(e.target.value)}
+                    className="w-full px-4 py-3.5 rounded-xl bg-white border border-slate-200 text-slate-900 text-sm focus:outline-none focus:border-blue-600 transition font-sans cursor-pointer"
+                  >
+                    <option value="Minimal (R0 - R500)">Minimal (R0 - R500)</option>
+                    <option value="R500 - R2000">R500 - R2000</option>
+                    <option value="R2000 - R10000">R2000 - R10000</option>
+                    <option value="R10000+">R10000+</option>
+                  </select>
+                </View>
+              </View>
+
+              <View className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Target Customers */}
+                <View className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Target Audience / Customers</label>
+                  <input
+                    type="text"
+                    value={targetCustomers}
+                    onChange={(e) => setTargetCustomers(e.target.value)}
+                    placeholder="e.g. Local students, coffee lovers, busy working parents..."
+                    className="w-full px-4 py-3.5 rounded-xl bg-white border border-slate-200 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:border-blue-600 transition font-sans"
+                  />
+                </View>
+
+                {/* Experience Level */}
+                <View className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Your Experience Level</label>
+                  <select
+                    value={experienceLevel}
+                    onChange={(e) => setExperienceLevel(e.target.value)}
+                    className="w-full px-4 py-3.5 rounded-xl bg-white border border-slate-200 text-slate-900 text-sm focus:outline-none focus:border-blue-600 transition font-sans cursor-pointer"
+                  >
+                    <option value="Beginner">Beginner (No prior business experience)</option>
+                    <option value="Intermediate">Intermediate (Some project or management experience)</option>
+                    <option value="Expert">Expert (Have owned or launched a business before)</option>
+                  </select>
+                </View>
+              </View>
+
+              {/* Create Plan Button */}
+              <View className="pt-2">
+                <TouchableOpacity
+                  onClick={handleBuildPlan}
+                  disabled={loading}
+                  className={`w-full py-4 rounded-xl flex flex-row items-center justify-center gap-2.5 transition cursor-pointer select-none font-medium text-sm text-white ${
+                    loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.99]'
+                  }`}
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-white animate-spin" />
+                      <Text className="text-white font-medium">Constructing Business Blueprint...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-white" />
+                      <Text className="text-white font-medium">Create Business Plan</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View className="space-y-10 text-left">
+            {/* ACTION BAR: BACK, COPY, DOWNLOAD */}
+            <View className="flex flex-row flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <TouchableOpacity
+                onClick={() => setPlan(null)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl flex flex-row items-center gap-2 cursor-pointer transition select-none"
+              >
+                <ArrowLeft className="w-4 h-4 text-slate-600" />
+                <Text className="text-xs font-semibold">New Blueprint</Text>
+              </TouchableOpacity>
+
+              <View className="flex flex-row items-center gap-2">
+                {copySuccess && (
+                  <View className="flex flex-row items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <Text className="text-xs font-semibold">Copied!</Text>
+                  </View>
+                )}
                 <TouchableOpacity
                   onClick={handleCopyPlan}
-                  className="py-3 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex flex-row items-center justify-center gap-2 cursor-pointer transition select-none"
+                  className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl flex flex-row items-center gap-2 cursor-pointer transition select-none"
                 >
-                  <Copy className="w-4 h-4 text-slate-700" />
-                  <Text className="text-xs font-bold text-slate-800">Copy Business Plan</Text>
+                  <Copy className="w-4 h-4 text-slate-600" />
+                  <Text className="text-xs font-semibold">Copy Document</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onClick={handleDownloadPDF}
-                  className="py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-2xl flex flex-row items-center justify-center gap-2 cursor-pointer transition select-none shadow-2xs"
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex flex-row items-center gap-2 cursor-pointer transition select-none"
                 >
                   <Download className="w-4 h-4 text-white" />
-                  <Text className="text-xs font-bold text-white">Download PDF</Text>
+                  <Text className="text-xs font-semibold">Download PDF</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* BUSINESS HEALTH SCORE CARD */}
-            <View className="bg-white border border-slate-200/50 rounded-3xl p-5 shadow-2xs space-y-4">
-              <TouchableOpacity
-                onClick={() => toggleCard('score')}
-                className="flex flex-row justify-between items-center cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100/50">
-                    <Award className="w-5 h-5 text-blue-600" />
+            {/* DOCUMENT EXECUTIVE HEADER */}
+            <View className="space-y-4">
+              <View className="flex flex-row items-center justify-between flex-wrap gap-2">
+                <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Strategic Enterprise Blueprint • {industry}
+                </Text>
+                {healthScore && (
+                  <View className="flex flex-row items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200">
+                    <Award className="w-3.5 h-3.5 text-slate-700" />
+                    <Text className="text-xs font-semibold text-slate-800">
+                      Viability Score: {healthScore.score}/100
+                    </Text>
                   </View>
-                  <View>
-                    <Text className="text-sm font-extrabold text-slate-900 font-sans">Business Health Score</Text>
-                    <Text className="text-xs text-slate-500 font-medium font-sans">Enterprise Viability &amp; Readiness Index</Text>
-                  </View>
+                )}
+              </View>
+
+              <View className="space-y-1">
+                <Text className="text-3xl font-bold text-slate-900 tracking-tight font-sans">
+                  {plan.businessNames?.[0]?.name || "Executive Launch Plan"}
+                </Text>
+                {plan.businessNames?.[0]?.tagline && (
+                  <Text className="text-base text-slate-500 font-normal">
+                    "{plan.businessNames[0].tagline}"
+                  </Text>
+                )}
+              </View>
+
+              {/* High-level metadata row */}
+              <View className="flex flex-row flex-wrap gap-6 pt-2 pb-4 border-b border-slate-100 text-xs text-slate-500">
+                <View>
+                  <Text className="font-semibold text-slate-900">Industry</Text>
+                  <Text>{industry}</Text>
                 </View>
-                <View className="flex flex-row items-center gap-2">
-                  <View className="px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full flex flex-row items-center gap-1">
-                    <Text className="text-xs font-extrabold text-emerald-700">{healthScore.score}/100</Text>
-                  </View>
-                  <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.score ? 'rotate-90' : ''}`} />
+                <View>
+                  <Text className="font-semibold text-slate-900">Startup Budget</Text>
+                  <Text>{startingBudget}</Text>
                 </View>
-              </TouchableOpacity>
-
-              {expandedCards.score && (
-                <View className="pt-2 border-t border-slate-100 space-y-4">
-                  {/* Category Breakdown Progress Bars */}
-                  <View className="grid grid-cols-2 gap-3 pt-1">
-                    <View className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 space-y-1">
-                      <View className="flex flex-row justify-between text-[11px] font-bold text-slate-700">
-                        <span>Branding</span>
-                        <span>{healthScore.breakdown?.branding || 90}%</span>
-                      </View>
-                      <View className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                        <View className="bg-blue-600 h-full rounded-full" style={{ width: `${healthScore.breakdown?.branding || 90}%` }} />
-                      </View>
-                    </View>
-
-                    <View className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 space-y-1">
-                      <View className="flex flex-row justify-between text-[11px] font-bold text-slate-700">
-                        <span>Business Model</span>
-                        <span>{healthScore.breakdown?.businessModel || 94}%</span>
-                      </View>
-                      <View className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                        <View className="bg-indigo-600 h-full rounded-full" style={{ width: `${healthScore.breakdown?.businessModel || 94}%` }} />
-                      </View>
-                    </View>
-
-                    <View className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 space-y-1">
-                      <View className="flex flex-row justify-between text-[11px] font-bold text-slate-700">
-                        <span>Marketing</span>
-                        <span>{healthScore.breakdown?.marketing || 88}%</span>
-                      </View>
-                      <View className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                        <View className="bg-emerald-600 h-full rounded-full" style={{ width: `${healthScore.breakdown?.marketing || 88}%` }} />
-                      </View>
-                    </View>
-
-                    <View className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 space-y-1">
-                      <View className="flex flex-row justify-between text-[11px] font-bold text-slate-700">
-                        <span>Launch Readiness</span>
-                        <span>{healthScore.breakdown?.launchReadiness || 95}%</span>
-                      </View>
-                      <View className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                        <View className="bg-amber-600 h-full rounded-full" style={{ width: `${healthScore.breakdown?.launchReadiness || 95}%` }} />
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Strengths & Improvements */}
-                  <View className="space-y-2.5">
-                    <View className="space-y-1">
-                      <Text className="text-xs font-bold text-slate-800 font-sans">Key Strengths:</Text>
-                      {healthScore.strengths?.map((str, idx) => (
-                        <View key={idx} className="flex flex-row items-start gap-2">
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                          <Text className="text-xs text-slate-600 font-sans">{str}</Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    <View className="space-y-1">
-                      <Text className="text-xs font-bold text-slate-800 font-sans">Areas for Improvement:</Text>
-                      {healthScore.improvements?.map((imp, idx) => (
-                        <View key={idx} className="flex flex-row items-start gap-2">
-                          <TrendingUp className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                          <Text className="text-xs text-slate-600 font-sans">{imp}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* Coach Recommendations */}
-                  <View className="p-3 bg-blue-50/70 border border-blue-100 rounded-2xl space-y-1">
-                    <Text className="text-[11px] font-bold text-blue-900 font-sans">Coach Recommendation:</Text>
-                    <Text className="text-xs text-blue-800 font-sans leading-relaxed">{healthScore.recommendations}</Text>
-                  </View>
+                <View>
+                  <Text className="font-semibold text-slate-900">Experience Level</Text>
+                  <Text>{experienceLevel}</Text>
                 </View>
-              )}
+              </View>
             </View>
 
-            {/* COLLAPSIBLE BLUEPRINT PLAN CARDS */}
-            <Text className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest pl-1 block">
-              Generated Business Blueprint
-            </Text>
+            {/* SECTION 1: BUSINESS SUMMARY & BRAND IDENTIFIERS */}
+            <View className="space-y-4">
+              <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                1. Executive Summary &amp; Concept
+              </Text>
+              <Text className="text-sm text-slate-700 leading-relaxed font-sans whitespace-pre-line">
+                {plan.businessDescription}
+              </Text>
 
-            {/* 1. BUSINESS NAME SUGGESTIONS */}
-            <View className="bg-white border border-slate-200/40 rounded-3xl overflow-hidden shadow-2xs">
-              <TouchableOpacity
-                onClick={() => toggleCard('names')}
-                className="p-5 flex flex-row justify-between items-center hover:bg-slate-50/60 cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-indigo-600" />
-                  </View>
-                  <Text className="text-sm font-extrabold text-slate-850 font-sans">Business Name Suggestions</Text>
-                </View>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.names ? 'rotate-90' : ''}`} />
-              </TouchableOpacity>
-
-              {expandedCards.names && (
-                <View className="px-5 pb-5 pt-1 space-y-3.5 border-t border-slate-50">
-                  <View className="grid grid-cols-1 gap-2.5">
-                    {plan.businessNames?.map((item, idx) => (
-                      <View key={idx} className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100/70">
-                        <Text className="text-sm font-bold text-slate-900">{item.name}</Text>
+              {plan.businessNames && plan.businessNames.length > 1 && (
+                <View className="pt-2 space-y-2">
+                  <Text className="text-xs font-semibold text-slate-900">Alternative Brand Names &amp; Taglines</Text>
+                  <View className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {plan.businessNames.slice(1).map((item, idx) => (
+                      <View key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <Text className="text-sm font-semibold text-slate-900">{item.name}</Text>
                         <Text className="text-xs text-slate-500 italic mt-0.5">"{item.tagline}"</Text>
                       </View>
                     ))}
@@ -805,281 +750,226 @@ export const BusinessBuilderScreen: React.FC = () => {
               )}
             </View>
 
-            {/* 2. BUSINESS SUMMARY */}
-            <View className="bg-white border border-slate-200/40 rounded-3xl overflow-hidden shadow-2xs">
-              <TouchableOpacity
-                onClick={() => toggleCard('summary')}
-                className="p-5 flex flex-row justify-between items-center hover:bg-slate-50/60 cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                  </View>
-                  <Text className="text-sm font-extrabold text-slate-850 font-sans">Business Summary</Text>
-                </View>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.summary ? 'rotate-90' : ''}`} />
-              </TouchableOpacity>
+            {/* SECTION 2: TARGET AUDIENCE & MARKET FIT */}
+            <View className="space-y-3 pt-4 border-t border-slate-100">
+              <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                2. Target Audience &amp; Customer Analysis
+              </Text>
+              <Text className="text-sm text-slate-700 leading-relaxed font-sans whitespace-pre-line">
+                {plan.targetAudience}
+              </Text>
+            </View>
 
-              {expandedCards.summary && (
-                <View className="px-5 pb-5 pt-1 border-t border-slate-50">
-                  <Text className="text-xs text-slate-600 leading-relaxed font-sans mt-2 whitespace-pre-line">
-                    {plan.businessDescription}
+            {/* SECTION 3: REVENUE MODEL & STRATEGIC PRICING */}
+            <View className="space-y-4 pt-4 border-t border-slate-100">
+              <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                3. Revenue Model &amp; Monetization Strategy
+              </Text>
+              <Text className="text-sm text-slate-700 leading-relaxed font-sans whitespace-pre-line">
+                {plan.revenueModel}
+              </Text>
+
+              {plan.pricingSuggestions && (
+                <View className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                  <Text className="text-xs font-semibold text-slate-900">Pricing Recommendations</Text>
+                  <Text className="text-sm text-slate-700 leading-relaxed font-sans">
+                    {plan.pricingSuggestions}
                   </Text>
                 </View>
               )}
             </View>
 
-            {/* 3. TARGET AUDIENCE */}
-            <View className="bg-white border border-slate-200/40 rounded-3xl overflow-hidden shadow-2xs">
-              <TouchableOpacity
-                onClick={() => toggleCard('audience')}
-                className="p-5 flex flex-row justify-between items-center hover:bg-slate-50/60 cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center">
-                    <CheckCircle className="w-4 h-4 text-purple-600" />
-                  </View>
-                  <Text className="text-sm font-extrabold text-slate-850 font-sans">Target Audience</Text>
-                </View>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.audience ? 'rotate-90' : ''}`} />
-              </TouchableOpacity>
+            {/* SECTION 4: MARKETING & SOCIAL STRATEGY */}
+            <View className="space-y-4 pt-4 border-t border-slate-100">
+              <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                4. Go-To-Market &amp; Customer Acquisition
+              </Text>
+              <Text className="text-sm text-slate-700 leading-relaxed font-sans whitespace-pre-line">
+                {plan.marketingPlan}
+              </Text>
 
-              {expandedCards.audience && (
-                <View className="px-5 pb-5 pt-1 border-t border-slate-50">
-                  <Text className="text-xs text-slate-600 leading-relaxed font-sans mt-2 whitespace-pre-line">
-                    {plan.targetAudience}
+              {plan.socialMediaStrategy && (
+                <View className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                  <Text className="text-xs font-semibold text-slate-900">Social Media &amp; Content Focus</Text>
+                  <Text className="text-sm text-slate-700 leading-relaxed font-sans">
+                    {plan.socialMediaStrategy}
                   </Text>
                 </View>
               )}
             </View>
 
-            {/* 4. REVENUE MODEL */}
-            <View className="bg-white border border-slate-200/40 rounded-3xl overflow-hidden shadow-2xs">
-              <TouchableOpacity
-                onClick={() => toggleCard('revenue')}
-                className="p-5 flex flex-row justify-between items-center hover:bg-slate-50/60 cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
-                    <Check className="w-4 h-4 text-emerald-600" />
-                  </View>
-                  <Text className="text-sm font-extrabold text-slate-850 font-sans">Revenue Model &amp; Pricing</Text>
-                </View>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.revenue ? 'rotate-90' : ''}`} />
-              </TouchableOpacity>
-
-              {expandedCards.revenue && (
-                <View className="px-5 pb-5 pt-1 border-t border-slate-50 space-y-3">
-                  <Text className="text-xs text-slate-600 leading-relaxed font-sans mt-2 whitespace-pre-line">
-                    {plan.revenueModel}
-                  </Text>
-                  {plan.pricingSuggestions && (
-                    <View className="p-3 bg-emerald-50/60 border border-emerald-100 rounded-2xl">
-                      <Text className="text-xs font-bold text-emerald-900 mb-0.5 font-sans">Pricing Recommendations:</Text>
-                      <Text className="text-xs text-emerald-800 leading-relaxed font-sans">{plan.pricingSuggestions}</Text>
+            {/* SECTION 5: LAUNCH READINESS CHECKLIST */}
+            <View className="space-y-3 pt-4 border-t border-slate-100">
+              <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                5. Strategic Launch Checklist
+              </Text>
+              <View className="space-y-2.5 pt-1">
+                {plan.startupChecklist?.map((item, idx) => (
+                  <View key={idx} className="flex flex-row items-start gap-3">
+                    <View className="w-5 h-5 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 mt-0.5">
+                      <Check className="w-3 h-3 text-slate-700" />
                     </View>
-                  )}
-                </View>
-              )}
+                    <Text className="text-sm text-slate-700 leading-relaxed font-sans">{item}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
 
-            {/* 5. MARKETING STRATEGY */}
-            <View className="bg-white border border-slate-200/40 rounded-3xl overflow-hidden shadow-2xs">
-              <TouchableOpacity
-                onClick={() => toggleCard('marketing')}
-                className="p-5 flex flex-row justify-between items-center hover:bg-slate-50/60 cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-orange-600" />
-                  </View>
-                  <Text className="text-sm font-extrabold text-slate-850 font-sans">Marketing &amp; Social Strategy</Text>
-                </View>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.marketing ? 'rotate-90' : ''}`} />
-              </TouchableOpacity>
-
-              {expandedCards.marketing && (
-                <View className="px-5 pb-5 pt-1 border-t border-slate-50 space-y-3">
-                  <Text className="text-xs text-slate-600 leading-relaxed font-sans mt-2 whitespace-pre-line">
-                    {plan.marketingPlan}
-                  </Text>
-                  {plan.socialMediaStrategy && (
-                    <View className="p-3 bg-orange-50/60 border border-orange-100 rounded-2xl">
-                      <Text className="text-xs font-bold text-orange-900 mb-0.5 font-sans">Social Media Focus:</Text>
-                      <Text className="text-xs text-orange-800 leading-relaxed font-sans">{plan.socialMediaStrategy}</Text>
+            {/* SECTION 6: 30-DAY EXECUTION TIMELINE */}
+            <View className="space-y-4 pt-4 border-t border-slate-100">
+              <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                6. 30-Day Launch Roadmap
+              </Text>
+              <View className="space-y-4 pt-1">
+                {plan.launchPlan30Day?.map((item, idx) => (
+                  <View key={idx} className="flex flex-row gap-4 items-start border-l-2 border-slate-200 pl-4">
+                    <View className="flex flex-col space-y-1">
+                      <Text className="text-xs font-semibold text-slate-900">Step {idx + 1}</Text>
+                      <Text className="text-sm text-slate-700 leading-relaxed font-sans">{item}</Text>
                     </View>
-                  )}
-                </View>
-              )}
+                  </View>
+                ))}
+              </View>
             </View>
 
-            {/* 6. LAUNCH CHECKLIST */}
-            <View className="bg-white border border-slate-200/40 rounded-3xl overflow-hidden shadow-2xs">
-              <TouchableOpacity
-                onClick={() => toggleCard('checklist')}
-                className="p-5 flex flex-row justify-between items-center hover:bg-slate-50/60 cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center">
-                    <CheckCircle className="w-4 h-4 text-rose-600" />
-                  </View>
-                  <Text className="text-sm font-extrabold text-slate-850 font-sans">Launch Checklist</Text>
-                </View>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.checklist ? 'rotate-90' : ''}`} />
-              </TouchableOpacity>
-
-              {expandedCards.checklist && (
-                <View className="px-5 pb-5 pt-1 border-t border-slate-50">
-                  <View className="mt-3 space-y-2">
-                    {plan.startupChecklist?.map((item, idx) => (
-                      <View key={idx} className="flex flex-row items-start gap-2.5 py-1">
-                        <span className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center text-[10px] text-blue-700 font-extrabold shrink-0 mt-0.5">
-                          ✓
-                        </span>
-                        <Text className="text-xs text-slate-600 leading-tight font-sans">{item}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* 7. 30-DAY PLAN */}
-            <View className="bg-white border border-slate-200/40 rounded-3xl overflow-hidden shadow-2xs">
-              <TouchableOpacity
-                onClick={() => toggleCard('timeline')}
-                className="p-5 flex flex-row justify-between items-center hover:bg-slate-50/60 cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
-                    <FileText className="w-4 h-4 text-amber-600" />
-                  </View>
-                  <Text className="text-sm font-extrabold text-slate-850 font-sans">30-Day Plan</Text>
-                </View>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.timeline ? 'rotate-90' : ''}`} />
-              </TouchableOpacity>
-
-              {expandedCards.timeline && (
-                <View className="px-5 pb-5 pt-1 border-t border-slate-50">
-                  <View className="mt-3 space-y-3.5">
-                    {plan.launchPlan30Day?.map((item, idx) => (
-                      <View key={idx} className="flex flex-row gap-3 items-start border-l-2 border-slate-100 pl-3">
-                        <View className="flex flex-col">
-                          <Text className="text-xs font-bold text-slate-800 font-sans">Step {idx + 1}</Text>
-                          <Text className="text-xs text-slate-600 leading-normal font-sans mt-0.5">{item}</Text>
+            {/* SECTION 7: HEALTH SCORE EVALUATION */}
+            {healthScore && (
+              <View className="space-y-4 pt-6 border-t border-slate-100">
+                <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  7. Business Viability &amp; Risk Assessment
+                </Text>
+                
+                <View className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <View className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <Text className="text-xs font-semibold text-slate-900">Key Strengths</Text>
+                    <View className="space-y-1.5">
+                      {healthScore.strengths?.map((str, idx) => (
+                        <View key={idx} className="flex flex-row items-start gap-2">
+                          <CheckCircle className="w-3.5 h-3.5 text-slate-700 shrink-0 mt-0.5" />
+                          <Text className="text-xs text-slate-700 font-sans">{str}</Text>
                         </View>
-                      </View>
-                    ))}
+                      ))}
+                    </View>
+                  </View>
+
+                  <View className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <Text className="text-xs font-semibold text-slate-900">Areas for Improvement</Text>
+                    <View className="space-y-1.5">
+                      {healthScore.improvements?.map((imp, idx) => (
+                        <View key={idx} className="flex flex-row items-start gap-2">
+                          <TrendingUp className="w-3.5 h-3.5 text-slate-700 shrink-0 mt-0.5" />
+                          <Text className="text-xs text-slate-700 font-sans">{imp}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                 </View>
-              )}
-            </View>
+
+                {healthScore.recommendations && (
+                  <View className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                    <Text className="text-xs font-semibold text-slate-900">Coach Recommendation</Text>
+                    <Text className="text-sm text-slate-700 leading-relaxed font-sans">
+                      {healthScore.recommendations}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* ASK AI BUSINESS COACH SECTION */}
-            <View className="bg-white border border-slate-200/60 rounded-3xl overflow-hidden shadow-2xs space-y-4 p-5">
-              <TouchableOpacity
-                onClick={() => toggleCard('coach')}
-                className="flex flex-row justify-between items-center cursor-pointer text-left w-full"
-              >
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-2xs">
-                    <Briefcase className="w-5 h-5 text-white" />
-                  </View>
-                  <View>
-                    <Text className="text-base font-extrabold text-slate-900 font-sans">Ask AI Business Coach</Text>
-                    <Text className="text-xs text-slate-500 font-medium font-sans">Unlimited follow-up advice for your generated business</Text>
-                  </View>
+            <View className="pt-8 border-t border-slate-200 space-y-4">
+              <View className="space-y-1">
+                <Text className="text-base font-semibold text-slate-900">Ask AI Business Coach</Text>
+                <Text className="text-xs text-slate-500 font-normal">
+                  Unlimited follow-up advisory for your generated enterprise blueprint
+                </Text>
+              </View>
+
+              {/* Quick Question Chips */}
+              <View className="space-y-2">
+                <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Suggested Topics</Text>
+                <View className="flex flex-wrap gap-2">
+                  <TouchableOpacity
+                    onClick={() => handleAskCoach("How do I acquire my first 10 paying customers in South Africa?")}
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer transition select-none"
+                  >
+                    First 10 Customers
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onClick={() => handleAskCoach("Write 3 high-converting Facebook and Instagram ad captions for this business.")}
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer transition select-none"
+                  >
+                    Social Media Ad Copy
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onClick={() => handleAskCoach("Draft a professional cold email template for local clients.")}
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer transition select-none"
+                  >
+                    Cold Email Template
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onClick={() => handleAskCoach("Help me optimize my service pricing and profit margin.")}
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer transition select-none"
+                  >
+                    Optimize Pricing
+                  </TouchableOpacity>
                 </View>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${expandedCards.coach ? 'rotate-90' : ''}`} />
-              </TouchableOpacity>
+              </View>
 
-              {expandedCards.coach && (
-                <View className="pt-3 border-t border-slate-100 space-y-4">
-                  {/* Quick Question Chips */}
-                  <View className="space-y-1.5">
-                    <Text className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Suggested Coach Topics:</Text>
-                    <View className="flex flex-wrap gap-2">
-                      <TouchableOpacity
-                        onClick={() => handleAskCoach("How do I acquire my first 10 paying customers in South Africa?")}
-                        className="py-1.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/70 rounded-full text-[11px] font-semibold text-slate-700 cursor-pointer transition select-none"
-                      >
-                        First 10 Customers
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onClick={() => handleAskCoach("Write 3 high-converting Facebook and Instagram ad captions for this business.")}
-                        className="py-1.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/70 rounded-full text-[11px] font-semibold text-slate-700 cursor-pointer transition select-none"
-                      >
-                        Social Media Ad Copy
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onClick={() => handleAskCoach("Draft a professional cold email template for local clients.")}
-                        className="py-1.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/70 rounded-full text-[11px] font-semibold text-slate-700 cursor-pointer transition select-none"
-                      >
-                        Cold Email Template
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onClick={() => handleAskCoach("Help me optimize my service pricing and profit margin.")}
-                        className="py-1.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/70 rounded-full text-[11px] font-semibold text-slate-700 cursor-pointer transition select-none"
-                      >
-                        Optimize Pricing
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Chat Messages Log */}
-                  <View className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                    {coachMessages.map((msg) => (
-                      <View
-                        key={msg.id}
-                        className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
-                      >
-                        <View
-                          className={`p-3.5 rounded-2xl max-w-[90%] text-xs font-sans leading-relaxed ${
-                            msg.sender === 'user'
-                              ? 'bg-blue-600 text-white rounded-tr-none'
-                              : 'bg-slate-100/80 text-slate-800 border border-slate-200/50 rounded-tl-none whitespace-pre-line'
-                          }`}
-                        >
-                          <Text className={msg.sender === 'user' ? 'text-white' : 'text-slate-800'}>
-                            {msg.text}
-                          </Text>
-                        </View>
-                        <Text className="text-[10px] text-slate-400 mt-1 px-1">{msg.timestamp}</Text>
-                      </View>
-                    ))}
-
-                    {coachLoading && (
-                      <View className="flex flex-row items-center gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100 max-w-xs">
-                        <RefreshCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-                        <Text className="text-xs text-slate-500 font-medium">Coach is analyzing your business context...</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Chat Input Field */}
-                  <View className="flex flex-row gap-2 items-center pt-1">
-                    <input
-                      type="text"
-                      value={coachInput}
-                      onChange={(e) => setCoachInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAskCoach();
-                      }}
-                      placeholder="Ask AI Coach (e.g. 'How do I scale sales?', 'Write my launch email')..."
-                      className="flex-1 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
-                    />
-                    <TouchableOpacity
-                      onClick={() => handleAskCoach()}
-                      disabled={coachLoading || !coachInput.trim()}
-                      className={`p-3 rounded-2xl text-white flex items-center justify-center transition cursor-pointer select-none ${
-                        coachLoading || !coachInput.trim() ? 'bg-blue-300' : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
+              {/* Chat Messages Log */}
+              {coachMessages.length > 0 && (
+                <View className="space-y-3 pt-2 max-h-80 overflow-y-auto">
+                  {coachMessages.map((msg) => (
+                    <View
+                      key={msg.id}
+                      className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
                     >
-                      <Send className="w-4 h-4 text-white" />
-                    </TouchableOpacity>
-                  </View>
+                      <View
+                        className={`px-4 py-3 rounded-2xl max-w-[85%] text-sm font-sans leading-relaxed ${
+                          msg.sender === 'user'
+                            ? 'bg-blue-600 text-white rounded-tr-none'
+                            : 'bg-slate-100 text-slate-800 border border-slate-200 rounded-tl-none whitespace-pre-line'
+                        }`}
+                      >
+                        <Text className={msg.sender === 'user' ? 'text-white' : 'text-slate-800'}>
+                          {msg.text}
+                        </Text>
+                      </View>
+                      <Text className="text-[10px] text-slate-400 mt-1 px-1">{msg.timestamp}</Text>
+                    </View>
+                  ))}
                 </View>
               )}
+
+              {coachLoading && (
+                <View className="flex flex-row items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200/80 max-w-xs">
+                  <RefreshCw className="w-4 h-4 text-slate-600 animate-spin" />
+                  <Text className="text-xs text-slate-600 font-medium">Coach is analyzing your business context...</Text>
+                </View>
+              )}
+
+              {/* Chat Input Field */}
+              <View className="flex flex-row gap-2 items-center pt-2">
+                <input
+                  type="text"
+                  value={coachInput}
+                  onChange={(e) => setCoachInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAskCoach();
+                  }}
+                  placeholder="Ask AI Coach a question about this blueprint..."
+                  className="flex-1 px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-900 text-sm focus:outline-none focus:border-blue-600 transition font-sans"
+                />
+                <TouchableOpacity
+                  onClick={() => handleAskCoach()}
+                  disabled={coachLoading || !coachInput.trim()}
+                  className={`p-3 rounded-xl flex items-center justify-center transition cursor-pointer select-none ${
+                    coachLoading || !coachInput.trim() ? 'bg-slate-200 text-slate-400' : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  <Send className="w-4 h-4" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
