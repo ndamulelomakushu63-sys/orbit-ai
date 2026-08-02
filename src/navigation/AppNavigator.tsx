@@ -26,7 +26,8 @@ export const AppNavigator: React.FC = () => {
   const { mobileScreen, currentUser } = useAppState();
 
   const subStatus = currentUser?.subscription_status;
-  const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly";
+  // QA OVERRIDE: Temporarily unlock ALL Pro features for testing
+  const isPro = true; // subStatus === "pro_monthly" || subStatus === "pro_yearly";
 
   const renderScreen = () => {
     switch (mobileScreen) {
