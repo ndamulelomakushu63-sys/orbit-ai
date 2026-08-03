@@ -129,11 +129,87 @@ const INTERVIEW_STEPS = [
   }
 ];
 
+const ASSIGNMENT_EXAMPLES = [
+  "I want you to answer every question.",
+  "Write this assignment from Question 1 until the last question.",
+  "Solve this mathematics test.",
+  "Answer these accounting questions.",
+  "Summarize this chapter.",
+  "Rewrite this essay.",
+  "Translate this document.",
+  "Create study notes.",
+  "Explain Question 3.",
+  "Answer according to university standards.",
+  "Write professionally.",
+  "Write in simple English."
+];
+
+const extractTextFromUploadedFile = async (file: File): Promise<string> => {
+  try {
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (['txt', 'md', 'csv', 'json', 'html', 'xml'].includes(ext)) {
+      return await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => resolve('');
+        reader.readAsText(file);
+      });
+    }
+
+    const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+
+    const uint8 = new Uint8Array(arrayBuffer);
+    let rawText = '';
+    let currentWord = '';
+
+    for (let i = 0; i < uint8.length; i++) {
+      const code = uint8[i];
+      if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9) {
+        currentWord += String.fromCharCode(code);
+      } else {
+        if (currentWord.trim().length >= 4 && !/^[0-9\s.,/\\-_=+()[\]{}#$%^&*!@~`'"]+$/.test(currentWord.trim())) {
+          rawText += currentWord + ' ';
+        }
+        currentWord = '';
+      }
+    }
+    if (currentWord.trim().length >= 4) {
+      rawText += currentWord + ' ';
+    }
+
+    const cleaned = rawText
+      .replace(/\s+/g, ' ')
+      .replace(/(.{80,}?)\s/g, '$1\n')
+      .trim();
+
+    if (cleaned.length > 50) {
+      return `[Extracted Document Content from ${file.name}]:\n` + cleaned.substring(0, 15000);
+    }
+
+    return `[Uploaded File: ${file.name} (${(file.size / 1024).toFixed(1)} KB)]\nUploaded document attached for assignment analysis.`;
+  } catch (err) {
+    console.warn("Could not parse text, attaching file reference:", err);
+    return `[Uploaded File: ${file.name}]`;
+  }
+};
+
 export const TaskModeScreen: React.FC = () => {
   const { setMobileScreen, currentUser } = useAppState();
 
   // Task lists matching the specification
   const tasks: TaskCard[] = [
+    {
+      id: "assignment",
+      title: "AI Assignment Helper",
+      description: "Upload PDFs, Word docs, photos, tests, or homework & get complete solved assignments, essays, study notes, or reports.",
+      icon: BookOpen,
+      color: "bg-teal-50 text-teal-700 border-teal-200"
+    },
     {
       id: "cv",
       title: "Write CV",
@@ -167,13 +243,6 @@ export const TaskModeScreen: React.FC = () => {
       title: "Summarize Document",
       description: "Upload a PDF or document and receive a concise executive summary.",
       icon: FileText,
-      color: "bg-slate-100 text-slate-700 border-slate-200"
-    },
-    {
-      id: "assignment",
-      title: "Assignment Helper",
-      description: "Get structured academic assignment guidelines, definitions, and templates.",
-      icon: HelpCircle,
       color: "bg-slate-100 text-slate-700 border-slate-200"
     }
   ];
