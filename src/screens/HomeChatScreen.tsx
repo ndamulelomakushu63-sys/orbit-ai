@@ -182,6 +182,18 @@ export const HomeChatScreen: React.FC = () => {
         }
       }, 80);
     } else {
+      const isImgGen = /^(generate|create|draw|make) (an|a)? (image|picture|photo|drawing|illustration) of (.+)/i.test(textToSend) ||
+                       /^\/image (.+)/i.test(textToSend);
+      if (isImgGen) {
+        const promptText = textToSend
+          .replace(/^(generate|create|draw|make) (an|a)? (image|picture|photo|drawing|illustration) of /i, "")
+          .replace(/^\/image /i, "")
+          .trim();
+        if (promptText) {
+          handleGenerateImageSubmit(promptText);
+          return;
+        }
+      }
       await triggerChatMessage(textToSend, replyId);
     }
   };

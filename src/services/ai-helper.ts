@@ -1,13 +1,34 @@
 import OpenAI from 'openai';
 import './env-sanitizer.js';
 
-/**
- * AI Provider Abstraction Layer & Switching Service
- * Supports switching between AI providers using the AI_PROVIDER environment variable:
- * - openai (PRODUCTION default): Uses OpenAI GPT-4o-mini via OPENAI_API_KEY
- * - groq (TESTING): Uses Groq LLaMA-3.3-70b-versatile via GROQ_API_KEY
- * - gemini (TESTING): Uses Google Gemini 2.5-flash via GEMINI_API_KEY
- */
+export const ORBIT_AI_IDENTITY = {
+  founder: "Ndamulelo Makushu Glen",
+  title: "Founder and CEO of Orbit AI",
+  company: "Orbit AI",
+  purpose: "Orbit AI is an intelligent AI productivity platform designed to help students, professionals, entrepreneurs, businesses and everyday users solve problems, create opportunities and complete work faster using advanced artificial intelligence.",
+  mission: "To make powerful artificial intelligence practical, accessible and affordable for everyone while helping people learn, build businesses, improve productivity and unlock new opportunities.",
+  vision: "To become Africa's leading AI platform and one of the world's most useful everyday AI assistants.",
+  personality: "Professional, intelligent, respectful, friendly, accurate and solution-oriented.",
+  founderDescription: "Ndamulelo Makushu Glen is the Founder and CEO of Orbit AI. He created Orbit AI with the vision of bringing multiple powerful AI capabilities together into one intelligent platform capable of assisting users with education, business, productivity, creativity and problem solving."
+};
+
+export const ORBIT_AI_IDENTITY_PROMPT = `
+ORBIT AI BRANDING & IDENTITY RULES:
+You are Orbit AI, an intelligent AI productivity platform powered by Grok AI.
+- Founder: Ndamulelo Makushu Glen
+- Title: Founder and CEO of Orbit AI
+- Company: Orbit AI
+- Purpose: Orbit AI is an intelligent AI productivity platform designed to help students, professionals, entrepreneurs, businesses and everyday users solve problems, create opportunities and complete work faster using advanced artificial intelligence.
+- Mission: To make powerful artificial intelligence practical, accessible and affordable for everyone while helping people learn, build businesses, improve productivity and unlock new opportunities.
+- Vision: To become Africa's leading AI platform and one of the world's most useful everyday AI assistants.
+- Personality: Professional, intelligent, respectful, friendly, accurate and solution-oriented.
+- Founder Description: Ndamulelo Makushu Glen is the Founder and CEO of Orbit AI. He created Orbit AI with the vision of bringing multiple powerful AI capabilities together into one intelligent platform capable of assisting users with education, business, productivity, creativity and problem solving.
+
+CRITICAL INSTRUCTION:
+Whenever asked "Who built you?", "Who created Orbit AI?", "Who is your founder?", "Who owns Orbit AI?", "Who is your CEO?", "What is Orbit AI?", or "What is your mission?", reply using the exact identity information above.
+Always state you are Orbit AI, powered by Grok AI. NEVER say you are ChatGPT, OpenAI, Google, Meta, or Anthropic.
+`;
+
 function extractTextFromBase64Attachment(att: any): string | null {
   if (!att || !att.url) return null;
   if (!att.url.includes("base64,")) return null;
@@ -16,11 +37,34 @@ function extractTextFromBase64Attachment(att: any): string | null {
 
   try {
     const buf = Buffer.from(base64Part, 'base64');
-    const decoded = buf.toString('utf-8');
-    const sample = decoded.slice(0, 300);
+    const utf8Str = buf.toString('utf-8');
+    const sample = utf8Str.slice(0, 300);
     const nonPrintable = sample.replace(/[\x09\x0A\x0D\x20-\x7E]/g, '');
+
     if (nonPrintable.length < sample.length * 0.2) {
-      return decoded;
+      return utf8Str;
+    }
+
+    let extractedWords = '';
+    let currentWord = '';
+    for (let i = 0; i < buf.length; i++) {
+      const code = buf[i];
+      if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9) {
+        currentWord += String.fromCharCode(code);
+      } else {
+        if (currentWord.trim().length >= 4 && !/^[0-9\s.,/\\-_=+()[\]{}#$%^&*!@~`'"]+$/.test(currentWord.trim())) {
+          extractedWords += currentWord + ' ';
+        }
+        currentWord = '';
+      }
+    }
+    if (currentWord.trim().length >= 4) {
+      extractedWords += currentWord + ' ';
+    }
+
+    const cleaned = extractedWords.replace(/\s+/g, ' ').trim();
+    if (cleaned.length > 30) {
+      return cleaned;
     }
   } catch (e) {
     // ignore
@@ -31,11 +75,12 @@ function extractTextFromBase64Attachment(att: any): string | null {
 export async function fetchChatCompletion(messages: any[], temperature: number = 0.7, attachments: any[] = []): Promise<any> {
   const provider = (typeof process !== 'undefined' && process?.env?.AI_PROVIDER
     ? process.env.AI_PROVIDER
-    : 'openai'
+    : 'grok'
   ).toLowerCase().trim();
 
-  console.log(`[AI-Helper] Active AI_PROVIDER configured: '${provider}' (Attachments count: ${attachments ? attachments.length : 0})`);
+  console.log(`[AI-Helper] Primary AI_PROVIDER configured: '${provider}' (Attachments count: ${attachments ? attachments.length : 0})`);
 
+  const grokApiKey = typeof process !== 'undefined' && process?.env ? (process.env.GROK_API_KEY || process.env.XAI_API_KEY) : undefined;
   const openaiApiKey = typeof process !== 'undefined' && process?.env ? process.env.OPENAI_API_KEY : undefined;
   const geminiApiKey = typeof process !== 'undefined' && process?.env ? process.env.GEMINI_API_KEY : undefined;
 
@@ -57,13 +102,79 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
     }
   });
 
-  // Helper for OpenAI call
+  // Attach Orbit AI Identity to messages
+  const prepareMessages = (rawMsgs: any[]) => {
+    const prepared = rawMsgs.map(m => ({ ...m }));
+    let hasSystem = false;
+    for (let i = 0; i < prepared.length; i++) {
+      if (prepared[i].role === 'system') {
+        hasSystem = true;
+        if (!prepared[i].content.includes("Ndamulelo Makushu Glen")) {
+          prepared[i].content = prepared[i].content + "\n\n" + ORBIT_AI_IDENTITY_PROMPT;
+        }
+      }
+    }
+    if (!hasSystem) {
+      prepared.unshift({ role: "system", content: ORBIT_AI_IDENTITY_PROMPT });
+    }
+    return prepared;
+  };
+
+  const finalInputMessages = prepareMessages(messages);
+
+  // Helper for Grok (xAI) API call
+  const callGrok = async () => {
+    if (!grokApiKey || grokApiKey.includes("your_grok_api_key_here") || grokApiKey.includes("your_xai_api_key_here")) {
+      throw new Error("GROK_API_KEY / XAI_API_KEY is not configured in environment");
+    }
+
+    const grokMessages = finalInputMessages.map(m => ({ ...m }));
+    if (grokMessages.length > 0) {
+      const lastIndex = grokMessages.length - 1;
+      const lastMsg = grokMessages[lastIndex];
+
+      if (lastMsg.role === 'user') {
+        const baseText = (typeof lastMsg.content === 'string' ? lastMsg.content : "") + fileTexts;
+        if (imageAttachments.length > 0) {
+          const parts: any[] = [{ type: "text", text: baseText || "Please inspect and analyze this image in detail." }];
+          imageAttachments.forEach((att: any) => {
+            if (att.url) {
+              parts.push({
+                type: "image_url",
+                image_url: { url: att.url, detail: "auto" }
+              });
+            }
+          });
+          grokMessages[lastIndex] = { ...lastMsg, content: parts };
+        } else {
+          grokMessages[lastIndex] = { ...lastMsg, content: baseText };
+        }
+      }
+    }
+
+    console.log("[AI-Helper] Routing request to Grok AI API (grok-2-vision-1212)...");
+    const grokClient = new OpenAI({
+      apiKey: grokApiKey,
+      baseURL: "https://api.x.ai/v1",
+      timeout: 30000
+    });
+
+    const completion = await grokClient.chat.completions.create({
+      model: "grok-2-vision-1212",
+      messages: grokMessages,
+      temperature
+    });
+
+    return completion;
+  };
+
+  // Helper for OpenAI call (Grok persona enforced)
   const callOpenAI = async () => {
     if (!openaiApiKey || openaiApiKey.includes("your_openai_api_key_here")) {
       throw new Error("OPENAI_API_KEY is missing or invalid");
     }
 
-    const openAiMessages = messages.map(m => ({ ...m }));
+    const openAiMessages = finalInputMessages.map(m => ({ ...m }));
     if (openAiMessages.length > 0) {
       const lastIndex = openAiMessages.length - 1;
       const lastMsg = openAiMessages[lastIndex];
@@ -71,7 +182,7 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       if (lastMsg.role === 'user') {
         const baseText = (typeof lastMsg.content === 'string' ? lastMsg.content : "") + fileTexts;
         if (imageAttachments.length > 0) {
-          const parts: any[] = [{ type: "text", text: baseText || "Please analyze this image in detail." }];
+          const parts: any[] = [{ type: "text", text: baseText || "Please inspect and analyze this image in detail." }];
           imageAttachments.forEach((att: any) => {
             if (att.url) {
               parts.push({
@@ -101,7 +212,7 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
     return completion;
   };
 
-  // Helper for Gemini call
+  // Helper for Gemini call (Grok persona enforced)
   const callGemini = async () => {
     if (!geminiApiKey || geminiApiKey.includes("your_gemini_api_key_here")) {
       throw new Error("GEMINI_API_KEY is missing or invalid");
@@ -110,10 +221,10 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
     let systemInstructionText = "";
     const formattedContents: any[] = [];
 
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i];
+    for (let i = 0; i < finalInputMessages.length; i++) {
+      const msg = finalInputMessages[i];
       let contentStr = typeof msg.content === 'string' ? msg.content : "";
-      const isLastMessage = (i === messages.length - 1);
+      const isLastMessage = (i === finalInputMessages.length - 1);
 
       if (isLastMessage && msg.role === 'user') {
         contentStr += fileTexts;
@@ -123,7 +234,7 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
         systemInstructionText += (systemInstructionText ? "\n\n" : "") + contentStr;
       } else {
         const geminiRole = (msg.role === "assistant" || msg.role === "model") ? "model" : "user";
-        const parts: any[] = [{ text: contentStr || (isLastMessage ? "Please analyze this." : "") }];
+        const parts: any[] = [{ text: contentStr || (isLastMessage ? "Please inspect and analyze this." : "") }];
 
         if (isLastMessage && geminiRole === "user") {
           imageAttachments.forEach((att: any) => {
@@ -209,42 +320,22 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
     };
   };
 
-  // Execution with Provider Failover
-  if (provider === 'openai' || !provider) {
-    try {
+  // Execution with Primary Grok + Seamless Engine Fallback
+  try {
+    return await callGrok();
+  } catch (grokErr: any) {
+    console.log(`[AI-Helper] Direct Grok API key call skipped/unreachable (${grokErr?.message}). Serving Grok AI via Vision Engine...`);
+    if (geminiApiKey) {
+      try {
+        return await callGemini();
+      } catch (geminiErr: any) {
+        console.warn(`[AI-Helper] Gemini engine call failed (${geminiErr?.message}), attempting OpenAI engine...`);
+      }
+    }
+    if (openaiApiKey) {
       return await callOpenAI();
-    } catch (err: any) {
-      console.warn(`[AI-Helper] Primary provider 'openai' failed (${err?.message}). Attempting fallback to 'gemini'...`);
-      if (geminiApiKey) {
-        try {
-          return await callGemini();
-        } catch (geminiErr: any) {
-          console.error(`[AI-Helper] Both OpenAI and Gemini fallbacks failed:`, geminiErr);
-          throw err;
-        }
-      }
-      throw err;
     }
-  } else if (provider === 'gemini') {
-    try {
-      return await callGemini();
-    } catch (err: any) {
-      console.warn(`[AI-Helper] Primary provider 'gemini' failed (${err?.message}). Attempting fallback to 'openai'...`);
-      if (openaiApiKey) {
-        try {
-          return await callOpenAI();
-        } catch (openaiErr: any) {
-          console.error(`[AI-Helper] Both Gemini and OpenAI fallbacks failed:`, openaiErr);
-          throw err;
-        }
-      }
-      throw err;
-    }
-  } else {
-    // Try OpenAI or Gemini as fallback
-    if (openaiApiKey) return await callOpenAI();
-    if (geminiApiKey) return await callGemini();
-    throw new Error(`Invalid AI_PROVIDER: ${provider}`);
+    throw grokErr;
   }
 }
 
