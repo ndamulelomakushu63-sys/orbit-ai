@@ -208,42 +208,42 @@ export const TaskModeScreen: React.FC = () => {
       title: "AI Assignment Helper",
       description: "Upload PDFs, Word docs, photos, tests, or homework & get complete solved assignments, essays, study notes, or reports.",
       icon: BookOpen,
-      color: "bg-teal-50 text-teal-700 border-teal-200"
+      color: "bg-slate-100 text-slate-800 border-slate-200/80"
     },
     {
       id: "cv",
       title: "Write CV",
       description: "Create a complete, professional, employer-ready curriculum vitae.",
       icon: User,
-      color: "bg-blue-50 text-blue-600 border-blue-200"
+      color: "bg-slate-100 text-slate-800 border-slate-200/80"
     },
     {
       id: "business_plan",
       title: "Business Plan",
       description: "Draft an executive Business Plan outline with full structural sections.",
-      icon: Sparkles,
-      color: "bg-slate-100 text-slate-700 border-slate-200"
+      icon: Briefcase,
+      color: "bg-slate-100 text-slate-800 border-slate-200/80"
     },
     {
       id: "email",
       title: "Professional Email",
       description: "Compose polished, persuasive, and grammatically flawless emails.",
       icon: Mail,
-      color: "bg-slate-100 text-slate-700 border-slate-200"
+      color: "bg-slate-100 text-slate-800 border-slate-200/80"
     },
     {
       id: "social_media",
       title: "Social Media Post",
       description: "Draft engaging, high-converting social media posts with hashtags.",
       icon: Sparkles,
-      color: "bg-slate-100 text-slate-700 border-slate-200"
+      color: "bg-slate-100 text-slate-800 border-slate-200/80"
     },
     {
       id: "summarize",
       title: "Summarize Document",
       description: "Upload a PDF or document and receive a concise executive summary.",
       icon: FileText,
-      color: "bg-slate-100 text-slate-700 border-slate-200"
+      color: "bg-slate-100 text-slate-800 border-slate-200/80"
     }
   ];
 
@@ -972,23 +972,32 @@ export const TaskModeScreen: React.FC = () => {
     <SafeAreaView className="bg-slate-50 flex flex-col h-full justify-between overflow-hidden relative">
       
       {/* HEADER SECTION */}
-      <View className="px-5 py-4 bg-white border-b border-slate-100 flex flex-row items-center gap-3 select-none shrink-0 z-50">
-        {activeStep !== "grid" && (
-          <TouchableOpacity 
-            onClick={handleGoBack}
-            className="p-1.5 hover:bg-slate-50 rounded-full text-slate-600 cursor-pointer"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </TouchableOpacity>
-        )}
-        <View className="text-left flex-1">
-          <Text className="text-base font-bold text-slate-900 tracking-tight">
-            {activeStep === "grid" ? "Task Mode" : selectedTask?.title}
-          </Text>
-          {activeStep === "grid" && (
-            <Text className="text-[10.5px] text-slate-450 mt-0.5 block font-medium">Choose a task and get instant results</Text>
+      <View className="px-5 py-4 bg-white border-b border-slate-100 flex flex-row items-center justify-between select-none shrink-0 z-50">
+        <View className="flex flex-row items-center gap-3 flex-1 min-w-0">
+          {activeStep !== "grid" && (
+            <TouchableOpacity 
+              onClick={handleGoBack}
+              className="p-1.5 hover:bg-slate-50 rounded-full text-slate-600 cursor-pointer"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </TouchableOpacity>
           )}
+          <View className="text-left flex-1">
+            <Text className="text-base font-bold text-slate-900 tracking-tight">
+              {activeStep === "grid" ? "Task Mode" : selectedTask?.title}
+            </Text>
+            {activeStep === "grid" && (
+              <Text className="text-[10.5px] text-slate-450 mt-0.5 block font-medium">Choose a task and get instant results</Text>
+            )}
+          </View>
         </View>
+        <TouchableOpacity
+          onClick={() => setMobileScreen('chat')}
+          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none active:scale-95 shadow-2xs ml-3 shrink-0"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+          <Text className="text-xs font-semibold">Chat</Text>
+        </TouchableOpacity>
       </View>
 
       {/* CORE DISPLAY WINDOW */}
@@ -1843,9 +1852,6 @@ export const TaskModeScreen: React.FC = () => {
         )}
 
       </ScrollView>
-
-      {/* CORE BOTTOM NAVIGATION */}
-      <BottomNav />
 
     </SafeAreaView>
   );

@@ -523,6 +523,13 @@ export const BusinessBuilderScreen: React.FC = () => {
           </TouchableOpacity>
           <Text className="text-base font-semibold text-slate-900 tracking-tight">AI Business Builder</Text>
         </View>
+        <TouchableOpacity
+          onClick={() => setMobileScreen('chat')}
+          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none active:scale-95 shadow-2xs"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+          <Text className="text-xs font-semibold">Chat</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView className="flex-1 bg-white p-6" contentContainerClassName="max-w-3xl mx-auto w-full space-y-8 pb-12">
@@ -971,9 +978,6 @@ export const BusinessBuilderScreen: React.FC = () => {
           </View>
         )}
       </ScrollView>
-
-      {/* BOTTOM NAVIGATION WRAPPER */}
-      <BottomNav />
     </SafeAreaView>
   );
 };

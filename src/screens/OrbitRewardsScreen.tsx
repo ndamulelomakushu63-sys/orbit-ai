@@ -46,6 +46,7 @@ export const OrbitRewardsScreen: React.FC = () => {
   const [lifetimeEarnings, setLifetimeEarnings] = useState<number>(0);
   const [rewardHistory, setRewardHistory] = useState<OrbitRewardHistoryItem[]>([]);
   const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
+  const [activityTab, setActivityTab] = useState<'rewards' | 'withdrawals'>('rewards');
 
   // Ad playback modal state
   const [activeAdModal, setActiveAdModal] = useState<RewardedAd | null>(null);
@@ -428,107 +429,112 @@ export const OrbitRewardsScreen: React.FC = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 relative">
-      {/* PROFESSIONAL TOP HEADER */}
-      <View className="h-14 bg-white border-b border-slate-200 px-4 flex flex-row items-center justify-between shadow-2xs select-none">
+      {/* EXECUTIVE TOP HEADER */}
+      <View className="h-14 bg-white border-b border-slate-200/80 px-6 flex flex-row items-center justify-between select-none">
         <TouchableOpacity 
           onClick={() => setMobileScreen("chat")} 
-          className="flex flex-row items-center gap-2 py-1 px-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors"
+          className="flex flex-row items-center gap-2 py-1.5 px-2.5 -ml-2 rounded-lg hover:bg-slate-100 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 text-slate-700" />
-          <Text className="text-sm font-medium text-slate-700">Back</Text>
+          <Text className="text-xs font-semibold text-slate-700">Back</Text>
         </TouchableOpacity>
 
         <View className="flex flex-row items-center gap-2">
-          <View className="w-2 h-2 rounded-full bg-blue-600" />
-          <Text className="text-base font-semibold text-slate-900 tracking-tight">Orbit Rewards</Text>
+          <View className="w-2 h-2 rounded-full bg-slate-900" />
+          <Text className="text-sm font-bold text-slate-900 tracking-tight">Orbit Rewards</Text>
         </View>
 
-        <View className="w-12" />
+        <TouchableOpacity
+          onClick={() => setMobileScreen('chat')}
+          className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none"
+        >
+          <Text className="text-xs font-semibold">Chat</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1 px-4 py-5 max-w-3xl mx-auto w-full space-y-5">
+      <ScrollView className="flex-1 px-4 sm:px-6 py-6 max-w-4xl mx-auto w-full space-y-6">
 
         {/* ============================================================ */}
         {/* 1. LOCKED STATE ( < 4 VERIFIED AGENT REFERRALS )             */}
         {/* ============================================================ */}
         {!isUnlocked && (
-          <View className="space-y-4">
+          <View className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs divide-y divide-slate-100 overflow-hidden">
             
-            {/* LOCKED MAIN CARD */}
-            <View className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-5">
-              
-              <View className="flex flex-row items-start gap-4">
-                <View className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                  <Lock className="w-6 h-6 text-slate-600" />
+            {/* LOCKED HERO & PROGRESS SECTION */}
+            <View className="p-6 space-y-5">
+              <View className="flex flex-row items-start justify-between gap-4">
+                <View className="flex flex-row items-center gap-3.5">
+                  <View className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                    <Lock className="w-5 h-5 text-slate-700" />
+                  </View>
+                  <View className="space-y-0.5">
+                    <Text className="text-base font-bold text-slate-900">Orbit Rewards Program</Text>
+                    <Text className="text-xs text-slate-500">Refer 4 verified users with your Agent link to unlock daily ad rewards.</Text>
+                  </View>
                 </View>
-                <View className="space-y-1 flex-1">
-                  <Text className="text-lg font-bold text-slate-900">Orbit Rewards Locked</Text>
-                  <Text className="text-xs text-slate-600 leading-relaxed">
-                    Requirement: Refer 4 verified users using your existing Agent Referral link.
-                  </Text>
-                </View>
+                <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200/60 text-[11px] font-semibold rounded-full shrink-0">
+                  Locked
+                </span>
               </View>
 
-              {/* PROGRESS COUNTER & BAR */}
-              <View className="space-y-2 pt-1 border-t border-slate-100">
+              {/* PROGRESS METER */}
+              <View className="space-y-2 pt-1">
                 <View className="flex flex-row justify-between items-center text-xs">
-                  <Text className="font-medium text-slate-600">Progress</Text>
-                  <Text className="font-semibold text-blue-600 font-mono">
+                  <Text className="font-semibold text-slate-700">Referral Requirement</Text>
+                  <Text className="font-bold text-slate-900 font-mono">
                     {verifiedReferralsCount} / 4 Verified Referrals
                   </Text>
                 </View>
 
-                {/* Modern Progress Bar */}
-                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                {/* Progress Bar */}
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
                   <div 
-                    className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                    className="h-full bg-slate-900 rounded-full transition-all duration-500"
                     style={{ width: `${Math.min(100, (verifiedReferralsCount / 4) * 100)}%` }}
                   />
                 </div>
 
-                <Text className="text-[11px] text-slate-500 pt-0.5">
-                  {4 - verifiedReferralsCount > 0
-                    ? `${4 - verifiedReferralsCount} more verified referral${4 - verifiedReferralsCount > 1 ? 's' : ''} needed to automatically unlock Orbit Rewards.`
-                    : "Requirement met. Unlocking Orbit Rewards..."}
-                </Text>
-              </View>
-
-              {/* GUIDANCE BOX & AGENT REFERRAL NAVIGATION */}
-              <View className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-                <View className="space-y-0.5 flex-1">
-                  <Text className="text-xs font-semibold text-slate-800">Where do I find my referral link?</Text>
-                  <Text className="text-[11px] text-slate-500 leading-normal">
-                    Orbit Rewards connects directly to your official Agent Referral link. Share your link from the Agent Program to invite users.
+                <div className="flex items-center justify-between pt-1">
+                  <Text className="text-[11px] text-slate-500">
+                    {4 - verifiedReferralsCount > 0
+                      ? `${4 - verifiedReferralsCount} more verified referral${4 - verifiedReferralsCount > 1 ? 's' : ''} needed to unlock.`
+                      : "Threshold met! Unlocking Orbit Rewards..."}
                   </Text>
-                </View>
 
-                <TouchableOpacity
-                  onClick={() => setMobileScreen("agent")}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex flex-row items-center gap-1.5 transition-colors shrink-0"
-                >
-                  <span>View Agent Referral</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onClick={() => setMobileScreen("agent")}
+                    className="text-blue-600 hover:text-blue-700 text-xs font-semibold flex flex-row items-center gap-1 transition-colors"
+                  >
+                    <span>View Agent Link</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </TouchableOpacity>
+                </div>
               </View>
-
             </View>
 
-            {/* VERIFIED REFERRALS SUMMARY */}
-            <View className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-              <Text className="text-sm font-bold text-slate-900">Your Verified Referrals ({verifiedReferralsCount})</Text>
+            {/* VERIFIED REFERRALS LIST SECTION */}
+            <View className="p-6 space-y-4">
+              <View className="flex flex-row items-center justify-between">
+                <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Verified Referrals ({verifiedReferralsCount})
+                </Text>
+                <Text className="text-[11px] text-slate-400">Tracked in real-time</Text>
+              </View>
 
               {myReferrals.length === 0 ? (
-                <View className="py-8 text-center items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <Users className="w-6 h-6 text-slate-400 mb-1.5" />
-                  <Text className="text-xs text-slate-600 font-medium">No verified referrals yet</Text>
-                  <Text className="text-[11px] text-slate-400 mt-0.5">Share your link from the Agent Program to start tracking registrations.</Text>
+                <View className="py-6 text-center items-center justify-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
+                  <Users className="w-5 h-5 text-slate-400 mb-1" />
+                  <Text className="text-xs text-slate-600 font-medium">No verified referrals recorded yet</Text>
+                  <Text className="text-[11px] text-slate-400 mt-0.5 max-w-sm">
+                    Share your official link from the Agent Program to register users.
+                  </Text>
                 </View>
               ) : (
-                <View className="space-y-2">
+                <View className="divide-y divide-slate-100">
                   {myReferrals.map((ref, idx) => (
-                    <View key={ref.id || idx} className="flex flex-row items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-                      <View className="flex flex-row items-center gap-2.5">
-                        <View className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+                    <View key={ref.id || idx} className="py-2.5 flex flex-row items-center justify-between">
+                      <View className="flex flex-row items-center gap-3">
+                        <View className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs border border-slate-200">
                           {ref.referredName ? ref.referredName.charAt(0).toUpperCase() : 'U'}
                         </View>
                         <View>
@@ -536,7 +542,7 @@ export const OrbitRewardsScreen: React.FC = () => {
                           <Text className="text-[10px] text-slate-400">{new Date(ref.timestamp).toLocaleDateString()}</Text>
                         </View>
                       </View>
-                      <View className="bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex flex-row items-center gap-1">
+                      <View className="bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full flex flex-row items-center gap-1">
                         <CheckCircle className="w-3 h-3 text-emerald-600" />
                         <Text className="text-[10px] font-semibold text-emerald-700">Verified</Text>
                       </View>
@@ -546,31 +552,21 @@ export const OrbitRewardsScreen: React.FC = () => {
               )}
             </View>
 
-            {/* PROGRAM INFORMATION & PUBLISHER POLICY CARD */}
-            <View className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3 text-left">
-              <View className="border-b border-slate-100 pb-2.5 flex flex-row items-center justify-between">
-                <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">Orbit Rewards Program Policy</Text>
-                <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full border border-blue-100">Publisher Guidelines</span>
-              </View>
-
-              <Text className="text-[11px] text-slate-600 leading-relaxed font-sans">
-                The Orbit Rewards system provides an incentivized platform for verified Orbit AI community members. By participating in the referral milestone and watching sponsored adverts, users accumulate real monetary value convertible directly to South African bank accounts.
-              </Text>
-
-              <View className="space-y-1.5 text-[11px] text-slate-600 font-sans">
-                <View className="flex flex-row items-start gap-1.5">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">Verification Threshold:</strong> 4 verified sign-ups or an active Orbit Pro upgrade unlocks full access to daily rewarded ad sessions.</Text>
+            {/* PROGRAM POLICY SUMMARY */}
+            <View className="p-6 bg-slate-50/50 space-y-3">
+              <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider">Program Policy & Guidelines</Text>
+              <View className="space-y-2 text-xs text-slate-600 leading-relaxed">
+                <View className="flex flex-row items-start gap-2">
+                  <span className="font-bold text-slate-400">•</span>
+                  <Text className="text-xs text-slate-600"><strong className="text-slate-800">Milestone Unlock:</strong> 4 verified sign-ups or an active Pro upgrade unlocks full access to daily rewarded advert sessions.</Text>
                 </View>
-
-                <View className="flex flex-row items-start gap-1.5">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">Daily View Cap:</strong> Restricted to 20 verified ad playbacks per 24-hour cycle to prevent system abuse.</Text>
+                <View className="flex flex-row items-start gap-2">
+                  <span className="font-bold text-slate-400">•</span>
+                  <Text className="text-xs text-slate-600"><strong className="text-slate-800">Daily Cap:</strong> Standard cap of 20 verified ad playbacks per 24-hour cycle.</Text>
                 </View>
-
-                <View className="flex flex-row items-start gap-1.5">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <Text className="text-[11px] text-slate-600"><strong className="text-slate-800">EFT Withdrawals:</strong> Minimum withdrawal threshold is R100, disbursed directly via standard South African banking channels within 24–48 hours.</Text>
+                <View className="flex flex-row items-start gap-2">
+                  <span className="font-bold text-slate-400">•</span>
+                  <Text className="text-xs text-slate-600"><strong className="text-slate-800">EFT Dispersals:</strong> Minimum payout threshold is R100.00 directly to standard South African banking accounts.</Text>
                 </View>
               </View>
             </View>
@@ -582,237 +578,213 @@ export const OrbitRewardsScreen: React.FC = () => {
         {/* 2. UNLOCKED STATE ( >= 4 VERIFIED AGENT REFERRALS )           */}
         {/* ============================================================ */}
         {isUnlocked && (
-          <View className="space-y-5">
+          <View className="space-y-6">
 
-            {/* UNLOCKED DASHBOARD HEADER */}
-            <View className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-2">
+            {/* UNLOCKED HERO HEADER & METRIC STRIP */}
+            <View className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-6">
               <View className="flex flex-row items-center justify-between">
-                <View className="flex flex-row items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-blue-600" />
-                  <Text className="text-base font-bold text-slate-900">Orbit Rewards Dashboard</Text>
+                <View className="flex flex-row items-center gap-3">
+                  <View className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-white" />
+                  </View>
+                  <View>
+                    <Text className="text-base font-bold text-slate-900">Rewards Overview</Text>
+                    <Text className="text-xs text-slate-500">Monetize daily rewarded ad sessions & manage EFT payouts.</Text>
+                  </View>
                 </View>
-                <View className="bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-                  <Text className="text-[11px] font-semibold text-emerald-700">Active Account</Text>
-                </View>
-              </View>
-              <Text className="text-xs text-slate-600 leading-relaxed">
-                Watch verified daily adverts to accumulate earnings and submit EFT withdrawal requests directly to your bank account.
-              </Text>
-            </View>
-
-            {/* STAT CARDS GRID */}
-            <View className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              
-              {/* WATCH ADS / DAILY PROGRESS */}
-              <View className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-1">
-                <View className="flex flex-row items-center justify-between">
-                  <Text className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Watch Ads</Text>
-                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                </View>
-                <Text className="text-lg font-bold text-slate-900 font-mono">{todayAdCount} / {MAX_DAILY_ADS}</Text>
-                <Text className="text-[10px] text-slate-400">Daily Limit: 20 Ads</Text>
-              </View>
-
-              {/* DAILY PROGRESS / READY */}
-              <View className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-1">
-                <View className="flex flex-row items-center justify-between">
-                  <Text className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Daily Progress</Text>
-                  <Play className="w-3.5 h-3.5 text-blue-600" />
-                </View>
-                <Text className="text-lg font-bold text-blue-600 font-mono">
-                  {Math.max(0, MAX_DAILY_ADS - todayAdCount)} Ready
-                </Text>
-                <Text className="text-[10px] text-slate-400">Available Today</Text>
-              </View>
-
-              {/* EARNINGS BALANCE */}
-              <View className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-1">
-                <View className="flex flex-row items-center justify-between">
-                  <Text className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Earnings</Text>
-                  <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                </View>
-                <Text className="text-lg font-bold text-slate-900 font-mono">R {monthlyEarnings.toFixed(2)}</Text>
-                <Text className="text-[10px] text-slate-400">Monthly Yield</Text>
-              </View>
-
-              {/* WITHDRAWAL BALANCE */}
-              <View className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-1">
-                <View className="flex flex-row items-center justify-between">
-                  <Text className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Withdrawal</Text>
-                  <Award className="w-3.5 h-3.5 text-blue-600" />
-                </View>
-                <Text className="text-lg font-bold text-slate-900 font-mono">R {(currentUser?.balance || 0).toFixed(2)}</Text>
-                <Text className="text-[10px] text-slate-400">Available Balance</Text>
-              </View>
-
-            </View>
-
-            {/* WATCH ADS SECTION */}
-            <View className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
-              <View className="flex flex-row items-center justify-between">
-                <View className="flex flex-row items-center gap-2">
-                  <Play className="w-4 h-4 text-blue-600" />
-                  <Text className="text-sm font-bold text-slate-900">Available Rewarded Adverts</Text>
-                </View>
-                <Text className="text-xs font-medium text-slate-500 font-mono">{todayAdCount}/{MAX_DAILY_ADS} Completed</Text>
-              </View>
-
-              <Text className="text-xs text-slate-600">
-                Select a sponsor advert to watch. Rewards are credited immediately after full ad playback completion.
-              </Text>
-
-              <View className="space-y-3">
-                {getRewardedAdsService().getAvailableAds().map((ad) => {
-                  const isDisabled = todayAdCount >= MAX_DAILY_ADS;
-                  return (
-                    <View 
-                      key={ad.id}
-                      className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col space-y-3"
-                    >
-                      <View className="flex flex-row items-start justify-between gap-3">
-                        <View className="space-y-1 flex-1">
-                          <View className="flex flex-row items-center gap-2">
-                            <Text className="text-xs font-bold text-slate-900">{ad.title}</Text>
-                            <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">{ad.category}</span>
-                          </View>
-                          <Text className="text-[11px] text-slate-600">{ad.description}</Text>
-                          <Text className="text-[10px] text-slate-500 font-medium">Sponsor: {ad.sponsor}</Text>
-                        </View>
-
-                        <View className="text-right shrink-0">
-                          <Text className="text-xs font-bold text-slate-900 font-mono">+R {ad.rewardEst.toFixed(2)}</Text>
-                          <Text className="text-[10px] text-slate-400">{ad.durationSeconds}s duration</Text>
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        onClick={() => handleWatchAdClick(ad)}
-                        disabled={isDisabled}
-                        className={`w-full py-2.5 px-3 rounded-lg flex flex-row items-center justify-center gap-2 text-xs font-semibold transition-colors ${
-                          isDisabled 
-                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
-                        }`}
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>{isDisabled ? 'Daily Limit Reached' : 'Watch Rewarded Advert'}</span>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* REWARD HISTORY SECTION */}
-            <View className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-              <Text className="text-sm font-bold text-slate-900">Reward History</Text>
-
-              {rewardHistory.length === 0 ? (
-                <View className="py-6 text-center items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <Clock className="w-5 h-5 text-slate-400 mb-1" />
-                  <Text className="text-xs text-slate-500 font-medium">No advert rewards earned yet</Text>
-                  <Text className="text-[11px] text-slate-400 mt-0.5">Watch an advert above to log your first verified reward.</Text>
-                </View>
-              ) : (
-                <View className="space-y-2">
-                  {rewardHistory.map((item) => (
-                    <View key={item.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-row items-center justify-between">
-                      <View className="space-y-0.5">
-                        <Text className="text-xs font-semibold text-slate-800">{item.adTitle}</Text>
-                        <Text className="text-[10px] text-slate-400">{new Date(item.timestamp).toLocaleString()}</Text>
-                      </View>
-                      <View className="text-right flex flex-row items-center gap-2">
-                        <Text className="text-xs font-bold text-blue-600 font-mono">+R {item.rewardAmount.toFixed(2)}</Text>
-                        <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-medium">Verified</span>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* WITHDRAWAL REQUESTS SECTION */}
-            <View className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-              <View className="flex flex-row items-center justify-between">
-                <View className="flex flex-row items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-blue-600" />
-                  <Text className="text-sm font-bold text-slate-900">Withdrawal Requests</Text>
-                </View>
-
-                <TouchableOpacity 
+                <TouchableOpacity
                   onClick={() => {
                     setWithdrawError("");
                     setWithdrawSuccess("");
                     setShowWithdrawModal(true);
                   }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold flex flex-row items-center gap-1.5 transition-colors"
+                  className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold flex flex-row items-center gap-1.5 transition cursor-pointer shadow-2xs"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Request Payout</span>
                 </TouchableOpacity>
               </View>
 
-              <Text className="text-xs text-slate-600">
-                Minimum payout threshold: <strong className="text-slate-800">R100.00</strong>. Requests are processed via manual EFT review.
-              </Text>
-
-              {userWithdrawals.length === 0 ? (
-                <View className="py-6 text-center items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <DollarSign className="w-5 h-5 text-slate-400 mb-1" />
-                  <Text className="text-xs text-slate-500 font-medium">No withdrawal requests submitted</Text>
-                  <Text className="text-[11px] text-slate-400 mt-0.5">Submit a request once your wallet balance reaches R100.</Text>
+              {/* 4-COLUMN METRIC GRID */}
+              <View className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+                <View className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
+                  <Text className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Watched Today</Text>
+                  <Text className="text-base font-bold text-slate-900 font-mono">{todayAdCount} / {maxDailyAds}</Text>
+                  <Text className="text-[10px] text-slate-500">20 Max Daily</Text>
                 </View>
-              ) : (
-                <View className="space-y-2">
-                  {userWithdrawals.map((w) => (
-                    <View key={w.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-row items-center justify-between">
-                      <View className="space-y-0.5">
-                        <Text className="text-xs font-bold text-slate-900 font-mono">R {w.amount.toFixed(2)}</Text>
-                        <Text className="text-[10px] text-slate-500">{w.bankName} • {w.accountNumber ? `••••${w.accountNumber.slice(-4)}` : ''}</Text>
-                        <Text className="text-[10px] text-slate-400">{new Date(w.timestamp).toLocaleDateString()}</Text>
-                      </View>
 
-                      <View className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                        w.status === WithdrawalStatus.PAID
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : w.status === WithdrawalStatus.APPROVED
-                          ? 'bg-blue-100 text-blue-800'
-                          : w.status === WithdrawalStatus.REJECTED
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {w.status}
-                      </View>
-                    </View>
-                  ))}
+                <View className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
+                  <Text className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Available Today</Text>
+                  <Text className="text-base font-bold text-blue-600 font-mono">{Math.max(0, maxDailyAds - todayAdCount)} Ready</Text>
+                  <Text className="text-[10px] text-slate-500">Ad Sessions</Text>
                 </View>
-              )}
+
+                <View className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
+                  <Text className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Monthly Yield</Text>
+                  <Text className="text-base font-bold text-slate-900 font-mono">R {monthlyEarnings.toFixed(2)}</Text>
+                  <Text className="text-[10px] text-slate-500">Current Month</Text>
+                </View>
+
+                <View className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
+                  <Text className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Wallet Balance</Text>
+                  <Text className="text-base font-bold text-slate-900 font-mono">R {(currentUser?.balance || 0).toFixed(2)}</Text>
+                  <Text className="text-[10px] text-slate-500">Available Payout</Text>
+                </View>
+              </View>
             </View>
 
-            {/* OFFICIAL RULES */}
-            <View className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-              <View className="flex flex-row items-center gap-2 border-b border-slate-100 pb-2.5">
-                <HelpCircle className="w-4 h-4 text-slate-600" />
-                <Text className="text-sm font-bold text-slate-900">Orbit Rewards Program Rules</Text>
+            {/* AVAILABLE REWARDED ADVERTS SECTION */}
+            <View className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+              <View className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
+                <View className="flex flex-row items-center gap-2">
+                  <Play className="w-4 h-4 text-slate-900" />
+                  <Text className="text-sm font-bold text-slate-900">Available Sponsor Adverts</Text>
+                </View>
+                <Text className="text-xs font-semibold text-slate-500 font-mono">{todayAdCount}/{maxDailyAds} Completed Today</Text>
               </View>
 
-              <View className="space-y-2 text-xs text-slate-600">
-                <View className="flex flex-row items-start gap-2">
-                  <span className="font-semibold text-slate-400">1.</span>
-                  <Text className="text-xs text-slate-700 flex-1">Maximum 20 rewarded ads per day per verified user.</Text>
+              <View className="divide-y divide-slate-100">
+                {getRewardedAdsService().getAvailableAds().map((ad) => {
+                  const isDisabled = todayAdCount >= maxDailyAds;
+                  return (
+                    <View 
+                      key={ad.id}
+                      className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    >
+                      <View className="space-y-1 flex-1">
+                        <View className="flex flex-row items-center gap-2">
+                          <Text className="text-xs font-bold text-slate-900">{ad.title}</Text>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">{ad.category}</span>
+                        </View>
+                        <Text className="text-xs text-slate-500 leading-relaxed">{ad.description}</Text>
+                        <Text className="text-[10px] text-slate-400">Sponsor: {ad.sponsor} • Duration: {ad.durationSeconds}s</Text>
+                      </View>
+
+                      <View className="flex flex-row items-center justify-between md:justify-end gap-4 shrink-0">
+                        <Text className="text-sm font-bold text-slate-900 font-mono">+R {ad.rewardEst.toFixed(2)}</Text>
+                        <TouchableOpacity
+                          onClick={() => handleWatchAdClick(ad)}
+                          disabled={isDisabled}
+                          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors flex flex-row items-center gap-1.5 cursor-pointer ${
+                            isDisabled 
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : 'bg-slate-900 hover:bg-slate-800 text-white shadow-2xs'
+                          }`}
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          <span>{isDisabled ? 'Limit Reached' : 'Watch Ad'}</span>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* ACTIVITY & HISTORY SECTION (TABBED) */}
+            <View className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+              <View className="flex flex-row items-center justify-between border-b border-slate-100 pb-3">
+                <View className="flex flex-row items-center gap-2">
+                  <TouchableOpacity
+                    onClick={() => setActivityTab('rewards')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      activityTab === 'rewards'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Reward History ({rewardHistory.length})
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onClick={() => setActivityTab('withdrawals')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      activityTab === 'withdrawals'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Withdrawal Requests ({userWithdrawals.length})
+                  </TouchableOpacity>
                 </View>
-                <View className="flex flex-row items-start gap-2">
-                  <span className="font-semibold text-slate-400">2.</span>
-                  <Text className="text-xs text-slate-700 flex-1">Rewards require full advert playback completion to verify.</Text>
+
+                {activityTab === 'withdrawals' && (
+                  <Text className="text-[11px] text-slate-400 font-medium">Min payout: R100.00</Text>
+                )}
+              </View>
+
+              {/* REWARDS TAB CONTENT */}
+              {activityTab === 'rewards' && (
+                <View>
+                  {rewardHistory.length === 0 ? (
+                    <View className="py-8 text-center items-center justify-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                      <Clock className="w-5 h-5 text-slate-400 mb-1" />
+                      <Text className="text-xs text-slate-600 font-medium">No advert rewards logged yet</Text>
+                      <Text className="text-[11px] text-slate-400 mt-0.5">Watch an ad above to register your first verified payout.</Text>
+                    </View>
+                  ) : (
+                    <View className="divide-y divide-slate-100">
+                      {rewardHistory.map((item) => (
+                        <View key={item.id} className="py-3 flex flex-row items-center justify-between">
+                          <View className="space-y-0.5">
+                            <Text className="text-xs font-semibold text-slate-800">{item.adTitle}</Text>
+                            <Text className="text-[10px] text-slate-400">{new Date(item.timestamp).toLocaleString()}</Text>
+                          </View>
+                          <View className="flex flex-row items-center gap-3">
+                            <Text className="text-xs font-bold text-slate-900 font-mono">+R {item.rewardAmount.toFixed(2)}</Text>
+                            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium">Verified</span>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
-                <View className="flex flex-row items-start gap-2">
-                  <span className="font-semibold text-slate-400">3.</span>
-                  <Text className="text-xs text-slate-700 flex-1">Automated bots, self-referrals, and fake accounts are strictly prohibited.</Text>
+              )}
+
+              {/* WITHDRAWALS TAB CONTENT */}
+              {activityTab === 'withdrawals' && (
+                <View>
+                  {userWithdrawals.length === 0 ? (
+                    <View className="py-8 text-center items-center justify-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                      <DollarSign className="w-5 h-5 text-slate-400 mb-1" />
+                      <Text className="text-xs text-slate-600 font-medium">No withdrawal requests submitted</Text>
+                      <Text className="text-[11px] text-slate-400 mt-0.5">Submit a payout request once your balance reaches R100.00.</Text>
+                    </View>
+                  ) : (
+                    <View className="divide-y divide-slate-100">
+                      {userWithdrawals.map((w) => (
+                        <View key={w.id} className="py-3 flex flex-row items-center justify-between">
+                          <View className="space-y-0.5">
+                            <Text className="text-xs font-bold text-slate-900 font-mono">R {w.amount.toFixed(2)}</Text>
+                            <Text className="text-[10px] text-slate-500">{w.bankName} • {w.accountNumber ? `••••${w.accountNumber.slice(-4)}` : ''}</Text>
+                            <Text className="text-[10px] text-slate-400">{new Date(w.timestamp).toLocaleDateString()}</Text>
+                          </View>
+
+                          <View className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                            w.status === WithdrawalStatus.PAID
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : w.status === WithdrawalStatus.APPROVED
+                              ? 'bg-blue-100 text-blue-800'
+                              : w.status === WithdrawalStatus.REJECTED
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {w.status}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
-                <View className="flex flex-row items-start gap-2">
-                  <span className="font-semibold text-slate-400">4.</span>
-                  <Text className="text-xs text-slate-700 flex-1">Payout calculations follow Orbit AI program guidelines and advertising revenue distribution.</Text>
-                </View>
+              )}
+
+            </View>
+
+            {/* PROGRAM RULES FOOTER */}
+            <View className="p-4 bg-slate-100/60 rounded-xl border border-slate-200/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs text-slate-500">
+              <View className="flex flex-row items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-slate-500 shrink-0" />
+                <Text className="text-xs text-slate-600 font-medium">Max 20 rewarded ads / day • R100 min payout threshold • Verified EFT processing</Text>
               </View>
             </View>
 

@@ -462,6 +462,13 @@ Include EVERY ONE of the following required sections in exact order:
             {selectedHustle ? 'Complete Implementation Blueprint' : 'AI Side Hustle Generator'}
           </Text>
         </View>
+        <TouchableOpacity
+          onClick={() => setMobileScreen('chat')}
+          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none active:scale-95 shadow-2xs"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+          <Text className="text-xs font-semibold">Chat</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView className="flex-1 bg-white p-6" contentContainerClassName="max-w-3xl mx-auto w-full space-y-8 pb-12">
@@ -734,9 +741,6 @@ Include EVERY ONE of the following required sections in exact order:
           </View>
         )}
       </ScrollView>
-
-      {/* BOTTOM NAVIGATION WRAPPER */}
-      <BottomNav />
     </SafeAreaView>
   );
 };
