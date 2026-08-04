@@ -17,8 +17,19 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Express body parser error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err) {
+    console.error("[Express Payload/Middleware Error]:", err.message || err);
+    return res.status(err.status || 400).json({
+      error: err.message || "Failed to process request payload. Please ensure file sizes are within limit."
+    });
+  }
+  next();
+});
 
 // Robots.txt endpoint
 app.get("/robots.txt", (req, res) => {

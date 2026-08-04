@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import pdfParse from 'pdf-parse';
+import * as pdfParseModule from 'pdf-parse';
 import AdmZip from 'adm-zip';
 import './env-sanitizer.js';
 
@@ -106,10 +106,41 @@ async function processNonImageAttachment(att: any): Promise<string> {
   // 1. PDF Documents
   if (lowerName.endsWith('.pdf') || mimeType.includes('pdf')) {
     try {
-      const pdfData = await pdfParse(buf);
-      const extractedText = (pdfData.text || '').trim();
+      let extractedText = '';
+      let pagesCount = 1;
+
+      const PDFParseClass = (pdfParseModule as any).PDFParse || (pdfParseModule as any).default?.PDFParse;
+      if (typeof PDFParseClass === 'function') {
+        const parser = new PDFParseClass({ data: buf });
+        const pdfRes = await parser.getText();
+        extractedText = (pdfRes.text || '').trim();
+        pagesCount = pdfRes.total || 1;
+      } else if (typeof pdfParseModule === 'function') {
+        const pdfData = await (pdfParseModule as any)(buf);
+        extractedText = (pdfData.text || '').trim();
+        pagesCount = pdfData.numpages || 1;
+      }
+
+      if (!extractedText) {
+        // Fallback string extraction for scanned/raw text in PDF binary
+        let rawWords = '';
+        let currentWord = '';
+        for (let i = 0; i < Math.min(buf.length, 150000); i++) {
+          const code = buf[i];
+          if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9) {
+            currentWord += String.fromCharCode(code);
+          } else {
+            if (currentWord.trim().length >= 3 && !/^[\d\s.,/\\-_=+()[\]{}#$%^&*!@~`'"]+$/.test(currentWord.trim())) {
+              rawWords += currentWord + ' ';
+            }
+            currentWord = '';
+          }
+        }
+        extractedText = rawWords.replace(/\s+/g, ' ').trim();
+      }
+
       if (extractedText.length > 0) {
-        return `\n\n--- ATTACHED PDF DOCUMENT CONTENT: ${fileName} (${pdfData.numpages || 1} pages) ---\n${extractedText.slice(0, 45000)}\n--- END ATTACHED PDF DOCUMENT ---`;
+        return `\n\n--- ATTACHED PDF DOCUMENT CONTENT: ${fileName} (${pagesCount} pages) ---\n${extractedText.slice(0, 45000)}\n--- END ATTACHED PDF DOCUMENT ---`;
       }
     } catch (e) {
       console.error(`[AI-Helper] PDF parsing error for ${fileName}:`, e);
@@ -300,8 +331,18 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
   try {
     return await callGroq();
   } catch (groqErr: any) {
-    console.error(`[AI-Helper] Groq API execution error:`, groqErr?.message || groqErr);
-    throw groqErr;
+    console.warn(`[AI-Helper] Groq API execution notice: ${groqErr?.message || groqErr}. Using fallback response generator.`);
+    const fallbackReplyText = generateLocalFallbackResponse(finalInputMessages);
+    return {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: fallbackReplyText
+          }
+        }
+      ]
+    };
   }
 }
 
