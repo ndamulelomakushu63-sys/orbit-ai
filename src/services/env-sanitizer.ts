@@ -1,6 +1,6 @@
 /**
  * Utility to sanitize environment variables that may have been concatenated
- * into a single line or assigned to process.env.OPENAI_API_KEY because of a
+ * into a single line or assigned to process.env.GROQ_API_KEY because of a
  * newline injection issue in the container/hosting environment.
  */
 
@@ -9,7 +9,7 @@ export function sanitizeEnv() {
     return;
   }
 
-  const rawKey = process.env.OPENAI_API_KEY;
+  const rawKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY || process.env.XAI_API_KEY;
   if (!rawKey) return;
 
   const knownKeys = [
@@ -35,15 +35,18 @@ export function sanitizeEnv() {
   matches.sort((a, b) => a.index - b.index);
 
   if (matches.length === 0) {
-    // If no other keys are embedded, we still want to make sure OPENAI_API_KEY is clean of quotes and trailing spaces/newlines
-    process.env.OPENAI_API_KEY = rawKey.replace(/^["']|["']$/g, '').trim();
+    // If no other keys are embedded, clean quotes and trailing spaces/newlines
+    const cleaned = rawKey.replace(/^["']|["']$/g, '').trim();
+    if (process.env.GROQ_API_KEY) process.env.GROQ_API_KEY = cleaned;
+    if (process.env.GROK_API_KEY) process.env.GROK_API_KEY = cleaned;
+    if (process.env.XAI_API_KEY) process.env.XAI_API_KEY = cleaned;
     return;
   }
 
-  // The first key in matches starts at index matches[0].index
-  // So the actual value of OPENAI_API_KEY is from 0 to matches[0].index
-  const openaiValue = rawKey.substring(0, matches[0].index);
-  process.env.OPENAI_API_KEY = openaiValue.replace(/^["']|["']$/g, '').trim();
+  const groqValue = rawKey.substring(0, matches[0].index).replace(/^["']|["']$/g, '').trim();
+  if (process.env.GROQ_API_KEY) process.env.GROQ_API_KEY = groqValue;
+  if (process.env.GROK_API_KEY) process.env.GROK_API_KEY = groqValue;
+  if (process.env.XAI_API_KEY) process.env.XAI_API_KEY = groqValue;
 
   // Now, parse each match
   for (let i = 0; i < matches.length; i++) {
@@ -64,10 +67,9 @@ export function sanitizeEnv() {
   }
   
   console.log("[SanitizeEnv] Environment variables sanitized successfully:", {
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY ? `${process.env.OPENAI_API_KEY.substring(0, 15)}...` : 'not-set',
+    GROQ_API_KEY: process.env.GROQ_API_KEY ? `${process.env.GROQ_API_KEY.substring(0, 15)}...` : 'not-set',
     VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY ? 'is-set' : 'not-set',
-    PAYFAST_MERCHANT_KEY: process.env.PAYFAST_MERCHANT_KEY ? 'is-set' : 'not-set',
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY ? 'is-set' : 'not-set'
+    PAYFAST_MERCHANT_KEY: process.env.PAYFAST_MERCHANT_KEY ? 'is-set' : 'not-set'
   });
 }
 

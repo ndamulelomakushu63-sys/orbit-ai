@@ -36,7 +36,7 @@ export const SettingsScreen: React.FC = () => {
         <View className="bg-white p-5 border border-slate-200/55 rounded-3xl space-y-4 shadow-2xs">
           <View className="flex flex-row items-center gap-2 pb-2.5 border-b border-slate-100">
             <Sparkles className="w-5 h-5 text-blue-600" />
-            <Text className="text-xs font-bold text-slate-900 tracking-tight">OpenAI Model Select</Text>
+            <Text className="text-xs font-bold text-slate-900 tracking-tight">Groq AI Model Select</Text>
           </View>
 
           <View className="space-y-2">
@@ -49,8 +49,8 @@ export const SettingsScreen: React.FC = () => {
               }`}
             >
               <View className="flex-1 text-left min-w-0 pr-2">
-                <Text className="text-xs font-bold text-slate-800">GPT-4o mini</Text>
-                <Text className="text-[10px] text-slate-450 mt-1">Consistently fast latencies and light resource consumption.</Text>
+                <Text className="text-xs font-bold text-slate-800">llama-3.3-70b-versatile</Text>
+                <Text className="text-[10px] text-slate-450 mt-1">Ultra-fast inference on Groq LPU engine for text and tasks.</Text>
               </View>
               {modelType === 'flash' && <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />}
             </TouchableOpacity>
@@ -64,8 +64,8 @@ export const SettingsScreen: React.FC = () => {
               }`}
             >
               <View className="flex-1 text-left min-w-0 pr-2">
-                <Text className="text-xs font-bold text-slate-800">GPT-4o</Text>
-                <Text className="text-[10px] text-slate-450 mt-1">Deep analysis capabilities, recommended for complex debugging blocks.</Text>
+                <Text className="text-xs font-bold text-slate-800">llama-3.2-11b-vision-preview</Text>
+                <Text className="text-[10px] text-slate-450 mt-1">Multimodal vision model for image understanding and document analysis.</Text>
               </View>
               {modelType === 'pro' && <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />}
             </TouchableOpacity>

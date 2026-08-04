@@ -107,10 +107,10 @@ const OpenAI = require("openai");
 admin.initializeApp();
 
 /**
- * 1. SECURE OPENAI AI PROXY
- * This Cloud Function securely communicates with OpenAI API to keep the API key fully hidden.
+ * 1. SECURE GROQ AI PROXY
+ * This Cloud Function securely communicates with Groq AI API to keep the API key fully hidden.
  */
-exports.askOpenAI = functions.https.onRequest((req, res) => {
+exports.askGroq = functions.https.onRequest((req, res) => {
   return cors(req, res, async () => {
     try {
       if (req.method !== "POST") {
@@ -132,7 +132,7 @@ exports.askOpenAI = functions.https.onRequest((req, res) => {
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       const tokenUid = decodedToken.uid;
 
-      // 2. Query Firestore user subscription limits (Rate limits for Free users, fast for Pro users)
+      // 2. Query Firestore user subscription limits
       const userSnap = await admin.firestore().collection("users").doc(tokenUid).get();
       if (!userSnap.exists) {
         return res.status(404).json({ error: "User profile not found" });
@@ -141,22 +141,17 @@ exports.askOpenAI = functions.https.onRequest((req, res) => {
       const userData = userSnap.data();
       const userPlan = userData.plan || "Free";
 
-      // Rate limit controls for Free users or redirection logic
-      if (userPlan === "Free") {
-        // Implement customized free tier filters
-        // e.g., restrict to 10 queries, or prompt for subscription
-      }
-
-      // 3. Initialize secure server-side OpenAI with runtime secret env key
-      const openaiApiKey = process.env.OPENAI_API_KEY || functions.config().openai.key;
-      const openai = new OpenAI({
-        apiKey: openaiApiKey,
+      // 3. Initialize secure server-side Groq AI client with runtime secret env key
+      const groqApiKey = process.env.GROQ_API_KEY || functions.config().groq?.key;
+      const groqClient = new OpenAI({
+        apiKey: groqApiKey,
+        baseURL: "https://api.groq.com/openai/v1"
       });
 
       // 4. Clean conversation formats to match API structure
       const messages = [{
         role: "system",
-        content: "You are Orbit AI, an intelligent, modern and premium virtual mobile assistant. Help users clarify their thoughts, code, drafts, and planning. Keep output mobile-friendly."
+        content: "You are Orbit AI, an intelligent, modern and premium virtual assistant. Help users clarify their thoughts, code, drafts, and planning. Keep output clean."
       }];
 
       if (history && Array.isArray(history)) {
@@ -172,9 +167,9 @@ exports.askOpenAI = functions.https.onRequest((req, res) => {
         content: message
       });
 
-      // 5. Query model
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      // 5. Query model via Groq LPU engine
+      const response = await groqClient.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
         messages: messages,
         temperature: 0.7
       });
@@ -191,7 +186,7 @@ exports.askOpenAI = functions.https.onRequest((req, res) => {
 
       return res.status(200).json({ reply });
     } catch (err) {
-      console.error("Cloud function askOpenAI error: ", err);
+      console.error("Cloud function askGroq error: ", err);
       return res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
   });
@@ -341,8 +336,8 @@ export default function ChatScreen() {
       // Retrieve JWT user token for authentication verification
       const userToken = await user.getIdToken();
       
-      // Call Cloud function containing the secure OpenAI request
-      const response = await fetch("https://us-central1-orbit-ai-12345.cloudfunctions.net/askOpenAI", {
+      // Call Cloud function containing the secure Groq request
+      const response = await fetch("https://us-central1-orbit-ai-12345.cloudfunctions.net/askGroq", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -719,14 +714,14 @@ npm i expo expo-router react-native-gesture-handler @react-native-async-storage/
 \`\`\`
 
 ## 2. Firebase Cloud Functions Deploy
-To safely query OpenAI API, deploy the Cloud Function code:
+To safely query Groq AI API, deploy the Cloud Function code:
 \`\`\`bash
 cd functions
 firebase init functions
-# Install OpenAI on function env
+# Install Groq AI / OpenAI compatible client
 npm install openai
-# Set your secure OpenAI API key config
-firebase functions:config:set openai.key="YOUR_OFFICIAL_OPENAI_API_KEY_HERE"
+# Set your secure Groq API key config
+firebase functions:config:set groq.key="YOUR_OFFICIAL_GROQ_API_KEY_HERE"
 firebase deploy --only functions
 \`\`\`
 

@@ -4,7 +4,6 @@ import path from "path";
 import fs from "fs";
 import http from "http";
 import dotenv from "dotenv";
-import OpenAI from "openai";
 import AdmZip from "adm-zip";
 import crypto from "crypto";
 import pg from "pg";
@@ -79,7 +78,7 @@ app.post("/api/setup-db", async (req, res) => {
   }
 });
 
-// Secure server-side endpoint for OpenAI AI chat
+// Secure server-side endpoint for Groq AI chat
 app.post("/api/chat", async (req, res) => {
   try {
     const { message, attachments, history, systemPrompt, userId } = req.body;
@@ -244,7 +243,7 @@ CRITICAL IDENTITY RULE: You are Orbit AI powered by Grok AI. Whenever asked who 
 
     return res.json({ reply: replyText });
   } catch (error: any) {
-    console.error("OpenAI API Error in server (full details):", error);
+    console.error("Groq AI API Error in server (full details):", error);
     return res.status(500).json({ 
       error: error.message || "An unexpected error occurred.",
       details: String(error)
@@ -710,7 +709,7 @@ Format the response as a valid JSON object containing an "ideas" array of side h
 - challenges: (string) Key realistic challenges or hurdles they will face
 - resources: (string) Helpful free tools, websites, or learning materials`;
 
-    console.log("Calling OpenAI for Side Hustles generator on server with inputs:", { country, ageRange, budget });
+    console.log("Calling Groq AI for Side Hustles generator on server with inputs:", { country, ageRange, budget });
 
     const messages = [
       {
@@ -723,7 +722,7 @@ Format the response as a valid JSON object containing an "ideas" array of side h
       }
     ];
 
-    console.log("Calling OpenAI Chat Completion API on Express (Side Hustles) via AI-Helper...");
+    console.log("Calling Groq Chat Completion API on Express (Side Hustles) via AI-Helper...");
     const responseData = await fetchChatCompletion(messages, 0.7);
 
     const resultText = responseData.choices?.[0]?.message?.content;
@@ -865,11 +864,11 @@ CRITICAL RULES:
       return res.status(400).json({ error: "Invalid task type specified" });
     }
 
-    console.log("Generating OpenAI Task Mode output for type:", taskType);
+    console.log("Generating Groq Task Mode output for type:", taskType);
 
     const basePrompt = "You are the Orbit AI Task Specialist, a highly sophisticated execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You instantly deliver highly structured, beautifully formatted, comprehensive, and complete professional outcomes. You always output cleanly formatted markdown with clear headers and bullet points. Do not use emojis in your response.";
     
-    console.log("Calling OpenAI Chat Completion API on Express (Task Generator) via AI-Helper...");
+    console.log("Calling Groq Chat Completion API on Express (Task Generator) via AI-Helper...");
 
     const messages = [
       {
@@ -887,7 +886,7 @@ CRITICAL RULES:
     const replyText = responseData.choices?.[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.json({ result: replyText });
   } catch (error: any) {
-    console.error("OpenAI Task API Error in server (full details):", error);
+    console.error("Groq Task API Error in server (full details):", error);
     return res.status(500).json({
       error: error.message || "An unexpected error occurred.",
       details: String(error)
@@ -973,7 +972,7 @@ Format the response as a valid JSON object matching this schema structure:
   }
 }`;
 
-    console.log("Calling OpenAI for Business Builder on server with inputs:", { industry, country, startingBudget });
+    console.log("Calling Groq AI for Business Builder on server with inputs:", { industry, country, startingBudget });
 
     const messages = [
       {
