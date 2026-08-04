@@ -225,37 +225,32 @@ export const WithdrawScreen: React.FC = () => {
             <Text className="text-xs text-slate-500 font-medium">Agent Referral Payouts</Text>
           </View>
         </View>
-
-        <View className="flex flex-row items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-full">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <Text className="text-xs font-semibold text-emerald-700">256-Bit Encrypted</Text>
-        </View>
       </View>
 
-      <ScrollView className="flex-1 p-4 sm:p-6" contentContainerClassName="max-w-2xl mx-auto w-full space-y-6 pb-12">
+      <ScrollView className="flex-1 p-4 sm:p-6" contentContainerClassName="max-w-xl mx-auto w-full space-y-5 pb-12">
         
         {/* HERO BALANCE & PAYOUT AMOUNT CARD */}
-        <View className="bg-slate-900 text-white rounded-2xl p-6 shadow-sm border border-slate-800 space-y-5">
+        <View className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 space-y-4">
           <View className="flex flex-row items-center justify-between">
-            <View className="space-y-1">
-              <Text className="text-xs font-medium text-slate-400 uppercase tracking-wider">Available Earnings</Text>
+            <View className="space-y-0.5">
+              <Text className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Available Earnings</Text>
               <Text className="text-3xl font-extrabold text-white tracking-tight font-sans">
                 R{activeBalance.toFixed(2)}
               </Text>
             </View>
-            <View className="px-3 py-1 bg-slate-800 border border-slate-700/80 rounded-xl text-right">
+            <View className="px-3 py-1.5 bg-slate-800 rounded-xl text-right">
               <Text className="text-[10px] text-slate-400 uppercase font-semibold block">Min. Payout</Text>
               <Text className="text-xs font-bold text-slate-200">R{minWithdrawalAmount}.00</Text>
             </View>
           </View>
 
           {/* Amount Input inside Hero Card */}
-          <View className="pt-2 border-t border-slate-800 space-y-2">
+          <View className="pt-3 border-t border-slate-800/80 space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
               Withdrawal Amount (ZAR)
             </label>
-            <View className="relative flex flex-row items-center bg-slate-950 border border-slate-800 focus-within:border-blue-500 rounded-xl overflow-hidden transition">
-              <span className="pl-4 pr-2 text-base font-bold text-slate-400 select-none">R</span>
+            <View className="relative flex flex-row items-center bg-slate-950 border border-slate-800 focus-within:border-slate-500 rounded-xl overflow-hidden transition">
+              <span className="pl-4 pr-1 text-base font-bold text-slate-400 select-none">R</span>
               <TextInput 
                 placeholder={`min ${minWithdrawalAmount}.00`}
                 placeholderTextColor="#64748b"
@@ -263,7 +258,7 @@ export const WithdrawScreen: React.FC = () => {
                 onChange={(e) => setAmount(e.target.value)}
                 type="number"
                 step="0.01"
-                className="w-full py-3.5 pr-4 bg-transparent text-white text-base font-semibold focus:outline-none font-sans"
+                className="w-full py-3 pr-4 bg-transparent text-white text-base font-semibold focus:outline-none font-sans"
               />
             </View>
           </View>
@@ -271,154 +266,145 @@ export const WithdrawScreen: React.FC = () => {
 
         {/* FEEDBACK BANNERS */}
         {successMessage && (
-          <View className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-row items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-            <Text className="text-sm text-emerald-800 font-medium leading-snug">{successMessage}</Text>
+          <View className="p-3.5 bg-slate-900 text-white border border-slate-800 rounded-xl flex flex-row items-center gap-3">
+            <CheckCircle className="w-4 h-4 text-slate-300 shrink-0" />
+            <Text className="text-xs text-slate-200 font-medium leading-snug">{successMessage}</Text>
           </View>
         )}
 
         {error && (
-          <View className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex flex-row items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-            <Text className="text-sm text-rose-800 font-medium leading-snug">{error}</Text>
+          <View className="p-3.5 bg-slate-900 border border-slate-800 rounded-xl flex flex-row items-center gap-3">
+            <AlertCircle className="w-4 h-4 text-slate-300 shrink-0" />
+            <Text className="text-xs text-slate-200 font-medium leading-snug">{error}</Text>
           </View>
         )}
 
-        {/* PAYOUT DETAILS FORM */}
-        <form onSubmit={handleWithdraw} className="space-y-6">
+        {/* UNIFIED PAYOUT DETAILS FORM */}
+        <form onSubmit={handleWithdraw} className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 space-y-5">
           
-          {/* SECTION 1: DESTINATION BANK ACCOUNT */}
-          <View className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-2xs space-y-4">
-            <View className="flex flex-row items-center gap-2 pb-3 border-b border-slate-100">
-              <Building className="w-4 h-4 text-blue-600" />
-              <Text className="text-sm font-bold text-slate-900 tracking-tight">Destination Bank Account</Text>
-            </View>
-
-            <View className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Bank Name */}
-              <View className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Bank Name
-                </label>
-                <select
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50/80 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 transition cursor-pointer"
-                >
-                  <option value="First National Bank (FNB)">First National Bank (FNB)</option>
-                  <option value="Standard Bank">Standard Bank</option>
-                  <option value="Nedbank">Nedbank</option>
-                  <option value="ABSA Bank">ABSA Bank</option>
-                  <option value="Capitec Bank">Capitec Bank</option>
-                  <option value="Discovery Bank">Discovery Bank</option>
-                  <option value="TymeBank">TymeBank</option>
-                </select>
-              </View>
-
-              {/* Account Holder Name */}
-              <View className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Account Holder Name
-                </label>
-                <View className="relative flex flex-row items-center bg-slate-50/80 border border-slate-200 focus-within:bg-white focus-within:border-blue-600 rounded-xl overflow-hidden transition">
-                  <User className="w-4 h-4 text-slate-400 ml-4 shrink-0" />
-                  <TextInput 
-                    placeholder="e.g. Sipho Khumalo"
-                    placeholderTextColor="#94a3b8"
-                    value={accountHolder}
-                    onChange={(e) => setAccountHolder(e.target.value)}
-                    className="w-full py-3 px-3 bg-transparent text-sm font-medium text-slate-900 focus:outline-none font-sans"
-                  />
-                </View>
-              </View>
-
-              {/* Account Number */}
-              <View className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Account Number
-                </label>
-                <View className="relative flex flex-row items-center bg-slate-50/80 border border-slate-200 focus-within:bg-white focus-within:border-blue-600 rounded-xl overflow-hidden transition">
-                  <CreditCard className="w-4 h-4 text-slate-400 ml-4 shrink-0" />
-                  <TextInput 
-                    placeholder="e.g. 62890483921"
-                    placeholderTextColor="#94a3b8"
-                    value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value)}
-                    maxLength={14}
-                    className="w-full py-3 px-3 bg-transparent text-sm font-semibold font-mono text-slate-900 focus:outline-none"
-                  />
-                </View>
-              </View>
-
-              {/* Branch Code */}
-              <View className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Branch Code
-                </label>
-                <View className="relative flex flex-row items-center bg-slate-50/80 border border-slate-200 focus-within:bg-white focus-within:border-blue-600 rounded-xl overflow-hidden transition">
-                  <Building className="w-4 h-4 text-slate-400 ml-4 shrink-0" />
-                  <TextInput 
-                    placeholder="e.g. 250655"
-                    placeholderTextColor="#94a3b8"
-                    value={branchCode}
-                    onChange={(e) => setBranchCode(e.target.value)}
-                    className="w-full py-3 px-3 bg-transparent text-sm font-semibold font-mono text-slate-900 focus:outline-none"
-                  />
-                </View>
-              </View>
-
-              {/* Account Type */}
-              <View className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Account Type
-                </label>
-                <select
-                  value={accountType}
-                  onChange={(e) => setAccountType(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50/80 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 transition cursor-pointer"
-                >
-                  <option value="Savings">Savings</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Transmission">Transmission</option>
-                </select>
-              </View>
-            </View>
+          {/* SECTION HEADER */}
+          <View className="flex flex-row items-center gap-2 pb-3 border-b border-slate-100">
+            <Building className="w-4 h-4 text-slate-700" />
+            <Text className="text-sm font-bold text-slate-900 tracking-tight">Bank & Payout Credentials</Text>
           </View>
 
-          {/* SECTION 2: IDENTITY VERIFICATION */}
-          <View className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-2xs space-y-4">
-            <View className="flex flex-row items-center gap-2 pb-3 border-b border-slate-100">
-              <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <Text className="text-sm font-bold text-slate-900 tracking-tight">Identity Verification</Text>
+          <View className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Bank Name */}
+            <View className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Bank Name
+              </label>
+              <select
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-slate-800 transition cursor-pointer"
+              >
+                <option value="First National Bank (FNB)">First National Bank (FNB)</option>
+                <option value="Standard Bank">Standard Bank</option>
+                <option value="Nedbank">Nedbank</option>
+                <option value="ABSA Bank">ABSA Bank</option>
+                <option value="Capitec Bank">Capitec Bank</option>
+                <option value="Discovery Bank">Discovery Bank</option>
+                <option value="TymeBank">TymeBank</option>
+              </select>
             </View>
 
-            <View className="space-y-1.5">
+            {/* Account Holder Name */}
+            <View className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Account Holder Name
+              </label>
+              <View className="relative flex flex-row items-center bg-slate-50 border border-slate-200 focus-within:bg-white focus-within:border-slate-800 rounded-xl overflow-hidden transition">
+                <User className="w-4 h-4 text-slate-400 ml-3.5 shrink-0" />
+                <TextInput 
+                  placeholder="e.g. Sipho Khumalo"
+                  placeholderTextColor="#94a3b8"
+                  value={accountHolder}
+                  onChange={(e) => setAccountHolder(e.target.value)}
+                  className="w-full py-2.5 px-3 bg-transparent text-sm font-medium text-slate-900 focus:outline-none font-sans"
+                />
+              </View>
+            </View>
+
+            {/* Account Number */}
+            <View className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Account Number
+              </label>
+              <View className="relative flex flex-row items-center bg-slate-50 border border-slate-200 focus-within:bg-white focus-within:border-slate-800 rounded-xl overflow-hidden transition">
+                <CreditCard className="w-4 h-4 text-slate-400 ml-3.5 shrink-0" />
+                <TextInput 
+                  placeholder="e.g. 62890483921"
+                  placeholderTextColor="#94a3b8"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  maxLength={14}
+                  className="w-full py-2.5 px-3 bg-transparent text-sm font-semibold font-mono text-slate-900 focus:outline-none"
+                />
+              </View>
+            </View>
+
+            {/* Branch Code */}
+            <View className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Branch Code
+              </label>
+              <View className="relative flex flex-row items-center bg-slate-50 border border-slate-200 focus-within:bg-white focus-within:border-slate-800 rounded-xl overflow-hidden transition">
+                <Building className="w-4 h-4 text-slate-400 ml-3.5 shrink-0" />
+                <TextInput 
+                  placeholder="e.g. 250655"
+                  placeholderTextColor="#94a3b8"
+                  value={branchCode}
+                  onChange={(e) => setBranchCode(e.target.value)}
+                  className="w-full py-2.5 px-3 bg-transparent text-sm font-semibold font-mono text-slate-900 focus:outline-none"
+                />
+              </View>
+            </View>
+
+            {/* Account Type */}
+            <View className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Account Type
+              </label>
+              <select
+                value={accountType}
+                onChange={(e) => setAccountType(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-slate-800 transition cursor-pointer"
+              >
+                <option value="Savings">Savings</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Transmission">Transmission</option>
+              </select>
+            </View>
+
+            {/* Verifier Full Name */}
+            <View className="space-y-1 sm:col-span-2 pt-2 border-t border-slate-100">
               <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 Verifier Full Name
               </label>
-              <View className="relative flex flex-row items-center bg-slate-50/80 border border-slate-200 focus-within:bg-white focus-within:border-blue-600 rounded-xl overflow-hidden transition">
-                <User className="w-4 h-4 text-slate-400 ml-4 shrink-0" />
+              <View className="relative flex flex-row items-center bg-slate-50 border border-slate-200 focus-within:bg-white focus-within:border-slate-800 rounded-xl overflow-hidden transition">
+                <User className="w-4 h-4 text-slate-400 ml-3.5 shrink-0" />
                 <TextInput 
                   placeholder="e.g. Sipho S Khumalo"
                   placeholderTextColor="#94a3b8"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full py-3 px-3 bg-transparent text-sm font-medium text-slate-900 focus:outline-none font-sans"
+                  className="w-full py-2.5 px-3 bg-transparent text-sm font-medium text-slate-900 focus:outline-none font-sans"
                 />
               </View>
-              <Text className="text-[11px] text-slate-500 pt-1 leading-normal">
-                Must match the legal account holder registered with your banking institution for EFT clearance.
+              <Text className="text-[11px] text-slate-500 pt-0.5 leading-normal">
+                Must match the registered account holder for EFT clearance.
               </Text>
             </View>
           </View>
 
           {/* SUBMIT BUTTON */}
-          <View className="pt-2 space-y-3">
+          <View className="pt-2 space-y-2">
             <TouchableOpacity 
               type="submit"
               disabled={loading}
-              className={`w-full py-4 rounded-xl flex flex-row items-center justify-center gap-2.5 transition cursor-pointer select-none font-semibold text-sm text-white shadow-sm ${
-                loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.99]'
+              className={`w-full py-3.5 rounded-xl flex flex-row items-center justify-center gap-2 transition cursor-pointer select-none font-semibold text-sm text-white ${
+                loading ? 'bg-slate-700' : 'bg-slate-900 hover:bg-black active:scale-[0.99]'
               }`}
             >
               {loading ? (
@@ -434,8 +420,8 @@ export const WithdrawScreen: React.FC = () => {
               )}
             </TouchableOpacity>
 
-            <Text className="text-center text-xs text-slate-400 font-medium">
-              Payouts are verified and dispatched directly to your SA bank account.
+            <Text className="text-center text-[11px] text-slate-400 font-medium">
+              Payouts are 256-bit encrypted and dispatched directly to SA banking institutions.
             </Text>
           </View>
         </form>
