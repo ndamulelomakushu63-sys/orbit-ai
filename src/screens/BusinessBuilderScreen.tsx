@@ -633,13 +633,10 @@ export const BusinessBuilderScreen: React.FC = () => {
                   {loading ? (
                     <>
                       <RefreshCw className="w-4 h-4 text-white animate-spin" />
-                      <Text className="text-white font-medium">Constructing Business Blueprint...</Text>
+                      <Text className="text-white font-medium">Creating...</Text>
                     </>
                   ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-white" />
-                      <Text className="text-white font-medium">Create Business Plan</Text>
-                    </>
+                    <Text className="text-white font-medium">Create Business Plan</Text>
                   )}
                 </TouchableOpacity>
               </View>

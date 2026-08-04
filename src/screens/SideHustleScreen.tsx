@@ -659,13 +659,10 @@ Include EVERY ONE of the following required sections in exact order:
                   {loading ? (
                     <>
                       <RefreshCw className="w-4 h-4 text-white animate-spin" />
-                      <Text className="text-white font-medium">Analyzing opportunities...</Text>
+                      <Text className="text-white font-medium">Generating...</Text>
                     </>
                   ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-white" />
-                      <Text className="text-white font-medium">Generate Side Hustle Ideas</Text>
-                    </>
+                    <Text className="text-white font-medium">Generate Side Hustle Ideas</Text>
                   )}
                 </TouchableOpacity>
               </View>
