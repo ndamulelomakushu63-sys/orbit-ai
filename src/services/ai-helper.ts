@@ -8,182 +8,244 @@ import './env-sanitizer.js';
  * - groq (TESTING): Uses Groq LLaMA-3.3-70b-versatile via GROQ_API_KEY
  * - gemini (TESTING): Uses Google Gemini 2.5-flash via GEMINI_API_KEY
  */
-export async function fetchChatCompletion(messages: any[], temperature: number = 0.7): Promise<any> {
+function extractTextFromBase64Attachment(att: any): string | null {
+  if (!att || !att.url) return null;
+  if (!att.url.includes("base64,")) return null;
+  const base64Part = att.url.split("base64,")[1];
+  if (!base64Part) return null;
+
+  try {
+    const buf = Buffer.from(base64Part, 'base64');
+    const decoded = buf.toString('utf-8');
+    const sample = decoded.slice(0, 300);
+    const nonPrintable = sample.replace(/[\x09\x0A\x0D\x20-\x7E]/g, '');
+    if (nonPrintable.length < sample.length * 0.2) {
+      return decoded;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return null;
+}
+
+export async function fetchChatCompletion(messages: any[], temperature: number = 0.7, attachments: any[] = []): Promise<any> {
   const provider = (typeof process !== 'undefined' && process?.env?.AI_PROVIDER
     ? process.env.AI_PROVIDER
     : 'openai'
   ).toLowerCase().trim();
 
-  console.log(`[AI-Helper] Active AI_PROVIDER configured: '${provider}'`);
+  console.log(`[AI-Helper] Active AI_PROVIDER configured: '${provider}' (Attachments count: ${attachments ? attachments.length : 0})`);
 
-  // ==========================================
-  // PROVIDER 1: OPENAI (PRODUCTION DEFAULT)
-  // ==========================================
-  if (provider === 'openai') {
-    const openaiApiKey = typeof process !== 'undefined' && process?.env ? process.env.OPENAI_API_KEY : undefined;
+  const openaiApiKey = typeof process !== 'undefined' && process?.env ? process.env.OPENAI_API_KEY : undefined;
+  const geminiApiKey = typeof process !== 'undefined' && process?.env ? process.env.GEMINI_API_KEY : undefined;
+
+  const imageAttachments = (attachments || []).filter((a: any) => 
+    a.type === 'image' || (a.url && a.url.startsWith('data:image/'))
+  );
+
+  const nonImageAttachments = (attachments || []).filter((a: any) => 
+    a.type !== 'image' && (!a.url || !a.url.startsWith('data:image/'))
+  );
+
+  let fileTexts = "";
+  nonImageAttachments.forEach((att: any) => {
+    const textContent = extractTextFromBase64Attachment(att);
+    if (textContent) {
+      fileTexts += `\n\n--- ATTACHED FILE CONTENT (${att.name || 'document'}) ---\n${textContent.slice(0, 30000)}\n--- END ATTACHED FILE ---`;
+    } else {
+      fileTexts += `\n\n[Attached File: ${att.name || 'document'} (${att.sizeStr || 'attachment'})]`;
+    }
+  });
+
+  // Helper for OpenAI call
+  const callOpenAI = async () => {
     if (!openaiApiKey || openaiApiKey.includes("your_openai_api_key_here")) {
-      const errMsg = "OpenAI API call failed: OPENAI_API_KEY environment variable is missing or set to a placeholder. Please configure OPENAI_API_KEY or switch AI_PROVIDER to 'groq' or 'gemini' for testing.";
-      console.error(`[AI-Helper] ${errMsg}`);
-      throw new Error(errMsg);
+      throw new Error("OPENAI_API_KEY is missing or invalid");
     }
 
-    try {
-      console.log("[AI-Helper] Routing request to OpenAI Chat Completion API (gpt-4o-mini)...");
-      const openai = new OpenAI({
-        apiKey: openaiApiKey,
-        timeout: 25000 // 25 seconds timeout for complex completions
-      });
+    const openAiMessages = messages.map(m => ({ ...m }));
+    if (openAiMessages.length > 0) {
+      const lastIndex = openAiMessages.length - 1;
+      const lastMsg = openAiMessages[lastIndex];
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages,
-        temperature
-      });
-
-      console.log("[AI-Helper] OpenAI Chat Completion call succeeded!");
-      return completion;
-    } catch (err: any) {
-      console.error("[AI-Helper] OpenAI API SDK call failed!");
-      console.error("Error Status:", err.status || err.statusCode || "N/A");
-      console.error("Error Code:", err.code || "N/A");
-      console.error("Error Message:", err.message || "N/A");
-      throw new Error(`OpenAI API call failed (gpt-4o-mini): ${err.message || String(err)}`);
-    }
-  }
-
-  // ==========================================
-  // PROVIDER 2: GROQ (TESTING)
-  // ==========================================
-  if (provider === 'groq') {
-    const groqApiKey = typeof process !== 'undefined' && process?.env ? process.env.GROQ_API_KEY : undefined;
-    if (!groqApiKey || groqApiKey.includes("your_groq_api_key_here")) {
-      const errMsg = "Groq API call failed: GROQ_API_KEY environment variable is missing or set to a placeholder. Please configure GROQ_API_KEY in your Vercel/environment settings.";
-      console.error(`[AI-Helper] ${errMsg}`);
-      throw new Error(errMsg);
-    }
-
-    try {
-      console.log("[AI-Helper] Routing request to Groq API (llama-3.3-70b-versatile)...");
-      const groqClient = new OpenAI({
-        apiKey: groqApiKey,
-        baseURL: "https://api.groq.com/openai/v1",
-        timeout: 25000
-      });
-
-      const completion = await groqClient.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages,
-        temperature
-      });
-
-      console.log("[AI-Helper] Groq API call succeeded!");
-      return completion;
-    } catch (err: any) {
-      console.error("[AI-Helper] Groq API SDK call failed!");
-      console.error("Error Status:", err.status || err.statusCode || "N/A");
-      console.error("Error Message:", err.message || "N/A");
-      throw new Error(`Groq API call failed (llama-3.3-70b-versatile): ${err.message || String(err)}`);
-    }
-  }
-
-  // ==========================================
-  // PROVIDER 3: GOOGLE GEMINI (TESTING)
-  // ==========================================
-  if (provider === 'gemini') {
-    const geminiApiKey = typeof process !== 'undefined' && process?.env ? process.env.GEMINI_API_KEY : undefined;
-    if (!geminiApiKey || geminiApiKey.includes("your_gemini_api_key_here")) {
-      const errMsg = "Gemini API call failed: GEMINI_API_KEY environment variable is missing or set to a placeholder. Please configure GEMINI_API_KEY in your Vercel/environment settings.";
-      console.error(`[AI-Helper] ${errMsg}`);
-      throw new Error(errMsg);
-    }
-
-    try {
-      console.log("[AI-Helper] Routing request to Google Gemini API (gemini-2.5-flash)...");
-
-      // Extract system instructions and format user/assistant turns
-      let systemInstructionText = "";
-      const formattedContents: any[] = [];
-
-      for (const msg of messages) {
-        const contentStr = msg.content || "";
-        if (msg.role === "system") {
-          systemInstructionText += (systemInstructionText ? "\n\n" : "") + contentStr;
-        } else {
-          const geminiRole = (msg.role === "assistant" || msg.role === "model") ? "model" : "user";
-          // Avoid duplicate adjacent roles for Gemini REST API
-          if (formattedContents.length > 0 && formattedContents[formattedContents.length - 1].role === geminiRole) {
-            formattedContents[formattedContents.length - 1].parts[0].text += "\n\n" + contentStr;
-          } else {
-            formattedContents.push({
-              role: geminiRole,
-              parts: [{ text: contentStr }]
-            });
-          }
-        }
-      }
-
-      // Ensure at least one user message exists
-      if (formattedContents.length === 0) {
-        formattedContents.push({ role: "user", parts: [{ text: "Hello" }] });
-      }
-
-      const payload: any = {
-        contents: formattedContents,
-        generationConfig: {
-          temperature
-        }
-      };
-
-      if (systemInstructionText) {
-        payload.systemInstruction = {
-          parts: [{ text: systemInstructionText }]
-        };
-      }
-
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
-      const response = await fetch(geminiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[AI-Helper] Gemini API HTTP error:", response.status, errorText);
-        throw new Error(`Gemini API HTTP status ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-      const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!replyText) {
-        throw new Error("No response text returned from Gemini API");
-      }
-
-      console.log("[AI-Helper] Gemini API call succeeded!");
-      return {
-        choices: [
-          {
-            message: {
-              role: "assistant",
-              content: replyText
+      if (lastMsg.role === 'user') {
+        const baseText = (typeof lastMsg.content === 'string' ? lastMsg.content : "") + fileTexts;
+        if (imageAttachments.length > 0) {
+          const parts: any[] = [{ type: "text", text: baseText || "Please analyze this image in detail." }];
+          imageAttachments.forEach((att: any) => {
+            if (att.url) {
+              parts.push({
+                type: "image_url",
+                image_url: { url: att.url, detail: "auto" }
+              });
             }
-          }
-        ]
-      };
-    } catch (err: any) {
-      console.error("[AI-Helper] Gemini API call failed:", err);
-      throw new Error(`Gemini API call failed (gemini-2.5-flash): ${err.message || String(err)}`);
+          });
+          openAiMessages[lastIndex] = { ...lastMsg, content: parts };
+        } else {
+          openAiMessages[lastIndex] = { ...lastMsg, content: baseText };
+        }
+      }
     }
-  }
 
-  // ==========================================
-  // UNSUPPORTED PROVIDER
-  // ==========================================
-  const errMsg = `Invalid AI_PROVIDER configured: '${provider}'. Supported providers are: 'openai', 'gemini', 'groq'.`;
-  console.error(`[AI-Helper] ${errMsg}`);
-  throw new Error(errMsg);
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
+      timeout: 25000
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: openAiMessages,
+      temperature
+    });
+
+    return completion;
+  };
+
+  // Helper for Gemini call
+  const callGemini = async () => {
+    if (!geminiApiKey || geminiApiKey.includes("your_gemini_api_key_here")) {
+      throw new Error("GEMINI_API_KEY is missing or invalid");
+    }
+
+    let systemInstructionText = "";
+    const formattedContents: any[] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      let contentStr = typeof msg.content === 'string' ? msg.content : "";
+      const isLastMessage = (i === messages.length - 1);
+
+      if (isLastMessage && msg.role === 'user') {
+        contentStr += fileTexts;
+      }
+
+      if (msg.role === "system") {
+        systemInstructionText += (systemInstructionText ? "\n\n" : "") + contentStr;
+      } else {
+        const geminiRole = (msg.role === "assistant" || msg.role === "model") ? "model" : "user";
+        const parts: any[] = [{ text: contentStr || (isLastMessage ? "Please analyze this." : "") }];
+
+        if (isLastMessage && geminiRole === "user") {
+          imageAttachments.forEach((att: any) => {
+            if (att.url && att.url.includes("base64,")) {
+              const [header, base64Data] = att.url.split("base64,");
+              const mimeMatch = header.match(/data:([^;]+)/);
+              const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+              parts.push({
+                inlineData: {
+                  mimeType,
+                  data: base64Data
+                }
+              });
+            }
+          });
+
+          nonImageAttachments.forEach((att: any) => {
+            if (att.url && att.url.includes("data:application/pdf;base64,")) {
+              const base64Data = att.url.split("base64,")[1];
+              parts.push({
+                inlineData: {
+                  mimeType: "application/pdf",
+                  data: base64Data
+                }
+              });
+            }
+          });
+        }
+
+        if (formattedContents.length > 0 && formattedContents[formattedContents.length - 1].role === geminiRole) {
+          formattedContents[formattedContents.length - 1].parts.push(...parts);
+        } else {
+          formattedContents.push({
+            role: geminiRole,
+            parts
+          });
+        }
+      }
+    }
+
+    if (formattedContents.length === 0) {
+      formattedContents.push({ role: "user", parts: [{ text: "Hello" }] });
+    }
+
+    const payload: any = {
+      contents: formattedContents,
+      generationConfig: { temperature }
+    };
+
+    if (systemInstructionText) {
+      payload.systemInstruction = {
+        parts: [{ text: systemInstructionText }]
+      };
+    }
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+    const response = await fetch(geminiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API HTTP status ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!replyText) {
+      throw new Error("No response text returned from Gemini API");
+    }
+
+    return {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: replyText
+          }
+        }
+      ]
+    };
+  };
+
+  // Execution with Provider Failover
+  if (provider === 'openai' || !provider) {
+    try {
+      return await callOpenAI();
+    } catch (err: any) {
+      console.warn(`[AI-Helper] Primary provider 'openai' failed (${err?.message}). Attempting fallback to 'gemini'...`);
+      if (geminiApiKey) {
+        try {
+          return await callGemini();
+        } catch (geminiErr: any) {
+          console.error(`[AI-Helper] Both OpenAI and Gemini fallbacks failed:`, geminiErr);
+          throw err;
+        }
+      }
+      throw err;
+    }
+  } else if (provider === 'gemini') {
+    try {
+      return await callGemini();
+    } catch (err: any) {
+      console.warn(`[AI-Helper] Primary provider 'gemini' failed (${err?.message}). Attempting fallback to 'openai'...`);
+      if (openaiApiKey) {
+        try {
+          return await callOpenAI();
+        } catch (openaiErr: any) {
+          console.error(`[AI-Helper] Both Gemini and OpenAI fallbacks failed:`, openaiErr);
+          throw err;
+        }
+      }
+      throw err;
+    }
+  } else {
+    // Try OpenAI or Gemini as fallback
+    if (openaiApiKey) return await callOpenAI();
+    if (geminiApiKey) return await callGemini();
+    throw new Error(`Invalid AI_PROVIDER: ${provider}`);
+  }
 }
 
 

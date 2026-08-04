@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
-import { ArrowLeft, AlertCircle, Building, User, Lock, Send, CheckCircle } from '../components/Icons';
+import { ArrowLeft, AlertCircle, Building, User, Lock, Send, CheckCircle, ShieldCheck, CreditCard, RefreshCw } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { WithdrawalRecord, WithdrawalStatus } from '../types';
 import { 

@@ -849,17 +849,38 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIsAiTyping(true);
 
     try {
-      const stripAttachmentsJson = (msg: string): string => {
-        const index = msg.indexOf("|||ATTACHMENTS_JSON_START|||");
-        if (index !== -1) {
-          return msg.substring(0, index).trim();
+      const extractAttachmentsAndCleanText = (msg: string): { cleanText: string; attachments: any[] } => {
+        if (!msg) return { cleanText: "", attachments: [] };
+        const delimiterStart = "|||ATTACHMENTS_JSON_START|||";
+        const delimiterEnd = "|||ATTACHMENTS_JSON_END|||";
+        const startIndex = msg.indexOf(delimiterStart);
+        
+        if (startIndex !== -1) {
+          const cleanText = msg.substring(0, startIndex).trim();
+          const rest = msg.substring(startIndex + delimiterStart.length);
+          const endIndex = rest.indexOf(delimiterEnd);
+          let attachments: any[] = [];
+          if (endIndex !== -1) {
+            const jsonStr = rest.substring(0, endIndex).trim();
+            try {
+              attachments = JSON.parse(jsonStr);
+            } catch (e) {
+              console.error("Failed to parse attachments JSON in state:", e);
+            }
+          }
+          return { cleanText, attachments };
         }
-        return msg;
+        return { cleanText: msg, attachments: [] };
       };
+
+      const { cleanText, attachments } = extractAttachmentsAndCleanText(userMsgText);
 
       const activeHistory = chatMessages
         .filter(m => m.conversationId === activeConversationId)
-        .map(m => ({ role: m.role, text: stripAttachmentsJson(m.message) }));
+        .map(m => {
+          const { cleanText: hText } = extractAttachmentsAndCleanText(m.message);
+          return { role: m.role, text: hText };
+        });
 
       const currentAgent = agents.find(a => a.id === activeAgentId);
       const systemPrompt = currentAgent ? currentAgent.systemPrompt : undefined;
@@ -869,7 +890,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: stripAttachmentsJson(userMsgText),
+          message: cleanText,
+          attachments,
           history: activeHistory,
           systemPrompt,
           userId: currentUser?.uid

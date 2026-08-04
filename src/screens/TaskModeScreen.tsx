@@ -993,10 +993,9 @@ export const TaskModeScreen: React.FC = () => {
         </View>
         <TouchableOpacity
           onClick={() => setMobileScreen('chat')}
-          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none active:scale-95 shadow-2xs ml-3 shrink-0"
+          className="px-3 py-1.5 bg-white hover:bg-slate-100/80 text-slate-700 border border-slate-200/80 rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none active:scale-95 ml-3 shrink-0"
         >
-          <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-          <Text className="text-xs font-semibold">Chat</Text>
+          <Text className="text-xs font-medium text-slate-700">Chat</Text>
         </TouchableOpacity>
       </View>
 

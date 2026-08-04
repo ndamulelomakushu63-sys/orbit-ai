@@ -82,7 +82,7 @@ app.post("/api/setup-db", async (req, res) => {
 // Secure server-side endpoint for OpenAI AI chat
 app.post("/api/chat", async (req, res) => {
   try {
-    const { message, history, systemPrompt, userId } = req.body;
+    const { message, attachments, history, systemPrompt, userId } = req.body;
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
@@ -195,7 +195,7 @@ app.post("/api/chat", async (req, res) => {
 
     let responseData;
     try {
-      responseData = await fetchChatCompletion(messages, 0.7);
+      responseData = await fetchChatCompletion(messages, 0.7, attachments || []);
     } catch (apiErr: any) {
       console.error("[server/chat] AI service call failed in chat endpoint!");
       console.error("Error Status:", apiErr.status || apiErr.statusCode || "N/A");

@@ -446,9 +446,9 @@ export const OrbitRewardsScreen: React.FC = () => {
 
         <TouchableOpacity
           onClick={() => setMobileScreen('chat')}
-          className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none"
+          className="px-3 py-1 bg-white hover:bg-slate-100/80 text-slate-700 border border-slate-200/80 rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none"
         >
-          <Text className="text-xs font-semibold">Chat</Text>
+          <Text className="text-xs font-medium text-slate-700">Chat</Text>
         </TouchableOpacity>
       </View>
 
