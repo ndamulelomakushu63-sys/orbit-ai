@@ -744,7 +744,7 @@ Format the response as a valid JSON object containing an "ideas" array of side h
 // Secure server-side endpoint for Task Mode AI Generation
 app.post("/api/task-generate", async (req, res) => {
   try {
-    const { taskType, inputs } = req.body;
+    const { taskType, inputs, attachments } = req.body;
     if (!taskType || !inputs) {
       return res.status(400).json({ error: "Task type and inputs are required" });
     }
@@ -881,7 +881,7 @@ CRITICAL RULES:
       }
     ];
 
-    const responseData = await fetchChatCompletion(messages, 0.5);
+    const responseData = await fetchChatCompletion(messages, 0.5, attachments || []);
 
     const replyText = responseData.choices?.[0]?.message?.content || "I was unable to generate a high-quality result. Please try again.";
     return res.json({ result: replyText });

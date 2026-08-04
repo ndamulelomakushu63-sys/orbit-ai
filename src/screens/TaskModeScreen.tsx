@@ -451,11 +451,30 @@ export const TaskModeScreen: React.FC = () => {
     } else if (selectedTask.id === "social_media") {
       if (!socialTopic.trim()) { setErrorMessage("Topic/Product is required."); setLoading(false); return; }
       inputs = { topic: socialTopic, platform: socialPlatform, message: socialMessage, tone: socialTone };
-    } else if (selectedTask.id === "summarize") {
+    }
+
+    let taskAttachments: any[] = [];
+
+    if (selectedTask.id === "summarize") {
       if (!docFile && !docPastedText.trim()) { 
         setErrorMessage("Please upload a PDF file or paste some text to summarize."); 
         setLoading(false); 
         return; 
+      }
+      if (docFile) {
+        const fileDataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(docFile);
+        });
+        taskAttachments.push({
+          id: `task-doc-${Date.now()}`,
+          name: docFile.name,
+          type: docFile.type.startsWith('image/') ? 'image' : 'file',
+          url: fileDataUrl,
+          sizeStr: `${(docFile.size / 1024).toFixed(0)} KB`
+        });
       }
       inputs = { 
         fileName: docFile ? docFile.name : "Pasted_Text_Document", 
@@ -464,6 +483,21 @@ export const TaskModeScreen: React.FC = () => {
       };
     } else if (selectedTask.id === "assignment") {
       if (!assignTopic.trim()) { setErrorMessage("Topic/Subject is required."); setLoading(false); return; }
+      if (assignFile) {
+        const fileDataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(assignFile);
+        });
+        taskAttachments.push({
+          id: `task-assign-${Date.now()}`,
+          name: assignFile.name,
+          type: assignFile.type.startsWith('image/') ? 'image' : 'file',
+          url: fileDataUrl,
+          sizeStr: `${(assignFile.size / 1024).toFixed(0)} KB`
+        });
+      }
       inputs = { 
         topic: assignTopic, 
         guidelines: assignGuidelines, 
@@ -477,7 +511,8 @@ export const TaskModeScreen: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskType: selectedTask.id,
-          inputs: inputs
+          inputs: inputs,
+          attachments: taskAttachments
         })
       });
 

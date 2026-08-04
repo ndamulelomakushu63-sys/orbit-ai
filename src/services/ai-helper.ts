@@ -1,4 +1,6 @@
 import OpenAI from 'openai';
+import pdfParse from 'pdf-parse';
+import AdmZip from 'adm-zip';
 import './env-sanitizer.js';
 
 export const ORBIT_AI_IDENTITY = {
@@ -29,47 +31,150 @@ Whenever asked "Who built you?", "Who created Orbit AI?", "Who is your founder?"
 Always state you are Orbit AI, powered by Grok AI. NEVER say you are ChatGPT, OpenAI, Google, Meta, or Anthropic.
 `;
 
-function extractTextFromBase64Attachment(att: any): string | null {
+function isImageAttachment(a: any): boolean {
+  if (!a) return false;
+  if (a.type === 'image' || a.type === 'photo' || a.type === 'camera') return true;
+  if (typeof a.url === 'string' && (a.url.startsWith('data:image/') || a.url.startsWith('blob:'))) return true;
+  if (typeof a.mimeType === 'string' && a.mimeType.startsWith('image/')) return true;
+  if (typeof a.fileType === 'string' && a.fileType.startsWith('image/')) return true;
+  const name = (a.name || '').toLowerCase();
+  if (/\.(jpg|jpeg|png|webp|gif|bmp|svg|heic|tiff)$/i.test(name)) return true;
+  return false;
+}
+
+function normalizeImageUrl(att: any): string | null {
   if (!att || !att.url) return null;
-  if (!att.url.includes("base64,")) return null;
-  const base64Part = att.url.split("base64,")[1];
-  if (!base64Part) return null;
+  let url = att.url;
+  if (typeof url !== 'string') return null;
 
+  if (url.startsWith('data:image/')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+
+  const ext = (att.name || '').split('.').pop()?.toLowerCase();
+  const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : ext === 'svg' ? 'image/svg+xml' : 'image/jpeg';
+
+  if (url.includes('base64,')) {
+    const base64Data = url.split('base64,')[1];
+    return `data:${mime};base64,${base64Data}`;
+  }
+
+  if (url.length > 50) {
+    return `data:${mime};base64,${url}`;
+  }
+
+  return null;
+}
+
+async function processNonImageAttachment(att: any): Promise<string> {
+  if (!att || !att.url) return '';
+  const url = att.url;
+  const fileName = att.name || 'attached_document';
+  const lowerName = fileName.toLowerCase();
+
+  let base64Data = '';
+  let mimeType = '';
+
+  if (typeof url === 'string' && url.includes('base64,')) {
+    const parts = url.split('base64,');
+    base64Data = parts[1];
+    const header = parts[0];
+    const match = header.match(/data:([^;]+)/);
+    if (match) mimeType = match[1].toLowerCase();
+  } else if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
+    try {
+      const resp = await fetch(url);
+      const arrayBuf = await resp.arrayBuffer();
+      const buf = Buffer.from(arrayBuf);
+      base64Data = buf.toString('base64');
+    } catch (e) {
+      console.error(`[AI-Helper] Failed to fetch attachment URL ${url}:`, e);
+      return `\n\n[Attached File Reference: ${fileName} (${url})]`;
+    }
+  } else if (typeof url === 'string') {
+    base64Data = url;
+  }
+
+  if (!base64Data) return `\n\n[Attached File: ${fileName}]`;
+
+  let buf: Buffer;
   try {
-    const buf = Buffer.from(base64Part, 'base64');
-    const utf8Str = buf.toString('utf-8');
-    const sample = utf8Str.slice(0, 300);
-    const nonPrintable = sample.replace(/[\x09\x0A\x0D\x20-\x7E]/g, '');
+    buf = Buffer.from(base64Data, 'base64');
+  } catch (e) {
+    return `\n\n[Attached File: ${fileName}]`;
+  }
 
-    if (nonPrintable.length < sample.length * 0.2) {
-      return utf8Str;
-    }
-
-    let extractedWords = '';
-    let currentWord = '';
-    for (let i = 0; i < buf.length; i++) {
-      const code = buf[i];
-      if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9) {
-        currentWord += String.fromCharCode(code);
-      } else {
-        if (currentWord.trim().length >= 4 && !/^[0-9\s.,/\\-_=+()[\]{}#$%^&*!@~`'"]+$/.test(currentWord.trim())) {
-          extractedWords += currentWord + ' ';
-        }
-        currentWord = '';
+  // 1. PDF Documents
+  if (lowerName.endsWith('.pdf') || mimeType.includes('pdf')) {
+    try {
+      const pdfData = await pdfParse(buf);
+      const extractedText = (pdfData.text || '').trim();
+      if (extractedText.length > 0) {
+        return `\n\n--- ATTACHED PDF DOCUMENT CONTENT: ${fileName} (${pdfData.numpages || 1} pages) ---\n${extractedText.slice(0, 45000)}\n--- END ATTACHED PDF DOCUMENT ---`;
       }
+    } catch (e) {
+      console.error(`[AI-Helper] PDF parsing error for ${fileName}:`, e);
     }
-    if (currentWord.trim().length >= 4) {
-      extractedWords += currentWord + ' ';
-    }
+  }
 
-    const cleaned = extractedWords.replace(/\s+/g, ' ').trim();
-    if (cleaned.length > 30) {
-      return cleaned;
+  // 2. DOCX Word Documents
+  if (lowerName.endsWith('.docx') || mimeType.includes('wordprocessingml')) {
+    try {
+      const zip = new AdmZip(buf);
+      const xmlEntry = zip.getEntry('word/document.xml');
+      if (xmlEntry) {
+        const xmlText = xmlEntry.getData().toString('utf-8');
+        const cleanText = xmlText
+          .replace(/<w:p[^>]*>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (cleanText.length > 0) {
+          return `\n\n--- ATTACHED WORD DOCUMENT CONTENT: ${fileName} ---\n${cleanText.slice(0, 45000)}\n--- END ATTACHED WORD DOCUMENT ---`;
+        }
+      }
+    } catch (e) {
+      console.error(`[AI-Helper] DOCX parsing error for ${fileName}:`, e);
+    }
+  }
+
+  // 3. Text / Code / CSV / JSON / Markdown files
+  try {
+    const utf8Str = buf.toString('utf-8');
+    const nullByteCount = (utf8Str.match(/\0/g) || []).length;
+    if (nullByteCount < 5) {
+      return `\n\n--- ATTACHED FILE CONTENT: ${fileName} ---\n${utf8Str.slice(0, 45000)}\n--- END ATTACHED FILE CONTENT ---`;
     }
   } catch (e) {
     // ignore
   }
-  return null;
+
+  // 4. Fallback string extraction for other file formats
+  let extractedWords = '';
+  let currentWord = '';
+  for (let i = 0; i < Math.min(buf.length, 100000); i++) {
+    const code = buf[i];
+    if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9) {
+      currentWord += String.fromCharCode(code);
+    } else {
+      if (currentWord.trim().length >= 4) {
+        extractedWords += currentWord + ' ';
+      }
+      currentWord = '';
+    }
+  }
+  if (currentWord.trim().length >= 4) {
+    extractedWords += currentWord + ' ';
+  }
+  const cleaned = extractedWords.replace(/\s+/g, ' ').trim();
+  if (cleaned.length > 30) {
+    return `\n\n--- EXTRACTED TEXT CONTENT FROM ATTACHMENT: ${fileName} ---\n${cleaned.slice(0, 30000)}\n--- END ATTACHMENT CONTENT ---`;
+  }
+
+  return `\n\n[Attached Document: ${fileName} (${att.sizeStr || 'attachment'})]`;
 }
 
 export async function fetchChatCompletion(messages: any[], temperature: number = 0.7, attachments: any[] = []): Promise<any> {
@@ -79,23 +184,11 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
     ? (process.env.GROQ_API_KEY || process.env.XAI_API_KEY || process.env.GROK_API_KEY) 
     : undefined;
 
-  const imageAttachments = (attachments || []).filter((a: any) => 
-    a.type === 'image' || (a.url && a.url.startsWith('data:image/'))
-  );
+  const imageAttachments = (attachments || []).filter(isImageAttachment);
+  const nonImageAttachments = (attachments || []).filter(a => !isImageAttachment(a));
 
-  const nonImageAttachments = (attachments || []).filter((a: any) => 
-    a.type !== 'image' && (!a.url || !a.url.startsWith('data:image/'))
-  );
-
-  let fileTexts = "";
-  nonImageAttachments.forEach((att: any) => {
-    const textContent = extractTextFromBase64Attachment(att);
-    if (textContent) {
-      fileTexts += `\n\n--- ATTACHED FILE CONTENT (${att.name || 'document'}) ---\n${textContent.slice(0, 30000)}\n--- END ATTACHED FILE ---`;
-    } else {
-      fileTexts += `\n\n[Attached File: ${att.name || 'document'} (${att.sizeStr || 'attachment'})]`;
-    }
-  });
+  const nonImageTextResults = await Promise.all(nonImageAttachments.map(processNonImageAttachment));
+  const fileTexts = nonImageTextResults.filter(Boolean).join('');
 
   // Attach Orbit AI Identity to messages
   const prepareMessages = (rawMsgs: any[]) => {
@@ -124,27 +217,42 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
     }
 
     const groqMessages = finalInputMessages.map(m => ({ ...m }));
-    if (groqMessages.length > 0) {
-      const lastIndex = groqMessages.length - 1;
-      const lastMsg = groqMessages[lastIndex];
-
-      if (lastMsg.role === 'user') {
-        const baseText = (typeof lastMsg.content === 'string' ? lastMsg.content : "") + fileTexts;
-        if (imageAttachments.length > 0) {
-          const parts: any[] = [{ type: "text", text: baseText || "Please inspect and analyze this image in detail." }];
-          imageAttachments.forEach((att: any) => {
-            if (att.url) {
-              parts.push({
-                type: "image_url",
-                image_url: { url: att.url, detail: "auto" }
-              });
-            }
-          });
-          groqMessages[lastIndex] = { ...lastMsg, content: parts };
-        } else {
-          groqMessages[lastIndex] = { ...lastMsg, content: baseText };
-        }
+    let userMsgIndex = -1;
+    for (let i = groqMessages.length - 1; i >= 0; i--) {
+      if (groqMessages[i].role === 'user') {
+        userMsgIndex = i;
+        break;
       }
+    }
+
+    if (userMsgIndex === -1) {
+      groqMessages.push({ role: 'user', content: '' });
+      userMsgIndex = groqMessages.length - 1;
+    }
+
+    const targetUserMsg = groqMessages[userMsgIndex];
+    const existingContent = typeof targetUserMsg.content === 'string' ? targetUserMsg.content : "";
+    const baseText = existingContent + fileTexts;
+
+    if (imageAttachments.length > 0) {
+      const parts: any[] = [{ 
+        type: "text", 
+        text: baseText.trim() || "Please inspect and analyze the attached image or photo in detail." 
+      }];
+
+      imageAttachments.forEach((att: any) => {
+        const formattedUrl = normalizeImageUrl(att);
+        if (formattedUrl) {
+          parts.push({
+            type: "image_url",
+            image_url: { url: formattedUrl, detail: "auto" }
+          });
+        }
+      });
+
+      groqMessages[userMsgIndex] = { ...targetUserMsg, content: parts };
+    } else {
+      groqMessages[userMsgIndex] = { ...targetUserMsg, content: baseText };
     }
 
     const groqBaseURL = (grokApiKey && grokApiKey.startsWith("xai-"))
@@ -152,11 +260,11 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       : "https://api.groq.com/openai/v1";
 
     const isVision = imageAttachments.length > 0;
-    const modelName = groqBaseURL.includes("x.ai")
+    const primaryModel = groqBaseURL.includes("x.ai")
       ? (isVision ? "grok-2-vision-1212" : "grok-2-1212")
       : (isVision ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile");
 
-    console.log(`[AI-Helper] Routing request to Groq API (${modelName} via ${groqBaseURL})...`);
+    console.log(`[AI-Helper] Routing request to Groq API (${primaryModel} via ${groqBaseURL})...`);
 
     const groqClient = new OpenAI({
       apiKey: grokApiKey,
@@ -164,16 +272,31 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       timeout: 30000
     });
 
-    const completion = await groqClient.chat.completions.create({
-      model: modelName,
-      messages: groqMessages,
-      temperature
-    });
-
-    return completion;
+    try {
+      const completion = await groqClient.chat.completions.create({
+        model: primaryModel,
+        messages: groqMessages,
+        temperature
+      });
+      return completion;
+    } catch (err: any) {
+      if (isVision && !groqBaseURL.includes("x.ai")) {
+        console.warn(`[AI-Helper] Vision model ${primaryModel} failed, trying llama-3.2-90b-vision-preview fallback:`, err?.message);
+        try {
+          const fallbackCompletion = await groqClient.chat.completions.create({
+            model: "llama-3.2-90b-vision-preview",
+            messages: groqMessages,
+            temperature
+          });
+          return fallbackCompletion;
+        } catch (fallbackErr) {
+          throw err;
+        }
+      }
+      throw err;
+    }
   };
 
-  // Execute request using Groq exclusively
   try {
     return await callGroq();
   } catch (groqErr: any) {
