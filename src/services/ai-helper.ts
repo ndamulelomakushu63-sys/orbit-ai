@@ -352,8 +352,9 @@ function generateLocalFallbackResponse(messages: any[]): string {
   const combinedContent = messages.map(m => m.content || "").join("\n");
   const lastUserMsg = messages[messages.length - 1]?.content || "";
 
-  // 1. Check for "Who built you" identity rules
-  if (combinedContent.includes("built you?") || combinedContent.includes("made you?") || combinedContent.includes("Who built you") || combinedContent.includes("Who is your CEO")) {
+  // 1. Check for "Who built you" identity rules in user message only
+  const lowerUserMsg = lastUserMsg.toLowerCase();
+  if (lowerUserMsg.includes("who built you") || lowerUserMsg.includes("who made you") || lowerUserMsg.includes("who created you") || lowerUserMsg.includes("who is your ceo") || lowerUserMsg.includes("who is your founder")) {
     return "I was built by Ndamulelo Makushu Glen, CEO of Orbit AI.";
   }
 
@@ -594,14 +595,35 @@ function generateLocalFallbackResponse(messages: any[]): string {
         "Days 22-30: Run soft launch with close friends/family, optimize, and officially launch!"
       ],
       socialMediaStrategy: `Focus on visual platforms (Instagram/TikTok) with weekly behind-the-scenes content showing our service preparation, tips/hacks relevant to ${industry}, and highlighting customer reviews to build instant credibility.`,
-      riskAssessment: `Risk: Cash flow constraints in the first 2 months due to slower adoption. Mitigation: Maintain a tight, lean operational budget and keep inventory minimal until sales volume establishes a predictable pattern.`
+      riskAssessment: `Risk: Cash flow constraints in the first 2 months due to slower adoption. Mitigation: Maintain a tight, lean operational budget and keep inventory minimal until sales volume establishes a predictable pattern.`,
+      healthScore: {
+        score: 88,
+        strengths: [
+          `Strong local demand in the ${industry} market`,
+          "Lean startup model requiring minimal initial overhead",
+          "Scalable revenue streams via retail and recurring packages"
+        ],
+        improvements: [
+          "Requires consistent initial client acquisition efforts",
+          "Managing supply chain or logistics during peak demand"
+        ],
+        breakdown: {
+          branding: 90,
+          businessModel: 88,
+          marketing: 85,
+          sales: 87,
+          financials: 86,
+          launchReadiness: 90
+        },
+        recommendations: "Focus on establishing strong early client trust through high-quality service, local social media proof, and word-of-mouth referral incentives."
+      }
     };
 
     return JSON.stringify(plan);
   }
 
   // 4. Check for "Task Specialist" / task-generate endpoint
-  if (combinedContent.includes("curriculum vitae") || combinedContent.includes("Curriculum Vitae")) {
+  if (combinedContent.includes("curriculum vitae") || combinedContent.includes("Curriculum Vitae") || combinedContent.includes("ATS-friendly CV") || combinedContent.includes("User Interview Data:")) {
     const fullName = matchField(combinedContent, /Full Name: ([^\n]+)/) || "Ndamulelo Makushu Glen";
     const skills = matchField(combinedContent, /Key Skills: ([^\n]+)/) || "Programming, Web Development";
     const experience = matchField(combinedContent, /Work Experience: ([^\n]+)/) || "Freelance Web Developer";

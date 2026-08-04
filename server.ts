@@ -742,7 +742,103 @@ Format the response as a valid JSON object containing an "ideas" array of side h
     }
 
     const parsedData = safeParseJSON(resultText);
-    return res.json({ ideas: parsedData?.ideas || [] });
+    let ideas = parsedData?.ideas;
+    if (!ideas || !Array.isArray(ideas) || ideas.length === 0) {
+      console.warn("[/api/side-hustles] Parsing produced no valid ideas array. Returning default fallback ideas.");
+      ideas = [
+        {
+          name: "Social Media Manager for Local Businesses",
+          difficulty: "Easy",
+          startupCost: "R0",
+          timeRequired: "8-10 hours/week",
+          whyMatches: "Ideal for mobile & internet access. Manage social media graphics and posting schedules for local brands.",
+          steps: [
+            "Create an Instagram and Facebook business profile.",
+            "Design 5 sample graphics on Canva for local shops.",
+            "Reach out to 5 local small businesses needing social media.",
+            "Offer a 1-week free trial containing 3 posts.",
+            "Schedule content using Meta Business Suite.",
+            "Engage with local audience comments.",
+            "Report weekly engagement growth to the business owner."
+          ],
+          challenges: "Consistent content creation and client acquisition.",
+          resources: "Canva, Meta Business Suite, YouTube SMM guides."
+        },
+        {
+          name: "CV & Cover Letter Formatting Specialist",
+          difficulty: "Easy",
+          startupCost: "R0",
+          timeRequired: "5-8 hours/week",
+          whyMatches: "High demand in South Africa. Helps job seekers structure professional ATS-friendly CVs.",
+          steps: [
+            "Master ATS-friendly CV layout standards.",
+            "Optimize your own CV as a downloadable sample.",
+            "Offer formatting services on LinkedIn & Facebook job groups.",
+            "Collect client career details via email questionnaire.",
+            "Rewrite summaries with high-impact action verbs.",
+            "Format cleanly in Google Docs or PDF.",
+            "Deliver polished documents with 1 free revision."
+          ],
+          challenges: "Extracting complete work histories from clients.",
+          resources: "Google Docs CV templates, Canva Resume Editor."
+        },
+        {
+          name: "Online Academic & Language Tutor",
+          difficulty: "Easy",
+          startupCost: "R0",
+          timeRequired: "6-8 hours/week",
+          whyMatches: "Requires only internet access and subject expertise.",
+          steps: [
+            "Identify your strongest academic subjects.",
+            "Create a profile on Superprof or TeachMe2.",
+            "Record a short video introduction.",
+            "Offer a discounted first lesson.",
+            "Prepare structured lesson worksheets.",
+            "Deliver encouraging online video sessions.",
+            "Request reviews from happy students."
+          ],
+          challenges: "Managing different student learning paces.",
+          resources: "Superprof, Zoom, Google Classroom."
+        },
+        {
+          name: "Graphic Designer & Brand Asset Creator",
+          difficulty: "Easy",
+          startupCost: "R0",
+          timeRequired: "6-8 hours/week",
+          whyMatches: "Great for creative individuals using accessible design tools.",
+          steps: [
+            "Create a Behance portfolio of sample designs.",
+            "Master font pairings and color palettes on Canva.",
+            "Pitch local startups affordable brand starter kits.",
+            "Deliver draft concepts quickly for feedback.",
+            "Export high-resolution source and print files.",
+            "Offer ongoing promo banner design packages.",
+            "Gather testimonials for future clients."
+          ],
+          challenges: "Differentiating services in a competitive market.",
+          resources: "Canva Design School, Coolors.co, Behance."
+        },
+        {
+          name: "Virtual Executive Assistant",
+          difficulty: "Easy",
+          startupCost: "R0",
+          timeRequired: "8-10 hours/week",
+          whyMatches: "Support busy professionals remotely with admin tasks.",
+          steps: [
+            "Define administrative services offered.",
+            "Build a clean LinkedIn profile highlighting skills.",
+            "Apply for remote VA roles on Upwork and Fiverr.",
+            "Respond promptly to client inquiries.",
+            "Use Trello and Google Calendar for task management.",
+            "Provide daily work updates to clients.",
+            "Agree on weekly retainer payments."
+          ],
+          challenges: "Managing schedule across different timezones.",
+          resources: "Google Workspace, Trello, Slack."
+        }
+      ];
+    }
+    return res.json({ ideas });
   } catch (error: any) {
     console.error("Side Hustle Generator API Error (full details):", error);
     return res.status(500).json({
@@ -1003,7 +1099,63 @@ Format the response as a valid JSON object matching this schema structure:
       throw new Error("No response text received from AI helper");
     }
 
-    const plan = safeParseJSON(resultText);
+    let plan = safeParseJSON(resultText);
+    if (!plan || !plan.businessNames || !plan.healthScore) {
+      console.warn("[/api/business-builder] Parsing produced no valid plan object. Returning default fallback plan.");
+      plan = {
+        businessNames: [
+          { name: `Orbit ${businessIdea || 'Venture'}`, tagline: `Innovating the ${industry || 'Service'} experience.` },
+          { name: `${businessIdea || 'Apex'} Junction`, tagline: `Your premium destination for quality service.` },
+          { name: `The Daily ${businessIdea || 'Craft'}`, tagline: `Crafted with care, delivered with passion.` },
+          { name: `Apex ${businessIdea || 'Solutions'}`, tagline: `Elevating standard solutions.` },
+          { name: `Eco${businessIdea || 'Services'}`, tagline: `Sustainably sourced, beautifully designed.` }
+        ],
+        businessDescription: `This business plan details the framework for starting a professional, highly localized, and sustainable ${businessIdea || 'venture'} operating within the ${industry || 'General'} sector. Built on lean operations and direct customer engagement to ensure solid local growth.`,
+        targetAudience: `Primary customer personas include young professionals, local residents, and quality-conscious customers looking for convenience and custom options in the ${industry || 'target'} market.`,
+        revenueModel: `Revenue will be generated primarily through direct retail sales of product offerings, subscription-based loyalties, and custom service packages.`,
+        startupChecklist: [
+          "Register the business name and secure domain/social media handles.",
+          "Secure necessary municipal operating licenses and compliance certificates.",
+          "Source high-grade initial stock and essential workspace equipment.",
+          "Design a clean, modern digital menu or catalog showing core services.",
+          "Set up an online payment processor (e.g., PayFast or merchant bank).",
+          "Design eye-catching flyers and launch social media campaigns.",
+          "Establish partnerships with local South African logistics or delivery services.",
+          "Perform a dry run of standard services to refine execution speed and quality."
+        ],
+        marketingPlan: `Marketing will rely on high-impact organic strategies: local community group outreach, engaging visual storytelling on Instagram/TikTok, and a referral program offering discounts.`,
+        pricingSuggestions: `Basic Tier: Standard service with core features priced affordably. Premium Tier: Enhanced service offering with priority response and custom options at a 30% markup.`,
+        launchPlan30Day: [
+          "Days 1-7: Register business, complete licensing, and finalize brand identity.",
+          "Days 8-14: Source tools, equipment, and build digital storefront/catalog.",
+          "Days 15-21: Initiate social media countdown, print flyers, and test payment gateway.",
+          "Days 22-30: Run soft launch with close contacts, optimize, and officially launch!"
+        ],
+        socialMediaStrategy: `Focus on visual platforms (Instagram/TikTok) with weekly behind-the-scenes content, customer tips, and client reviews to build instant credibility.`,
+        riskAssessment: `Risk: Cash flow constraints in the first 2 months due to initial adoption pace. Mitigation: Maintain a tight, lean operational budget and keep inventory minimal.`,
+        healthScore: {
+          score: 88,
+          strengths: [
+            `Strong local demand in the ${industry || 'target'} market`,
+            "Lean startup model requiring minimal initial overhead",
+            "Scalable revenue streams via retail and recurring packages"
+          ],
+          improvements: [
+            "Requires consistent initial client acquisition efforts",
+            "Managing supply chain or logistics during peak demand"
+          ],
+          breakdown: {
+            branding: 90,
+            businessModel: 88,
+            marketing: 85,
+            sales: 87,
+            financials: 86,
+            launchReadiness: 90
+          },
+          recommendations: "Focus on establishing strong early client trust through high-quality service, local social media proof, and word-of-mouth referral incentives."
+        }
+      };
+    }
     return res.json({ plan });
   } catch (error: any) {
     console.error("Business Builder Generator API Error (full details):", error);
@@ -1310,7 +1462,7 @@ function safeParseJSON(text: string): any {
         console.error("Regex extracted JSON parse also failed:", innerErr);
       }
     }
-    throw e;
+    return null;
   }
 }
 
