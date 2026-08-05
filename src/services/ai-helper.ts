@@ -1,6 +1,4 @@
 import OpenAI from 'openai';
-import * as pdfParseModule from 'pdf-parse';
-import AdmZip from 'adm-zip';
 import './env-sanitizer.js';
 
 export const ORBIT_AI_IDENTITY = {
@@ -109,16 +107,22 @@ async function processNonImageAttachment(att: any): Promise<string> {
       let extractedText = '';
       let pagesCount = 1;
 
-      const PDFParseClass = (pdfParseModule as any).PDFParse || (pdfParseModule as any).default?.PDFParse;
-      if (typeof PDFParseClass === 'function') {
-        const parser = new PDFParseClass({ data: buf });
-        const pdfRes = await parser.getText();
-        extractedText = (pdfRes.text || '').trim();
-        pagesCount = pdfRes.total || 1;
-      } else if (typeof pdfParseModule === 'function') {
-        const pdfData = await (pdfParseModule as any)(buf);
-        extractedText = (pdfData.text || '').trim();
-        pagesCount = pdfData.numpages || 1;
+      try {
+        const pdfParseModule = await import('pdf-parse');
+        const PDFParseClass = (pdfParseModule as any).PDFParse || (pdfParseModule as any).default?.PDFParse;
+        if (typeof PDFParseClass === 'function') {
+          const parser = new PDFParseClass({ data: buf });
+          const pdfRes = await parser.getText();
+          extractedText = (pdfRes.text || '').trim();
+          pagesCount = pdfRes.total || 1;
+        } else if (typeof pdfParseModule === 'function' || typeof (pdfParseModule as any).default === 'function') {
+          const fn = typeof pdfParseModule === 'function' ? pdfParseModule : (pdfParseModule as any).default;
+          const pdfData = await fn(buf);
+          extractedText = (pdfData.text || '').trim();
+          pagesCount = pdfData.numpages || 1;
+        }
+      } catch (importErr) {
+        console.warn(`[AI-Helper] Could not load pdf-parse dynamically:`, importErr);
       }
 
       if (!extractedText) {
@@ -150,7 +154,9 @@ async function processNonImageAttachment(att: any): Promise<string> {
   // 2. DOCX Word Documents
   if (lowerName.endsWith('.docx') || mimeType.includes('wordprocessingml')) {
     try {
-      const zip = new AdmZip(buf);
+      const admZipModule = await import('adm-zip');
+      const AdmZipClass = admZipModule.default || admZipModule;
+      const zip = new AdmZipClass(buf);
       const xmlEntry = zip.getEntry('word/document.xml');
       if (xmlEntry) {
         const xmlText = xmlEntry.getData().toString('utf-8');

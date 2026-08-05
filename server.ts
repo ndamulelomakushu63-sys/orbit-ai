@@ -107,68 +107,72 @@ app.post("/api/chat", async (req, res) => {
     const hasUserId = userId && typeof userId === "string" && isValidUUID(userId);
 
     if (hasUserId) {
-      // 1. Fetch user profile from Supabase to check plan / subscription status
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("plan, subscription_status")
-        .eq("id", userId)
-        .single();
-
-      if (profile) {
-        isPro = profile.plan === "Pro" || 
-                profile.subscription_status === "pro_monthly" || 
-                profile.subscription_status === "pro_yearly";
-      }
-
-      if (!isPro) {
-        // 2. Fetch or create user_limits record
-        const { data, error } = await supabase
-          .from("user_limits")
-          .select("*")
-          .eq("user_id", userId)
+      try {
+        // 1. Fetch user profile from Supabase to check plan / subscription status
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("plan, subscription_status")
+          .eq("id", userId)
           .single();
 
-        if (error) {
-          if (error.code === "PGRST116") {
-            const { data: insertedData } = await supabase
-              .from("user_limits")
-              .insert({
-                user_id: userId,
-                messages_used: 0,
-                is_pro: false,
-                last_reset: new Date().toISOString()
-              })
-              .select()
-              .single();
-            limitData = insertedData;
-            currentCount = 0;
+        if (profile) {
+          isPro = profile.plan === "Pro" || 
+                  profile.subscription_status === "pro_monthly" || 
+                  profile.subscription_status === "pro_yearly";
+        }
+
+        if (!isPro) {
+          // 2. Fetch or create user_limits record
+          const { data, error } = await supabase
+            .from("user_limits")
+            .select("*")
+            .eq("user_id", userId)
+            .single();
+
+          if (error) {
+            if (error.code === "PGRST116") {
+              const { data: insertedData } = await supabase
+                .from("user_limits")
+                .insert({
+                  user_id: userId,
+                  messages_used: 0,
+                  is_pro: false,
+                  last_reset: new Date().toISOString()
+                })
+                .select()
+                .single();
+              limitData = insertedData;
+              currentCount = 0;
+            } else {
+              console.warn("Error fetching user_limits from Supabase:", error);
+            }
           } else {
-            console.warn("Error fetching user_limits from Supabase:", error);
+            limitData = data;
+            currentCount = data.messages_used;
           }
-        } else {
-          limitData = data;
-          currentCount = data.messages_used;
-        }
 
-        if (limitData) {
-          // 3. Handle daily design limit reset (24 hour check)
-          const lastReset = limitData.last_reset ? new Date(limitData.last_reset).getTime() : 0;
-          const now = Date.now();
-          if (now - lastReset >= 24 * 60 * 60 * 1000) {
-            currentCount = 0;
-            await supabase
-              .from("user_limits")
-              .update({ messages_used: 0, last_reset: new Date().toISOString() })
-              .eq("user_id", userId);
+          if (limitData) {
+            // 3. Handle daily design limit reset (24 hour check)
+            const lastReset = limitData.last_reset ? new Date(limitData.last_reset).getTime() : 0;
+            const now = Date.now();
+            if (now - lastReset >= 24 * 60 * 60 * 1000) {
+              currentCount = 0;
+              await supabase
+                .from("user_limits")
+                .update({ messages_used: 0, last_reset: new Date().toISOString() })
+                .eq("user_id", userId);
+            }
+          }
+
+          // 4. Block free users after exactly 15 messages
+          if (currentCount >= 15) {
+            return res.status(403).json({ 
+              error: "You have reached your free limit of 15 messages. Upgrade to Pro." 
+            });
           }
         }
-
-        // 4. Block free users after exactly 15 messages
-        if (currentCount >= 15) {
-          return res.status(403).json({ 
-            error: "You have reached your free limit of 15 messages. Upgrade to Pro." 
-          });
-        }
+      } catch (dbError) {
+        console.warn("Supabase user profile/limit check failed in server.ts, falling back:", dbError);
       }
     }
 

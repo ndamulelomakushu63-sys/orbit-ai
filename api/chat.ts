@@ -51,7 +51,7 @@ export default async function handler(req: any, res: any) {
         console.warn("Failed to parse request body string:", e);
       }
     }
-    const { message, history, systemPrompt, userId } = body || {};
+    const { message, attachments, history, systemPrompt, userId } = body || {};
 
     console.log(`Received request: userId=${userId}, messageLength=${message?.length || 0}`);
 
@@ -186,7 +186,7 @@ export default async function handler(req: any, res: any) {
     try {
       const activeProvider = (process.env.AI_PROVIDER || 'openai').toLowerCase().trim();
       console.log(`[api/chat] Routing request through AI provider abstraction (AI_PROVIDER=${activeProvider})...`);
-      completion = await fetchChatCompletion(messages, 0.7);
+      completion = await fetchChatCompletion(messages, 0.7, attachments || []);
     } catch (apiError: any) {
       console.error("[api/chat] AI provider call failed!");
       console.error("Error Status:", apiError.status || apiError.statusCode || "N/A");
