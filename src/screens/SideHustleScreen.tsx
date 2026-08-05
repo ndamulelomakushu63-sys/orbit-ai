@@ -17,14 +17,17 @@ interface SideHustleIdea {
   resources: string;
 }
 
-const exportBlueprintPDF = (hustleName: string, markdownText: string) => {
+const exportBlueprintPDF = (hustleName: string = 'Side Hustle', markdownText: string = '') => {
+  const safeText = markdownText || '';
+  if (!safeText) return;
+
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     alert('Please allow popups to export the PDF report.');
     return;
   }
 
-  const htmlContent = markdownText
+  const htmlContent = safeText
     .replace(/^# (.*$)/gim, '<h1 class="main-title">$1</h1>')
     .replace(/^## (.*$)/gim, '<h2 class="section-title">$1</h2>')
     .replace(/^### (.*$)/gim, '<h3 class="sub-title">$1</h3>')
@@ -147,23 +150,26 @@ const generateComprehensiveFallbackBlueprint = (
   budget: string,
   country: string
 ): string => {
-  const stepList = (hustle.steps && hustle.steps.length > 0)
-    ? hustle.steps.map((s, idx) => `* **Step ${idx + 1}:** ${s}`).join('\n')
+  const hustleName = hustle?.name || 'Side Hustle Venture';
+  const whyMatches = hustle?.whyMatches || 'This business matches your profile and provides strong market demand with manageable startup requirements.';
+
+  const stepList = (hustle?.steps && Array.isArray(hustle.steps) && hustle.steps.length > 0)
+    ? hustle.steps.map((s, idx) => `* **Step ${idx + 1}:** ${s || ''}`).join('\n')
     : `* **Step 1:** Define your specific package offering and target pricing.\n* **Step 2:** Set up a simple 1-page digital portfolio or PDF overview.\n* **Step 3:** Establish a professional payment gateway and invoice template.\n* **Step 4:** Send direct outreach messages to 15 target customers or local businesses.\n* **Step 5:** Deliver initial trial work with high quality and speed.\n* **Step 6:** Collect written client testimonials and referrals.\n* **Step 7:** Reinvest initial earnings into digital tools and scaling.`;
 
-  return `# ${hustle.name} — Complete Step-by-Step Implementation Blueprint
+  return `# ${hustleName} — Complete Step-by-Step Implementation Blueprint
 
 ---
 
 ## 1. What The Business Is
-${hustle.name} is a high-value, practical venture where you provide structured services or solutions to clients in **${country || 'your local market'}**. This business operates with low overhead and allows you to monetize your skills in **${skills || 'professional service delivery'}** while serving customers who need reliable, high-quality results.
+${hustleName} is a high-value, practical venture where you provide structured services or solutions to clients in **${country || 'your local market'}**. This business operates with low overhead and allows you to monetize your skills in **${skills || 'professional service delivery'}** while serving customers who need reliable, high-quality results.
 
 ---
 
 ## 2. Why It Is A Good Opportunity
 * **Growing Market Demand:** Businesses and individuals in ${country || 'the region'} are actively seeking dependable specialists to solve immediate problems.
 * **Low Barrier to Entry:** You can launch this business from home with minimal upfront capital and start generating revenue within weeks.
-* **Personalized Fit:** ${hustle.whyMatches}
+* **Personalized Fit:** ${whyMatches}
 
 ---
 
@@ -352,27 +358,31 @@ export const SideHustleScreen: React.FC = () => {
   };
 
   const handleOpenBlueprint = async (hustle: SideHustleIdea) => {
+    if (!hustle) return;
     setSelectedHustle(hustle);
     setCopied(false);
 
-    if (blueprints[hustle.name]) {
+    const hustleKey = hustle.name || 'Side Hustle';
+
+    if (blueprints[hustleKey]) {
       return;
     }
 
     setLoadingBlueprint(true);
     try {
-      const prompt = `Generate a complete step-by-step implementation blueprint from A to Z for starting the side hustle: "${hustle.name}" in ${country}.
+      const initialStepsText = Array.isArray(hustle.steps) ? hustle.steps.join('; ') : '';
+      const prompt = `Generate a complete step-by-step implementation blueprint from A to Z for starting the side hustle: "${hustleKey}" in ${country || 'your market'}.
 The user has the following profile:
-- Skills/Strengths: ${skills}
-- Interests: ${interests}
-- Available Time: ${hoursPerWeek} hours per week
-- Available Budget: ${budget}
-- Difficulty: ${hustle.difficulty}
-- Estimated Startup Cost: ${hustle.startupCost}
-- Why It Matches: ${hustle.whyMatches}
-- Initial Steps: ${hustle.steps?.join('; ')}
-- Anticipated Challenges: ${hustle.challenges}
-- Recommended Resources: ${hustle.resources}
+- Skills/Strengths: ${skills || 'General'}
+- Interests: ${interests || 'Varies'}
+- Available Time: ${hoursPerWeek || '10'} hours per week
+- Available Budget: ${budget || 'Low'}
+- Difficulty: ${hustle.difficulty || 'Moderate'}
+- Estimated Startup Cost: ${hustle.startupCost || 'Low'}
+- Why It Matches: ${hustle.whyMatches || ''}
+- Initial Steps: ${initialStepsText}
+- Anticipated Challenges: ${hustle.challenges || ''}
+- Recommended Resources: ${hustle.resources || ''}
 
 You must provide a comprehensive, beautifully formatted business guide in Markdown with clear headings, numbered steps, bullet points, proper spacing, and professional typography.
 Include EVERY ONE of the following required sections in exact order:
@@ -410,7 +420,7 @@ Include EVERY ONE of the following required sections in exact order:
       if (response.ok) {
         const data = await response.json();
         if (data.reply && data.reply.trim().length > 300) {
-          setBlueprints(prev => ({ ...prev, [hustle.name]: data.reply }));
+          setBlueprints(prev => ({ ...prev, [hustleKey]: data.reply }));
           setLoadingBlueprint(false);
           return;
         }
@@ -421,12 +431,12 @@ Include EVERY ONE of the following required sections in exact order:
 
     // Fallback to our comprehensive A-to-Z implementation blueprint
     const fallbackMarkdown = generateComprehensiveFallbackBlueprint(hustle, skills, interests, hoursPerWeek, budget, country);
-    setBlueprints(prev => ({ ...prev, [hustle.name]: fallbackMarkdown }));
+    setBlueprints(prev => ({ ...prev, [hustleKey]: fallbackMarkdown }));
     setLoadingBlueprint(false);
   };
 
   const currentBlueprintMarkdown = selectedHustle
-    ? (blueprints[selectedHustle.name] || generateComprehensiveFallbackBlueprint(selectedHustle, skills, interests, hoursPerWeek, budget, country))
+    ? (blueprints[selectedHustle.name || 'Side Hustle'] || generateComprehensiveFallbackBlueprint(selectedHustle, skills, interests, hoursPerWeek, budget, country))
     : '';
 
   const handleCopyBlueprint = () => {
@@ -492,10 +502,10 @@ Include EVERY ONE of the following required sections in exact order:
                   </TouchableOpacity>
                   <TouchableOpacity
                     onClick={handleExportPDF}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex flex-row items-center gap-1.5 text-xs font-semibold transition cursor-pointer select-none"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex flex-row items-center gap-1.5 text-xs font-medium transition cursor-pointer select-none shadow-sm"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    <Text>Export as PDF</Text>
+                    <Text className="text-xs font-medium text-white">PDF</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -532,7 +542,7 @@ Include EVERY ONE of the following required sections in exact order:
             ) : (
               /* Render Full Beautiful Formatted Blueprint */
               <View className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-6">
-                <FormattedMessage message={currentBlueprintMarkdown} />
+                <FormattedMessage text={currentBlueprintMarkdown} message={currentBlueprintMarkdown} />
               </View>
             )}
 
@@ -540,25 +550,25 @@ Include EVERY ONE of the following required sections in exact order:
             <View className="pt-6 border-t border-slate-100 flex flex-row flex-wrap items-center justify-between gap-4">
               <TouchableOpacity
                 onClick={() => setSelectedHustle(null)}
-                className="px-6 py-3 bg-slate-100 hover:bg-slate-200 rounded-full font-medium text-slate-800 text-sm cursor-pointer transition select-none flex flex-row items-center gap-2"
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-800 text-xs cursor-pointer transition select-none flex flex-row items-center gap-2"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <Text>Back to Ideas</Text>
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <Text className="text-xs font-medium text-slate-800">Back to Ideas</Text>
               </TouchableOpacity>
-              <View className="flex flex-row items-center gap-3">
+              <View className="flex flex-row items-center gap-2.5">
                 <TouchableOpacity
                   onClick={handleCopyBlueprint}
-                  className="px-6 py-3 border border-slate-200 hover:border-slate-300 rounded-full font-medium text-slate-700 text-sm cursor-pointer transition select-none flex flex-row items-center gap-2"
+                  className="px-3.5 py-2 border border-slate-200 hover:border-slate-300 rounded-lg font-medium text-slate-700 text-xs cursor-pointer transition select-none flex flex-row items-center gap-1.5"
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  <Text>{copied ? 'Copied Guide' : 'Copy Report'}</Text>
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-600" />}
+                  <Text className="text-xs font-medium text-slate-700">{copied ? 'Copied Guide' : 'Copy Report'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onClick={handleExportPDF}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-full font-medium text-white text-sm cursor-pointer transition select-none flex flex-row items-center gap-2"
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium text-white text-xs cursor-pointer transition select-none flex flex-row items-center gap-1.5 shadow-sm"
                 >
-                  <Printer className="w-4 h-4" />
-                  <Text>Export as PDF</Text>
+                  <Printer className="w-3.5 h-3.5" />
+                  <Text className="text-xs font-medium text-white">Export PDF</Text>
                 </TouchableOpacity>
               </View>
             </View>

@@ -2,17 +2,20 @@ import React from 'react';
 import { Text, View } from './ReactNativeShim';
 
 interface FormattedMessageProps {
-  text: string;
-  isUser: boolean;
+  text?: string;
+  message?: string;
+  isUser?: boolean;
 }
 
-export const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser }) => {
+export const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, message, isUser = false }) => {
+  const content = text || message || '';
+
   if (isUser) {
-    return <Text className="text-slate-900 text-xs whitespace-pre-wrap font-sans">{text}</Text>;
+    return <Text className="text-slate-900 text-xs whitespace-pre-wrap font-sans">{content}</Text>;
   }
 
   // Parse lines for basic markdown accents: lists, bold text, subheadings, etc.
-  const lines = text.split('\n');
+  const lines = (content || '').split('\n');
   const elements: React.ReactNode[] = [];
 
   let inList = false;
@@ -34,11 +37,11 @@ export const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser
     }
   };
 
-  const parseInlineMarkdown = (str: string): React.ReactNode[] => {
+  const parseInlineMarkdown = (str: string = ''): React.ReactNode[] => {
     // Matches **text**
-    const parts = str.split(/(\*\*.*?\*\*)/g);
+    const parts = (str || '').split(/(\*\*.*?\*\*)/g);
     return parts.map((part, idx) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
+      if (part && part.startsWith('**') && part.endsWith('**')) {
         return (
           <strong key={idx} className="font-bold text-slate-900">
             {part.slice(2, -2)}
@@ -71,24 +74,27 @@ export const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser
     } else {
       flushList(lineIdx);
 
-      if (trimmed === '') {
-        elements.push(<div key={lineIdx} className="h-1.5" />);
+      if (trimmed === '' || trimmed.match(/^[\*\-_]{3,}$/)) {
+        elements.push(<div key={lineIdx} className="h-2 border-b border-slate-100 my-1" />);
       } else if (trimmed.startsWith('### ')) {
+        const cleanTitle = trimmed.replace(/^###\s*/, '').replace(/\*/g, '');
         elements.push(
-          <Text key={lineIdx} className="block font-bold text-slate-900 text-xs tracking-tight mt-3 mb-1 font-sans">
-            {trimmed.slice(4)}
+          <Text key={lineIdx} className="block font-bold text-slate-900 text-xs tracking-tight mt-3.5 mb-1.5 font-sans uppercase">
+            {cleanTitle}
           </Text>
         );
       } else if (trimmed.startsWith('## ')) {
+        const cleanTitle = trimmed.replace(/^##\s*/, '').replace(/\*/g, '');
         elements.push(
-          <Text key={lineIdx} className="block font-semibold text-slate-950 text-sm tracking-tight mt-4 mb-1.5 font-sans border-b border-slate-100 pb-1">
-            {trimmed.slice(3)}
+          <Text key={lineIdx} className="block font-bold text-slate-950 text-xs tracking-wider mt-4 mb-2 font-sans uppercase border-b border-slate-150 pb-1">
+            {cleanTitle}
           </Text>
         );
       } else if (trimmed.startsWith('# ')) {
+        const cleanTitle = trimmed.replace(/^#\s*/, '').replace(/\*/g, '');
         elements.push(
-          <Text key={lineIdx} className="block font-bold text-slate-950 text-base tracking-tight mt-4 mb-2 font-sans">
-            {trimmed.slice(2)}
+          <Text key={lineIdx} className="block font-extrabold text-slate-950 text-sm tracking-tight mt-4 mb-2 font-sans uppercase">
+            {cleanTitle}
           </Text>
         );
       } else {

@@ -1367,22 +1367,22 @@ export const TaskModeScreen: React.FC = () => {
 
             {/* SUMMARIZE DOCUMENT FORM */}
             {selectedTask.id === "summarize" && (
-              <View className="space-y-4">
+              <View className="space-y-3.5">
                 <View className="space-y-1">
                   <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Upload PDF Document</Text>
                   
-                  {/* Custom drag and drop / click box */}
+                  {/* Clean drag & drop upload box */}
                   <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-5 text-center cursor-pointer bg-white transition hover:bg-slate-50 flex flex-col items-center justify-center space-y-2 select-none"
+                    className="border border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-4 text-center cursor-pointer bg-white transition hover:bg-slate-50/80 flex flex-col items-center justify-center space-y-1.5 select-none"
                   >
-                    <FileText className={`w-8 h-8 ${docFile ? 'text-blue-500' : 'text-slate-400'}`} />
+                    <FileText className={`w-6 h-6 ${docFile ? 'text-blue-500' : 'text-slate-400'}`} />
                     <View>
-                      <Text className="text-xs font-bold text-slate-800 block">
+                      <Text className="text-xs font-semibold text-slate-800 block">
                         {docFile ? docFile.name : "Select or drag PDF file"}
                       </Text>
-                      <Text className="text-[10px] text-slate-400 mt-1 block">
-                        {docFile ? `${(docFile.size / 1024 / 1024).toFixed(2)} MB` : "Accepts PDF format (frontend simulated parsing)"}
+                      <Text className="text-[10px] text-slate-400 mt-0.5 block">
+                        {docFile ? `${(docFile.size / 1024 / 1024).toFixed(2)} MB` : "Accepts PDF format"}
                       </Text>
                     </View>
                     {docFile && (
@@ -1391,7 +1391,7 @@ export const TaskModeScreen: React.FC = () => {
                           e.stopPropagation();
                           setDocFile(null);
                         }}
-                        className="py-1 px-3 bg-red-50 hover:bg-red-100 rounded-lg text-red-650 text-[10px] font-bold border border-red-100 flex flex-row items-center gap-1 mt-1 cursor-pointer"
+                        className="py-1 px-2.5 bg-red-50 hover:bg-red-100 rounded-md text-red-600 text-[10px] font-medium border border-red-100 flex flex-row items-center gap-1 mt-1 cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3 text-red-500" />
                         <span>Remove File</span>
@@ -1413,7 +1413,7 @@ export const TaskModeScreen: React.FC = () => {
                     placeholder="e.g. Paste specific sections, copy-paste text, or describe what details you want summarized..."
                     value={docPastedText}
                     onChange={(e: any) => setDocPastedText(e.target.value)}
-                    className="w-full text-xs p-3 min-h-[100px] bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800 resize-none"
+                    className="w-full text-xs p-3 min-h-[90px] bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800 resize-none"
                   />
                 </View>
               </View>
