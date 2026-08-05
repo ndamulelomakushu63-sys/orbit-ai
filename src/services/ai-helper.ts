@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { GoogleGenAI } from '@google/genai';
 import './env-sanitizer.js';
 
 export const ORBIT_AI_IDENTITY = {
@@ -214,20 +215,163 @@ async function processNonImageAttachment(att: any): Promise<string> {
   return `\n\n[Attached Document: ${fileName} (${att.sizeStr || 'attachment'})]`;
 }
 
+async function prepareGeminiAttachmentPart(att: any): Promise<any | null> {
+  if (!att) return null;
+
+  const url = att.url || att.data;
+  const fileName = att.name || 'attachment';
+  const lowerName = fileName.toLowerCase();
+
+  // 1. Image attachments (photos, camera, uploaded images)
+  if (isImageAttachment(att)) {
+    const formattedUrl = normalizeImageUrl(att);
+    if (formattedUrl && formattedUrl.includes('base64,')) {
+      const parts = formattedUrl.split('base64,');
+      const header = parts[0];
+      const base64Data = parts[1];
+      const mimeMatch = header.match(/data:([^;]+)/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      return {
+        inlineData: {
+          mimeType,
+          data: base64Data
+        }
+      };
+    }
+  }
+
+  // 2. PDF attachments
+  if (lowerName.endsWith('.pdf') || att.type === 'pdf' || att.mimeType === 'application/pdf') {
+    let base64Data = '';
+    if (typeof url === 'string' && url.includes('base64,')) {
+      base64Data = url.split('base64,')[1];
+    } else if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
+      try {
+        const resp = await fetch(url);
+        const arrayBuf = await resp.arrayBuffer();
+        base64Data = Buffer.from(arrayBuf).toString('base64');
+      } catch (e) {
+        console.error(`[AI-Helper] Failed to fetch PDF URL ${url}:`, e);
+      }
+    } else if (typeof url === 'string' && url.length > 100) {
+      base64Data = url;
+    }
+
+    if (base64Data) {
+      return {
+        inlineData: {
+          mimeType: 'application/pdf',
+          data: base64Data
+        }
+      };
+    }
+  }
+
+  // 3. Documents and files (docx, txt, csv, code, etc.)
+  const textContent = await processNonImageAttachment(att);
+  if (textContent && textContent.trim()) {
+    return {
+      text: textContent
+    };
+  }
+
+  return null;
+}
+
+async function callGeminiMultimodal(messages: any[], attachments: any[], temperature: number = 0.7): Promise<any> {
+  const geminiApiKey = typeof process !== 'undefined' && process?.env 
+    ? process.env.GEMINI_API_KEY
+    : undefined;
+
+  if (!geminiApiKey || geminiApiKey.includes("your_gemini_api_key_here")) {
+    throw new Error("GEMINI_API_KEY is not configured in environment variables.");
+  }
+
+  console.log(`[AI-Helper] Routing multimodal request to Gemini API (gemini-3.6-flash, Attachments: ${attachments.length})...`);
+
+  const ai = new GoogleGenAI({
+    apiKey: geminiApiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build'
+      }
+    }
+  });
+
+  let systemInstruction = ORBIT_AI_IDENTITY_PROMPT;
+  const geminiContents: any[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (msg.role === 'system') {
+      systemInstruction += "\n\n" + msg.content;
+      continue;
+    }
+
+    const role = msg.role === 'assistant' ? 'model' : 'user';
+    const isLastMessage = (i === messages.length - 1);
+
+    const parts: any[] = [];
+    const textContent = typeof msg.content === 'string' ? msg.content : '';
+
+    if (textContent) {
+      parts.push({ text: textContent });
+    }
+
+    if (isLastMessage && role === 'user') {
+      for (const att of attachments) {
+        const part = await prepareGeminiAttachmentPart(att);
+        if (part) {
+          parts.push(part);
+        }
+      }
+    }
+
+    if (parts.length > 0) {
+      geminiContents.push({ role, parts });
+    }
+  }
+
+  if (geminiContents.length === 0) {
+    const parts: any[] = [{ text: "Please analyze the attached content." }];
+    for (const att of attachments) {
+      const part = await prepareGeminiAttachmentPart(att);
+      if (part) parts.push(part);
+    }
+    geminiContents.push({ role: 'user', parts });
+  }
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3.6-flash',
+    contents: geminiContents,
+    config: {
+      systemInstruction,
+      temperature
+    }
+  });
+
+  const replyText = response.text || "I have analyzed your attached files.";
+
+  return {
+    choices: [
+      {
+        message: {
+          role: "assistant",
+          content: replyText
+        }
+      }
+    ]
+  };
+}
+
 export async function fetchChatCompletion(messages: any[], temperature: number = 0.7, attachments: any[] = []): Promise<any> {
-  console.log(`[AI-Helper] AI Request via Groq Provider (Attachments count: ${attachments ? attachments.length : 0})`);
+  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+  console.log(`[AI-Helper] AI Request received (Attachments count: ${attachments ? attachments.length : 0})`);
 
   const grokApiKey = typeof process !== 'undefined' && process?.env 
     ? (process.env.GROQ_API_KEY || process.env.XAI_API_KEY || process.env.GROK_API_KEY) 
     : undefined;
 
-  const imageAttachments = (attachments || []).filter(isImageAttachment);
-  const nonImageAttachments = (attachments || []).filter(a => !isImageAttachment(a));
-
-  const nonImageTextResults = await Promise.all(nonImageAttachments.map(processNonImageAttachment));
-  const fileTexts = nonImageTextResults.filter(Boolean).join('');
-
-  // Attach Orbit AI Identity to messages
   const prepareMessages = (rawMsgs: any[]) => {
     const prepared = rawMsgs.map(m => ({ ...m }));
     let hasSystem = false;
@@ -247,11 +391,29 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
 
   const finalInputMessages = prepareMessages(messages);
 
-  // Helper for Groq API call
+  // Multimodal Request (Images, PDFs, Camera photos, Files) -> Route to Gemini
+  if (hasAttachments) {
+    console.log(`[AI-Helper] Request contains attachments -> Routing to Gemini API`);
+    try {
+      return await callGeminiMultimodal(finalInputMessages, attachments, temperature);
+    } catch (geminiErr: any) {
+      console.warn(`[AI-Helper] Gemini API execution notice: ${geminiErr?.message || geminiErr}. Falling back to Groq.`);
+    }
+  } else {
+    console.log(`[AI-Helper] Request is ONLY text -> Routing strictly to Groq API`);
+  }
+
+  // Pure Text Request (Chat, Side Hustle, Business Coach, Task Mode, etc.) -> Route to Groq
   const callGroq = async () => {
     if (!grokApiKey || grokApiKey.includes("your_groq_api_key_here") || grokApiKey.includes("your_grok_key_here")) {
       throw new Error("GROQ_API_KEY is not configured in environment variables.");
     }
+
+    const imageAttachments = (attachments || []).filter(isImageAttachment);
+    const nonImageAttachments = (attachments || []).filter(a => !isImageAttachment(a));
+
+    const nonImageTextResults = await Promise.all(nonImageAttachments.map(processNonImageAttachment));
+    const fileTexts = nonImageTextResults.filter(Boolean).join('');
 
     const groqMessages = finalInputMessages.map(m => ({ ...m }));
     let userMsgIndex = -1;
