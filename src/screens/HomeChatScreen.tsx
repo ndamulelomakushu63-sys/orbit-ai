@@ -200,8 +200,7 @@ export const HomeChatScreen: React.FC = () => {
   };
 
   const subStatus = currentUser?.subscription_status;
-  // QA OVERRIDE: Temporarily unlock ALL Pro features for testing
-  const isPro = true; // subStatus === "pro_monthly" || subStatus === "pro_yearly";
+  const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly" || currentUser?.plan === UserPlan.PRO;
 
   const handlePremiumRoute = (screen: string) => {
     setShowMenu(false);
@@ -502,6 +501,15 @@ export const HomeChatScreen: React.FC = () => {
     const convId = activeConversationId;
     const nowIso = new Date().toISOString();
 
+    // Check usage limits if free user
+    if (!isPro && currentUser) {
+      const limitRes = incrementUsageLimit('image');
+      if (!limitRes.allowed) {
+        setLimitModalType('image');
+        return;
+      }
+    }
+
     // Add User Message to Chat
     const userMsgId = `user-img-${Date.now()}`;
     const userMsg: ChatMessage = {
@@ -517,17 +525,35 @@ export const HomeChatScreen: React.FC = () => {
     setGeneratingPromptText(promptToUse);
 
     try {
-      const seed = Math.floor(Math.random() * 1000000);
-      const encodedPrompt = encodeURIComponent(promptToUse);
-      const generatedUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}`;
+      let generatedUrl = "";
+      try {
+        const res = await fetch("/api/generate-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: promptToUse })
+        });
+        const data = await res.json();
+        if (data && data.url) {
+          generatedUrl = data.url;
+        }
+      } catch (e) {
+        console.warn("Backend image endpoint fallback to client URL:", e);
+      }
 
-      // Preload image to ensure generation completion
+      if (!generatedUrl) {
+        const seed = Math.floor(Math.random() * 1000000);
+        const encodedPrompt = encodeURIComponent(promptToUse);
+        generatedUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
+      }
+
+      // Preload image safely
       await new Promise((resolve) => {
-        const img = new Image();
+        if (typeof window === 'undefined') return resolve(true);
+        const img = new window.Image();
         img.src = generatedUrl;
         img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        setTimeout(() => resolve(true), 8000);
+        img.onerror = () => resolve(true);
+        setTimeout(() => resolve(true), 5000);
       });
 
       const aiMsgId = `ai-img-${Date.now()}`;

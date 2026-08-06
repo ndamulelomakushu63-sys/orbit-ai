@@ -778,8 +778,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // --- STEP 1: CHECK LIMIT BEFORE SENDING ---
     let limitData: any = null;
     let usingLocalLimits = false;
-    // QA OVERRIDE: Temporarily unlock unlimited chat for testing
-    const isProUser = true; // currentUser ? (currentUser.plan === UserPlan.PRO || currentUser.subscription_status === "pro_monthly" || currentUser.subscription_status === "pro_yearly") : false;
+    const isProUser = currentUser ? (currentUser.plan === UserPlan.PRO || currentUser.subscription_status === "pro_monthly" || currentUser.subscription_status === "pro_yearly") : false;
 
     if (!isProUser) {
       let currentCount = 0;
@@ -1059,8 +1058,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     
     const subStatus = currentUser.subscription_status;
-    // QA OVERRIDE: Temporarily unlock unlimited uploads and usage for testing
-    const isPro = true; // subStatus === "pro_monthly" || subStatus === "pro_yearly";
+    const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly" || currentUser.plan === UserPlan.PRO;
     
     if (isPro) {
       return { allowed: true, count: 0, limit: 999999 };

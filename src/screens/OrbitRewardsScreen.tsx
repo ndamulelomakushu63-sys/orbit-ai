@@ -429,6 +429,32 @@ export const OrbitRewardsScreen: React.FC = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 relative">
+      {/* PRE-LAUNCH TEMPORARY NOTICE OVERLAY */}
+      <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-md w-full p-6 space-y-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mx-auto text-slate-900">
+            <Clock className="w-6 h-6 text-slate-800" />
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Coming Soon</h2>
+            <div className="text-xs text-slate-600 leading-relaxed space-y-2 text-left bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <p>Orbit Rewards is currently being prepared for launch.</p>
+              <p>We're waiting for final Google AdSense approval before enabling daily rewarded adverts.</p>
+              <p>Everything is already built and will automatically become available once approval is complete.</p>
+              <p className="font-semibold text-slate-800 pt-1">Thank you for your patience.</p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setMobileScreen('chat')}
+            className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
       {/* EXECUTIVE TOP HEADER */}
       <View className="h-14 bg-white border-b border-slate-200/80 px-6 flex flex-row items-center justify-between select-none">
         <TouchableOpacity 
