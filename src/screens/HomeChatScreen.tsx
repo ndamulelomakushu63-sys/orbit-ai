@@ -16,18 +16,19 @@ const parseMessageAttachments = (rawMessage: string): MessageWithParsedAttachmen
   const delimiterStart = "|||ATTACHMENTS_JSON_START|||";
   const delimiterEnd = "|||ATTACHMENTS_JSON_END|||";
   
-  if (rawMessage.includes(delimiterStart) && rawMessage.includes(delimiterEnd)) {
+  if (typeof rawMessage === 'string' && rawMessage.includes(delimiterStart) && rawMessage.includes(delimiterEnd)) {
     const parts = rawMessage.split(delimiterStart);
-    const textPart = parts[0].trim();
-    const attachmentsPart = parts[1].split(delimiterEnd)[0];
+    const textPart = (parts[0] || '').trim();
+    const secondPart = parts[1] || '';
+    const attachmentsPart = secondPart.includes(delimiterEnd) ? secondPart.split(delimiterEnd)[0] : secondPart;
     try {
       const attachments = JSON.parse(attachmentsPart);
-      return { text: textPart, attachments };
+      return { text: textPart, attachments: Array.isArray(attachments) ? attachments : [] };
     } catch (e) {
       console.error("Failed to parse attachments JSON", e);
     }
   }
-  return { text: rawMessage, attachments: [] };
+  return { text: typeof rawMessage === 'string' ? rawMessage : '', attachments: [] };
 };
 
 const serializeMessageAttachments = (text: string, attachments: any[]): string => {

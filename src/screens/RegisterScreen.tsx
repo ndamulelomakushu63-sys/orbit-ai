@@ -3,7 +3,7 @@ import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from '../compon
 import { Compass, Mail, Lock, User, AlertCircle } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { UserPlan, UserProfile, ReferralRecord } from '../types';
-import { supabase, dbUpsertProfile, dbUpsertReferral } from '../services/supabase';
+import { supabase, dbUpsertProfile, dbUpsertReferral, generateAgentId, dbFetchProfileByAgentId } from '../services/supabase';
 
 export const RegisterScreen: React.FC = () => {
   const { users, setUsers, referrals, setReferrals, setCurrentUser, setMobileScreen, invitedByCode } = useAppState();
@@ -50,7 +50,8 @@ export const RegisterScreen: React.FC = () => {
       }
 
       const registeredUid = data.user?.id || "usr-" + Date.now();
-      const referralCodeSeed = "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const agentId = generateAgentId();
+      const refLink = `https://orbitai.co.za/register?ref=${agentId}`;
       
       const newProf: UserProfile = {
         uid: registeredUid,
@@ -68,43 +69,43 @@ export const RegisterScreen: React.FC = () => {
         cancelled_at: "",
         refund_requested: false,
         refund_request_date: "",
-        agentStatus: false,
+        agentStatus: true,
         balance: 0,
-        referralCode: referralCodeSeed,
+        referralCode: agentId,
+        agent_id: agentId,
+        agentId: agentId,
+        referral_link: refLink,
+        referralLink: refLink,
+        referredBy: null,
+        referred_by: null,
+        verifiedReferrals: 0,
+        verified_referrals: 0,
         createdAt: new Date().toISOString()
       };
 
       // Trace invitedBy referral
-      if (invitedByCode.trim()) {
-        const matchReferrer = users.find(u => u.referralCode === invitedByCode.trim());
+      const refCodeToTrace = (invitedByCode || localStorage.getItem("orbit_invited_by_code") || "").trim();
+      if (refCodeToTrace) {
+        let matchReferrer = users.find(u => u.agent_id === refCodeToTrace || u.referralCode === refCodeToTrace);
+        if (!matchReferrer) {
+          matchReferrer = await dbFetchProfileByAgentId(refCodeToTrace);
+        }
         if (matchReferrer) {
-          newProf.referredBy = invitedByCode.trim();
-          
-          const referrerRefs = referrals.filter(r => r.referrerId === matchReferrer.uid);
-          const isStarterBonus = referrerRefs.length < 4;
-          const rewardAmount = isStarterBonus ? 5.00 : 10.00;
-          const refStatus = isStarterBonus ? "Paid" : "Pending";
+          const referrerAgentId = matchReferrer.agent_id || matchReferrer.referralCode || refCodeToTrace;
+          newProf.referredBy = referrerAgentId;
+          newProf.referred_by = referrerAgentId;
 
           const newRefLog: ReferralRecord = {
             id: "ref-" + Date.now(),
             referrerId: matchReferrer.uid,
             referredUserId: registeredUid,
             referredName: name.trim(),
-            reward: rewardAmount,
-            status: refStatus,
+            reward: 10.00,
+            status: "Pending",
             timestamp: new Date().toISOString()
           };
           setReferrals(prev => [newRefLog, ...prev]);
           await dbUpsertReferral(newRefLog);
-
-          if (isStarterBonus) {
-            const updatedReferrer = {
-              ...matchReferrer,
-              balance: (matchReferrer.balance || 0) + 5.00
-            };
-            setUsers(prev => prev.map(u => u.uid === matchReferrer.uid ? updatedReferrer : u));
-            await dbUpsertProfile(updatedReferrer);
-          }
         }
       }
 
@@ -117,8 +118,10 @@ export const RegisterScreen: React.FC = () => {
     } catch (err: any) {
       console.warn("Supabase auth signUp error, falling back to local registration: ", err);
       // Fallback
-      const referralCodeSeed = "ORBIT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
       const newUid = "usr-" + Date.now();
+      const agentId = generateAgentId();
+      const refLink = `https://orbitai.co.za/register?ref=${agentId}`;
+
       const newProf: UserProfile = {
         uid: newUid,
         name: name.trim(),
@@ -135,45 +138,46 @@ export const RegisterScreen: React.FC = () => {
         cancelled_at: "",
         refund_requested: false,
         refund_request_date: "",
-        agentStatus: false,
+        agentStatus: true,
         balance: 0,
-        referralCode: referralCodeSeed,
+        referralCode: agentId,
+        agent_id: agentId,
+        agentId: agentId,
+        referral_link: refLink,
+        referralLink: refLink,
+        referredBy: null,
+        referred_by: null,
+        verifiedReferrals: 0,
+        verified_referrals: 0,
         createdAt: new Date().toISOString()
       };
 
-      if (invitedByCode.trim()) {
-        const matchReferrer = users.find(u => u.referralCode === invitedByCode.trim());
+      const refCodeToTrace = (invitedByCode || localStorage.getItem("orbit_invited_by_code") || "").trim();
+      if (refCodeToTrace) {
+        let matchReferrer = users.find(u => u.agent_id === refCodeToTrace || u.referralCode === refCodeToTrace);
+        if (!matchReferrer) {
+          matchReferrer = await dbFetchProfileByAgentId(refCodeToTrace);
+        }
         if (matchReferrer) {
-          newProf.referredBy = invitedByCode.trim();
-          
-          const referrerRefs = referrals.filter(r => r.referrerId === matchReferrer.uid);
-          const isStarterBonus = referrerRefs.length < 4;
-          const rewardAmount = isStarterBonus ? 5.00 : 10.00;
-          const refStatus = isStarterBonus ? "Paid" : "Pending";
+          const referrerAgentId = matchReferrer.agent_id || matchReferrer.referralCode || refCodeToTrace;
+          newProf.referredBy = referrerAgentId;
+          newProf.referred_by = referrerAgentId;
 
           const newRefLog: ReferralRecord = {
             id: "ref-" + Date.now(),
             referrerId: matchReferrer.uid,
             referredUserId: newUid,
-            referredName: name,
-            reward: rewardAmount,
-            status: refStatus,
+            referredName: name.trim(),
+            reward: 10.00,
+            status: "Pending",
             timestamp: new Date().toISOString()
           };
           setReferrals(prev => [newRefLog, ...prev]);
           await dbUpsertReferral(newRefLog);
-
-          if (isStarterBonus) {
-            const updatedReferrer = {
-              ...matchReferrer,
-              balance: (matchReferrer.balance || 0) + 5.00
-            };
-            setUsers(prev => prev.map(u => u.uid === matchReferrer.uid ? updatedReferrer : u));
-            await dbUpsertProfile(updatedReferrer);
-          }
         }
       }
 
+      await dbUpsertProfile(newProf);
       setUsers(prev => [newProf, ...prev]);
       setCurrentUser(newProf);
       setMobileScreen("chat");

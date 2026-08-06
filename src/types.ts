@@ -28,8 +28,15 @@ export interface UserProfile {
   refund_request_date?: string;
   agentStatus: boolean; // Activated referral agent
   balance: number; // Reward dashboard earnings
-  referralCode: string; // Generated on Agent Activation
-  referredBy?: string; // Referral code of person who invited them
+  referralCode: string; // Generated on Agent Activation / Permanent Agent ID
+  referredBy?: string | null; // Referral code / Agent ID of person who invited them
+  agent_id?: string; // Permanent Agent ID e.g. AGT-8F2K91
+  agentId?: string; // CamelCase alias
+  referral_link?: string; // Permanent Referral Link e.g. https://orbitai.co.za/register?ref=AGT-8F2K91
+  referralLink?: string; // CamelCase alias
+  referred_by?: string | null; // Snake case alias
+  verified_referrals?: number; // Count of verified referrals
+  verifiedReferrals?: number; // CamelCase alias
   createdAt: string;
   activeAgentId?: string; // Selected AI agent
 }

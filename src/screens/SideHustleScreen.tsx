@@ -152,6 +152,9 @@ const generateComprehensiveFallbackBlueprint = (
 ): string => {
   const hustleName = hustle?.name || 'Side Hustle Venture';
   const whyMatches = hustle?.whyMatches || 'This business matches your profile and provides strong market demand with manageable startup requirements.';
+  const startupCost = hustle?.startupCost || 'Low startup cost (R0 - R500)';
+  const challenges = hustle?.challenges || 'Finding initial clients and managing time efficiently.';
+  const resources = hustle?.resources || 'Canva, LinkedIn, Upwork, Google Workspace, and relevant industry forums.';
 
   const stepList = (hustle?.steps && Array.isArray(hustle.steps) && hustle.steps.length > 0)
     ? hustle.steps.map((s, idx) => `* **Step ${idx + 1}:** ${s || ''}`).join('\n')
@@ -189,18 +192,18 @@ ${hustleName} is a high-value, practical venture where you provide structured se
 ---
 
 ## 5. Estimated Startup Costs
-* **Target Budget Category:** **${hustle.startupCost}** (tailored to your selected budget range of **${budget}**).
+* **Target Budget Category:** **${startupCost}** (tailored to your selected budget range of **${budget}**).
 * **Digital Footprint (R0 – R250):** Free digital portfolio platforms (LinkedIn, Canva, Notion) or an optional custom domain name.
 * **Software & Productivity Tools (R0 – R300):** Free tiers of Canva, Google Workspace, and communication apps.
 * **Marketing & Client Acquisition (R0 – R500):** Direct personal networking and word-of-mouth outreach require zero financial spend.
-* **Total Estimated Initial Cash Outlay:** Under ${hustle.startupCost} — ultra-low financial risk with rapid profitability potential.
+* **Total Estimated Initial Cash Outlay:** Under ${startupCost} — ultra-low financial risk with rapid profitability potential.
 
 ---
 
 ## 6. Where To Get Supplies Or Products
 * **Digital Platforms & Tools:** Access official free tiers from verified providers (Canva, Notion, Google Workspace, Wave Accounting).
 * **Wholesalers / Vendor Partners (if physical):** Partner directly with reputable local suppliers or print-on-demand providers in ${country}.
-* **Recommended Learning & Tools Directory:** ${hustle.resources || 'Canva, LinkedIn, Upwork, Google Workspace, and relevant industry forums.'}
+* **Recommended Learning & Tools Directory:** ${resources}
 
 ---
 
@@ -232,7 +235,7 @@ ${hustleName} is a high-value, practical venture where you provide structured se
 * **Underpricing Your Value:** Never compete purely on lowest price; charge based on reliability, quality, and the value of results delivered.
 * **Over-Investing Before Revenue:** Do not spend money on expensive logos, branding agencies, or paid ads until you have closed your first 3 paying clients.
 * **Scope Creep Without Pay:** Always define the exact project deliverables in writing so clients do not demand unpaid extra work.
-* **Anticipated Challenge & Mitigation:** ${hustle.challenges} — Overcome this by communicating proactively and setting clear milestones early.
+* **Anticipated Challenge & Mitigation:** ${challenges} — Overcome this by communicating proactively and setting clear milestones early.
 
 ---
 

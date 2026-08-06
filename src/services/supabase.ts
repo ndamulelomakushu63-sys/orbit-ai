@@ -65,6 +65,54 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Helper functions for Database interactions with Try-Catch boundaries to prevent app crashes if tables are not fully provisioned yet
 
 // --- 1. PROFILES DB OPERATIONS ---
+export function generateAgentId(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "AGT-";
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+export function parseProfileFromDb(item: any): UserProfile {
+  const rawAgentId = item.agent_id || item.referral_code || '';
+  const agentId = (rawAgentId && rawAgentId.trim()) ? rawAgentId.trim() : generateAgentId();
+  const refLink = item.referral_link || `https://orbitai.co.za/register?ref=${agentId}`;
+  const verifiedCount = Number(item.verified_referrals ?? item.verified_referrals_count ?? 0);
+  const referredByVal = item.referred_by || item.referredBy || null;
+
+  return {
+    uid: item.id,
+    name: item.name || '',
+    email: item.email || '',
+    plan: (item.plan as UserPlan) || UserPlan.FREE,
+    subscription_status: item.subscription_status,
+    chat_count_today: item.chat_count_today || 0,
+    image_count_today: item.image_count_today || 0,
+    file_upload_count_today: item.file_upload_count_today || 0,
+    camera_upload_count_today: item.camera_upload_count_today || 0,
+    last_reset_time: item.last_reset_time,
+    subscription_start_date: item.subscription_start_date,
+    subscription_end_date: item.subscription_end_date,
+    cancelled_at: item.cancelled_at,
+    refund_requested: item.refund_requested || false,
+    refund_request_date: item.refund_request_date,
+    agentStatus: item.agent_status !== undefined ? item.agent_status : true,
+    balance: Number(item.balance || 0),
+    referralCode: agentId,
+    agent_id: agentId,
+    agentId: agentId,
+    referral_link: refLink,
+    referralLink: refLink,
+    referredBy: referredByVal,
+    referred_by: referredByVal,
+    verifiedReferrals: verifiedCount,
+    verified_referrals: verifiedCount,
+    activeAgentId: item.active_agent_id || 'assistant',
+    createdAt: item.created_at || new Date().toISOString()
+  };
+}
+
 export async function dbFetchProfiles(): Promise<UserProfile[] | null> {
   try {
     const { data, error } = await supabase
@@ -72,38 +120,60 @@ export async function dbFetchProfiles(): Promise<UserProfile[] | null> {
       .select('*');
     if (error) throw error;
     if (!data) return null;
-    
-    return data.map(item => ({
-      uid: item.id,
-      name: item.name || '',
-      email: item.email || '',
-      plan: (item.plan as UserPlan) || UserPlan.FREE,
-      subscription_status: item.subscription_status,
-      chat_count_today: item.chat_count_today || 0,
-      image_count_today: item.image_count_today || 0,
-      file_upload_count_today: item.file_upload_count_today || 0,
-      camera_upload_count_today: item.camera_upload_count_today || 0,
-      last_reset_time: item.last_reset_time,
-      subscription_start_date: item.subscription_start_date,
-      subscription_end_date: item.subscription_end_date,
-      cancelled_at: item.cancelled_at,
-      refund_requested: item.refund_requested || false,
-      refund_request_date: item.refund_request_date,
-      agentStatus: item.agent_status || false,
-      balance: Number(item.balance || 0),
-      referralCode: item.referral_code || '',
-      referredBy: item.referred_by || undefined,
-      activeAgentId: item.active_agent_id || 'assistant',
-      createdAt: item.created_at || new Date().toISOString()
-    }));
+    return data.map(item => parseProfileFromDb(item));
   } catch (err) {
     console.warn("Supabase profiles select failed, falling back to local: ", err);
     return null;
   }
 }
 
+export async function dbFetchProfileById(uid: string): Promise<UserProfile | null> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .maybeSingle();
+    if (error || !data) return null;
+    return parseProfileFromDb(data);
+  } catch (err) {
+    console.warn("dbFetchProfileById error:", err);
+    return null;
+  }
+}
+
+export async function dbFetchProfileByAgentId(agentId: string): Promise<UserProfile | null> {
+  if (!agentId || !agentId.trim()) return null;
+  const cleanId = agentId.trim();
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .or(`agent_id.eq.${cleanId},referral_code.eq.${cleanId}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      const { data: d2 } = await supabase.from('profiles').select('*').eq('agent_id', cleanId).limit(1).maybeSingle();
+      if (d2) return parseProfileFromDb(d2);
+      const { data: d3 } = await supabase.from('profiles').select('*').eq('referral_code', cleanId).limit(1).maybeSingle();
+      if (d3) return parseProfileFromDb(d3);
+      return null;
+    }
+    return parseProfileFromDb(data);
+  } catch (err) {
+    console.warn("dbFetchProfileByAgentId error:", err);
+    return null;
+  }
+}
+
 export async function dbUpsertProfile(p: UserProfile): Promise<boolean> {
   try {
+    const agentId = p.agent_id || p.agentId || p.referralCode || generateAgentId();
+    const refLink = p.referral_link || p.referralLink || `https://orbitai.co.za/register?ref=${agentId}`;
+    const referredByVal = p.referred_by !== undefined ? p.referred_by : (p.referredBy !== undefined ? p.referredBy : null);
+    const verifiedCount = p.verified_referrals !== undefined ? p.verified_referrals : (p.verifiedReferrals !== undefined ? p.verifiedReferrals : 0);
+
     const { error } = await supabase
       .from('profiles')
       .upsert({
@@ -122,10 +192,14 @@ export async function dbUpsertProfile(p: UserProfile): Promise<boolean> {
         cancelled_at: p.cancelled_at,
         refund_requested: p.refund_requested,
         refund_request_date: p.refund_request_date,
-        agent_status: p.agentStatus,
-        balance: p.balance,
-        referral_code: p.referralCode,
-        referred_by: p.referredBy,
+        agent_status: p.agentStatus ?? true,
+        balance: p.balance ?? 0,
+        referral_code: agentId,
+        agent_id: agentId,
+        referral_link: refLink,
+        referred_by: referredByVal,
+        verified_referrals: verifiedCount,
+        verified_referrals_count: verifiedCount,
         active_agent_id: p.activeAgentId || 'assistant',
         created_at: p.createdAt
       }, { onConflict: 'id' });
@@ -133,6 +207,77 @@ export async function dbUpsertProfile(p: UserProfile): Promise<boolean> {
     return true;
   } catch (err) {
     console.warn("Supabase upsert profile failed: ", err);
+    return false;
+  }
+}
+
+export async function dbVerifyReferralForUser(referredUserId: string): Promise<boolean> {
+  try {
+    const { data: userProfile, error: uErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', referredUserId)
+      .single();
+
+    if (uErr || !userProfile) return false;
+
+    const referredByCode = userProfile.referred_by || userProfile.referredBy;
+    if (!referredByCode) return false;
+
+    const referrer = await dbFetchProfileByAgentId(referredByCode);
+    if (!referrer) return false;
+
+    // Update pending referral record
+    const { data: pendingRefs } = await supabase
+      .from('referrals')
+      .select('*')
+      .eq('referred_user_id', referredUserId)
+      .eq('referrer_id', referrer.uid);
+
+    if (pendingRefs && pendingRefs.length > 0) {
+      for (const ref of pendingRefs) {
+        if (ref.status !== 'Paid' && ref.status !== 'Verified') {
+          await supabase
+            .from('referrals')
+            .update({ status: 'Paid' })
+            .eq('id', ref.id);
+        }
+      }
+    } else {
+      await supabase.from('referrals').insert({
+        id: `ref-${Date.now()}`,
+        referrer_id: referrer.uid,
+        referred_user_id: referredUserId,
+        referred_name: userProfile.name || userProfile.email || 'Referred User',
+        reward: 10.00,
+        status: 'Paid',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const currentVerified = Number(referrer.verified_referrals ?? referrer.verifiedReferrals ?? 0);
+    const newVerified = currentVerified + 1;
+    const currentBalance = Number(referrer.balance || 0);
+    const newBalance = currentBalance + 10.00;
+
+    const { error: updateErr } = await supabase
+      .from('profiles')
+      .update({
+        verified_referrals: newVerified,
+        verified_referrals_count: newVerified,
+        balance: newBalance
+      })
+      .eq('id', referrer.uid);
+
+    if (updateErr) {
+      console.error("[Verification] Error updating referrer profile:", updateErr);
+      return false;
+    }
+
+    console.log(`[Verification] Verified referral for ${referredUserId}. Referrer ${referrer.uid} updated: verified_referrals=${newVerified}, balance=R${newBalance}`);
+    return true;
+  } catch (err) {
+    console.error("[Verification] Exception verifying referral:", err);
     return false;
   }
 }
