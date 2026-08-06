@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppState } from '../services/state';
+import { UserPlan } from '../types';
 import { SplashScreen } from '../screens/SplashScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
