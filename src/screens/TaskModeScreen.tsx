@@ -482,7 +482,11 @@ export const TaskModeScreen: React.FC = () => {
         pastedText: docPastedText 
       };
     } else if (selectedTask.id === "assignment") {
-      if (!assignTopic.trim()) { setErrorMessage("Topic/Subject is required."); setLoading(false); return; }
+      if (!assignTopic.trim() && !assignGuidelines.trim() && !assignFile) { 
+        setErrorMessage("Please enter a subject, user instruction, or attach a reference document/photo."); 
+        setLoading(false); 
+        return; 
+      }
       if (assignFile) {
         const fileDataUrl = await new Promise<string>((resolve) => {
           const reader = new FileReader();
@@ -493,7 +497,8 @@ export const TaskModeScreen: React.FC = () => {
         taskAttachments.push({
           id: `task-assign-${Date.now()}`,
           name: assignFile.name,
-          type: assignFile.type.startsWith('image/') ? 'image' : 'file',
+          type: assignFile.type.startsWith('image/') ? 'image' : (assignFile.type === 'application/pdf' || assignFile.name.endsWith('.pdf') ? 'pdf' : 'file'),
+          mimeType: assignFile.type,
           url: fileDataUrl,
           sizeStr: `${(assignFile.size / 1024).toFixed(0)} KB`
         });
@@ -1369,7 +1374,7 @@ export const TaskModeScreen: React.FC = () => {
             {selectedTask.id === "summarize" && (
               <View className="space-y-3.5">
                 <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Upload PDF Document</Text>
+                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Upload Document, Photo or Image</Text>
                   
                   {/* Clean drag & drop upload box */}
                   <div 
@@ -1379,10 +1384,10 @@ export const TaskModeScreen: React.FC = () => {
                     <FileText className={`w-6 h-6 ${docFile ? 'text-blue-500' : 'text-slate-400'}`} />
                     <View>
                       <Text className="text-xs font-semibold text-slate-800 block">
-                        {docFile ? docFile.name : "Select or drag PDF file"}
+                        {docFile ? docFile.name : "Select or drag PDF, photo, screenshot, or document"}
                       </Text>
                       <Text className="text-[10px] text-slate-400 mt-0.5 block">
-                        {docFile ? `${(docFile.size / 1024 / 1024).toFixed(2)} MB` : "Accepts PDF format"}
+                        {docFile ? `${(docFile.size / 1024 / 1024).toFixed(2)} MB` : "Accepts PDF, JPG, PNG, Screenshots & Word documents"}
                       </Text>
                     </View>
                     {docFile && (
@@ -1401,16 +1406,16 @@ export const TaskModeScreen: React.FC = () => {
                   <input 
                     type="file" 
                     ref={fileInputRef} 
-                    accept=".pdf" 
+                    accept=".pdf,image/*,.doc,.docx,.txt" 
                     onChange={(e) => handleFileUpload(e, 'doc')}
                     className="hidden" 
                   />
                 </View>
 
                 <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Pasted Content or Topic Notes (Optional)</Text>
+                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">User Instruction / Specific Request (Optional)</Text>
                   <textarea 
-                    placeholder="e.g. Paste specific sections, copy-paste text, or describe what details you want summarized..."
+                    placeholder="e.g. Summarize key points, answer questions 1 to 5, extract formulas, translate, or explain specific sections..."
                     value={docPastedText}
                     onChange={(e: any) => setDocPastedText(e.target.value)}
                     className="w-full text-xs p-3 min-h-[90px] bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800 resize-none"
@@ -1423,9 +1428,9 @@ export const TaskModeScreen: React.FC = () => {
             {selectedTask.id === "assignment" && (
               <View className="space-y-3">
                 <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Topic or Subject</Text>
+                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Subject or Field (e.g. Business Management, Maths, Law)</Text>
                   <TextInput 
-                    placeholder="e.g. Grade 11 Economics - Market failure and public goods"
+                    placeholder="e.g. Business Management, Accounting, Economics, Law, Mathematics"
                     value={assignTopic}
                     onChange={(e: any) => setAssignTopic(e.target.value)}
                     className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800"
@@ -1433,29 +1438,29 @@ export const TaskModeScreen: React.FC = () => {
                 </View>
 
                 <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Upload Reference Document (Optional)</Text>
+                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Upload Reference Document, Photo or Question Paper</Text>
                   <div 
                     onClick={() => assignFileInputRef.current?.click()}
                     className="border border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-4 text-center cursor-pointer bg-white transition hover:bg-slate-50 flex flex-row items-center justify-center gap-2 select-none"
                   >
                     <FileText className={`w-5 h-5 ${assignFile ? 'text-teal-500' : 'text-slate-400'}`} />
                     <Text className="text-xs font-bold text-slate-800 block truncate">
-                      {assignFile ? assignFile.name : "Attach reference PDF"}
+                      {assignFile ? assignFile.name : "Attach PDF, photo, screenshot, or document"}
                     </Text>
                   </div>
                   <input 
                     type="file" 
                     ref={assignFileInputRef} 
-                    accept=".pdf" 
+                    accept=".pdf,image/*,.doc,.docx,.txt" 
                     onChange={(e) => handleFileUpload(e, 'assign')}
                     className="hidden" 
                   />
                 </View>
 
                 <View className="space-y-1">
-                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">Guidelines or Question</Text>
+                  <Text className="text-[10px] font-bold text-slate-450 uppercase tracking-widest pl-0.5">User Instruction Box (Determines the Exact Task)</Text>
                   <textarea 
-                    placeholder="e.g. Explain how market failure occurs in the South African electricity sector. Provide a detailed essay outline with references."
+                    placeholder="e.g. Answer this question paper from Question 1 to Question 10. Or: Summarize, extract formulas, explain Question 4 only, mark mistakes..."
                     value={assignGuidelines}
                     onChange={(e: any) => setAssignGuidelines(e.target.value)}
                     className="w-full text-xs p-3 min-h-[110px] bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-400 font-sans text-slate-800 resize-none"

@@ -943,34 +943,57 @@ CRITICAL RULES:
 3. Do NOT use emojis.
 4. Ensure the content matches platform-specific best practices (e.g., concise and punchy for X, detailed and professional for LinkedIn).`;
     } else if (taskType === "summarize") {
-      prompt = `Create a detailed, high-fidelity Executive Summary for the following document:
-- Document File Name: ${inputs.fileName}
-- Document File Size: ${inputs.fileSize}
-- Paste Text Content/Description: ${inputs.pastedText || "Not provided directly, summarize based on the document's profile, name, and main topic."}
+      const userInstruction = inputs.pastedText && inputs.pastedText.trim() ? inputs.pastedText.trim() : "";
+      const docName = inputs.fileName || "Uploaded Document";
 
-CRITICAL RULES:
-1. Structure the summary beautifully and professionally:
-   - DOCUMENT METADATA OVERVIEW (Name, Size, Type)
-   - EXECUTIVE BRIEF (A concise high-level overview of the document's core purpose)
-   - KEY HIGHLIGHTS & INSIGHTS (A clean bulleted list of major findings or critical takeaways)
-   - CORE FINDINGS / DETAILS (A deeper breakdown of the primary themes)
-   - SUMMARY OF RECOMMENDATIONS & ACTION STEPS
-2. Do NOT use emojis.
-3. Keep the tone analytical, objective, and executive-level.`;
+      prompt = `ATTACHED DOCUMENT / FILE:
+${docName} (Size: ${inputs.fileSize || "N/A"})
+
+${userInstruction ? `USER INSTRUCTION / NOTES:\n${userInstruction}\n` : ""}
+
+CRITICAL PROCESSING ORDER & MANDATES FOR DOCUMENT SUMMARIZER:
+1. FIRST: Read, analyze, and understand the uploaded file, PDF, image, photo, screenshot, or document context completely.
+2. READ THE USER INSTRUCTION: If specific instructions or questions were provided in the user instruction box, execute ONLY those instructions. If no specific instruction was given, create a high-fidelity Executive Summary of the document.
+3. DO NOT MAKE ASSUMPTIONS, DO NOT GUESS, DO NOT IGNORE THE INSTRUCTION.
+4. OUTPUT FORMATTING MANDATES:
+   - Produce executive / university-standard formatting.
+   - Do NOT use markdown heading symbols (#, ##, ###) or fill responses with hashtags or asterisks (*****).
+   - Use clean UPPERCASE BOLD text for section headers on their own line with proper paragraph spacing.
+   - Use clean, proper numbering, proper spacing, clear paragraphs, and clean bullet points.
+   - Do NOT use emojis. Answer strictly what was requested without filler.`;
     } else if (taskType === "assignment") {
-      prompt = `Provide a comprehensive academic assignment guide and outline helper for:
-- Assignment Topic/Subject: ${inputs.topic}
-- Assignment Guidelines / Question: ${inputs.guidelines}
-- Additional Context/Source: ${inputs.fileName ? `Reference File: ${inputs.fileName}` : "None"}
+      const subject = inputs.topic && inputs.topic.trim() ? inputs.topic.trim() : "General Academic";
+      const instruction = inputs.guidelines && inputs.guidelines.trim() 
+        ? inputs.guidelines.trim() 
+        : "Process the uploaded document or assignment according to academic standards.";
+      const fileRef = inputs.fileName ? `ATTACHED FILE / DOCUMENT: ${inputs.fileName}` : "";
 
-CRITICAL RULES:
-1. Structure this helper clearly and educationally:
-   - UNDERSTANDING THE TOPIC (Breakdown of key concepts, definitions, and core theories)
-   - COMPREHENSIVE OUTLINE STRUCTURE (An elegant, detailed step-by-step structure for the essay or paper, including Introduction, main argument body sections, and Conclusion)
-   - ANALYTICAL DEEP-DIVE & CRITICAL ANALYSIS GUIDELINES (How to analyze the prompt, what arguments to present, and potential academic references to research)
-   - DRAFTING GUIDE & PRO-TIPS (How to write academically, avoid logical fallacies, and ensure high-quality structure)
-2. Do NOT use emojis.
-3. Focus purely on robust, legal, and highly academic guidance. Ensure it serves as a highly educational tool, not simple direct plagiarism generation.`;
+      prompt = `ACADEMIC SUBJECT / DISCIPLINE:
+${subject}
+
+USER INSTRUCTION (THIS DETERMINES THE TASK TO EXECUTE):
+${instruction}
+
+${fileRef}
+
+CRITICAL PROCESSING ORDER & MANDATES FOR ASSIGNMENT HELPER:
+1. FIRST: Read, analyze, and understand the uploaded file, PDF, image, photo, screenshot, or document context completely.
+2. READ THE SUBJECT: Use "${subject}" strictly to provide academic context, correct formulas, terminology, and domain precision.
+3. READ THE USER INSTRUCTION: Execute ONLY and EXACTLY what the user wrote in the instruction box: "${instruction}".
+4. DO NOT MAKE ASSUMPTIONS, DO NOT GUESS, DO NOT IGNORE THE USER'S INSTRUCTION.
+   - If user instruction says "Answer this question paper from Question 1 to Question 10": Read every question from the uploaded document, understand every question, answer every question step-by-step with complete, real academic solutions. Maintain proper question numbering (e.g. Question 1, Answer..., Question 2, Answer...). Do NOT summarize. Do NOT explain what the file contains. Answer the paper directly!
+   - If user instruction says "Summarize this PDF": Provide a clean summary only. Do NOT answer questions.
+   - If user instruction says "Extract all formulas": Extract formulas only.
+   - If user instruction says "Translate this document into English": Translate only.
+   - If user instruction says "Explain Question 4 only": Explain Question 4 only.
+   - If user instruction says "Mark the mistakes inside this assignment": Identify mistakes only.
+5. STICK TO USER INSTRUCTION ONLY: The uploaded document is ONLY context. The user's written instruction determines the exact task.
+6. OUTPUT FORMATTING MANDATES:
+   - Produce university-standard academic formatting.
+   - Do NOT use markdown heading symbols (#, ##, ###) or fill responses with hashtags or asterisks (*****).
+   - Use clean UPPERCASE BOLD text for section titles (e.g. **QUESTION 1**, **ANSWER**, **SOLUTIONS**) on its own line with proper spacing.
+   - Use clean, proper numbering (1., 2., 3. or Question 1, Question 2), proper line spacing, clear paragraphs, and clean bullet points (* or -).
+   - Do NOT use emojis or informal filler.`;
     } else {
       return res.status(400).json({ error: "Invalid task type specified" });
     }
@@ -979,14 +1002,17 @@ CRITICAL RULES:
 
     const basePrompt = `You are the Orbit AI Task Specialist, an executive-level, university-standard execution system. You do not engage in chat-style conversational greetings, small talk, or polite introductory filler. You deliver immediate, highly structured, executive-ready, and academically professional outcomes.
 
-CRITICAL FORMATTING MANDATES FOR ALL RESPONSES:
-1. Do NOT use markdown heading symbols (#, ##, ###) or fill responses with hashtags or asterisks (*****).
-2. For section titles, use clean UPPERCASE BOLD text (e.g. **EXECUTIVE SUMMARY**, **KEY FINDINGS**, **RECOMMENDED ACTION PLAN**) on its own line with proper paragraph spacing.
-3. Use clean bullet points (* or -) and numbered lists (1., 2., 3.) where appropriate.
-4. Use professional spacing and proper paragraphs.
-5. Do NOT use emojis or informal colloquialisms.
-6. Match the clean, executive-ready formatting quality of university-standard academic reports and CVs.
-7. Answer strictly what was requested without filler.`;
+CRITICAL FORMATTING & EXECUTION MANDATES FOR ALL RESPONSES:
+1. The uploaded file or document is ONLY context. The user's written instruction determines the exact task to perform.
+2. Read and analyze any uploaded file, image, photo, screenshot, or PDF completely first. Then execute ONLY what the user instructed.
+3. Do NOT make assumptions, guess, summarize, or describe files unless explicitly requested by the user instruction.
+4. Do NOT use markdown heading symbols (#, ##, ###) or fill responses with hashtags or asterisks (*****).
+5. For section titles, use clean UPPERCASE BOLD text (e.g. **QUESTION 1**, **EXECUTIVE SUMMARY**, **KEY FINDINGS**) on its own line with proper paragraph spacing.
+6. Use clean bullet points (* or -) and numbered lists (1., 2., 3.) where appropriate.
+7. Use professional spacing and proper paragraphs.
+8. Do NOT use emojis or informal colloquialisms.
+9. Match the clean, executive-ready formatting quality of university-standard academic reports, question paper solutions, and CVs.
+10. Answer strictly what was requested without filler.`;
     
     console.log("Calling Groq Chat Completion API on Express (Task Generator) via AI-Helper...");
 
