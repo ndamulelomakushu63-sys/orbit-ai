@@ -14,7 +14,8 @@ export default async function handler(req: any, res: any) {
       country, 
       startingBudget, 
       targetCustomers, 
-      experienceLevel 
+      experienceLevel,
+      attachments
     } = req.body || {};
 
     if (!businessIdea || !industry) {
@@ -77,7 +78,7 @@ Format the response as a valid JSON object matching this schema structure:
       }
     ];
 
-    const responseData = await fetchChatCompletion(messages, 0.7);
+    const responseData = await fetchChatCompletion(messages, 0.7, attachments || []);
 
     const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {

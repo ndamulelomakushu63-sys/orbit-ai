@@ -532,9 +532,11 @@ export const HomeChatScreen: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt: promptToUse })
         });
-        const data = await res.json();
-        if (data && data.url) {
-          generatedUrl = data.url;
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.url) {
+            generatedUrl = data.url;
+          }
         }
       } catch (e) {
         console.warn("Backend image endpoint fallback to client URL:", e);

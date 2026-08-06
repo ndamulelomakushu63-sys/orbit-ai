@@ -18,7 +18,8 @@ export default async function handler(req: any, res: any) {
       budget, 
       internetAccess, 
       smartphoneAccess, 
-      laptopAccess 
+      laptopAccess,
+      attachments
     } = req.body || {};
 
     const prompt = `Generate exactly 5 realistic, educational, legal side hustle ideas matching the following user profile:
@@ -64,7 +65,7 @@ Format the response as a valid JSON object containing an "ideas" array of side h
       }
     ];
 
-    const responseData = await fetchChatCompletion(messages, 0.7);
+    const responseData = await fetchChatCompletion(messages, 0.7, attachments || []);
 
     const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {

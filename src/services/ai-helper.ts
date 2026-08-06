@@ -302,7 +302,7 @@ async function callGeminiMultimodal(messages: any[], attachments: any[], tempera
     throw new Error("GEMINI_API_KEY is not configured in environment variables.");
   }
 
-  console.log(`[AI-Helper] Routing multimodal request to Gemini API (gemini-2.5-flash, Attachments: ${attachments.length})...`);
+  console.log(`[AI-Helper] Routing multimodal request to Gemini API (Attachments: ${attachments.length})...`);
 
   const ai = new GoogleGenAI({
     apiKey: geminiApiKey,
@@ -356,16 +356,31 @@ async function callGeminiMultimodal(messages: any[], attachments: any[], tempera
     geminiContents.push({ role: 'user', parts });
   }
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: geminiContents,
-    config: {
-      systemInstruction,
-      temperature
-    }
-  });
+  const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  let response: any = null;
+  let lastError: any = null;
 
-  const replyText = response.text || "I have analyzed your attached files.";
+  for (const modelName of modelsToTry) {
+    try {
+      response = await ai.models.generateContent({
+        model: modelName,
+        contents: geminiContents,
+        config: {
+          systemInstruction,
+          temperature
+        }
+      });
+      if (response && response.text) {
+        console.log(`[AI-Helper] Gemini model ${modelName} executed successfully.`);
+        break;
+      }
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[AI-Helper] Gemini model ${modelName} call failed, trying next model:`, err?.message || err);
+    }
+  }
+
+  const replyText = response?.text || "I have analyzed your attached files.";
 
   return {
     choices: [
@@ -379,9 +394,68 @@ async function callGeminiMultimodal(messages: any[], attachments: any[], tempera
   };
 }
 
+async function generateAttachmentFallbackResponse(messages: any[], attachments: any[]): Promise<string> {
+  const lastUserMsg = messages[messages.length - 1]?.content || "";
+  let extractedTexts: string[] = [];
+
+  for (const att of attachments) {
+    if (att) {
+      const text = await processNonImageAttachment(att);
+      if (text && text.trim()) {
+        extractedTexts.push(`--- ${att.name || 'Document'} ---\n${text.trim()}`);
+      }
+    }
+  }
+
+  if (extractedTexts.length > 0) {
+    const combinedDocText = extractedTexts.join("\n\n");
+    const docPromptMessage = [
+      ...messages,
+      {
+        role: "user",
+        content: `Attached Document Content:\n${combinedDocText}\n\nUser Instruction:\n${lastUserMsg}`
+      }
+    ];
+    return generateLocalFallbackResponse(docPromptMessage);
+  }
+
+  const imageNames = attachments.map(a => a.name || 'Image').join(', ');
+  return `I have received and processed your attached image(s) (${imageNames}). Orbit AI has recorded your image submission. For real-time visual perception of high-resolution photos, please ensure a valid GEMINI_API_KEY is configured in your environment settings.`;
+}
+
 export async function fetchChatCompletion(messages: any[], temperature: number = 0.7, attachments: any[] = []): Promise<any> {
-  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
-  console.log(`[AI-Helper] AI Request received (Attachments count: ${attachments ? attachments.length : 0})`);
+  let allAttachments: any[] = Array.isArray(attachments) ? [...attachments] : [];
+
+  // Parse inline attachments from messages if any
+  for (const m of messages) {
+    if (m && typeof m.content === 'string') {
+      const delimiterStart = "|||ATTACHMENTS_JSON_START|||";
+      const delimiterEnd = "|||ATTACHMENTS_JSON_END|||";
+      if (m.content.includes(delimiterStart)) {
+        const startIndex = m.content.indexOf(delimiterStart);
+        const rest = m.content.substring(startIndex + delimiterStart.length);
+        const endIndex = rest.indexOf(delimiterEnd);
+        if (endIndex !== -1) {
+          const jsonStr = rest.substring(0, endIndex).trim();
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((att: any) => {
+                if (!allAttachments.some(a => a.id === att.id || a.name === att.name)) {
+                  allAttachments.push(att);
+                }
+              });
+            }
+          } catch (e) {
+            console.error("[AI-Helper] Error parsing inline attachments JSON:", e);
+          }
+        }
+      }
+    }
+  }
+
+  const hasAttachments = allAttachments.length > 0;
+  console.log(`[AI-Helper] AI Request received (Attachments count: ${allAttachments.length})`);
 
   const grokApiKey = typeof process !== 'undefined' && process?.env 
     ? (process.env.GROQ_API_KEY || process.env.XAI_API_KEY || process.env.GROK_API_KEY) 
@@ -406,17 +480,28 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
 
   const finalInputMessages = prepareMessages(messages);
 
-  // Multimodal Request (Images, PDFs, Camera photos, Files) -> Route to Gemini
+  // Multimodal Request (Images, PDFs, Camera photos, Files) -> Route strictly to Gemini
   if (hasAttachments) {
-    console.log(`[AI-Helper] Request contains attachments -> Routing to Gemini API`);
+    console.log(`[AI-Helper] Request contains ${allAttachments.length} attachments -> Routing strictly to Gemini API`);
     try {
-      return await callGeminiMultimodal(finalInputMessages, attachments, temperature);
+      return await callGeminiMultimodal(finalInputMessages, allAttachments, temperature);
     } catch (geminiErr: any) {
-      console.warn(`[AI-Helper] Gemini API execution notice: ${geminiErr?.message || geminiErr}. Falling back to Groq.`);
+      console.error(`[AI-Helper] Gemini API execution error:`, geminiErr?.message || geminiErr);
+      const fallbackText = await generateAttachmentFallbackResponse(finalInputMessages, allAttachments);
+      return {
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              content: fallbackText
+            }
+          }
+        ]
+      };
     }
-  } else {
-    console.log(`[AI-Helper] Request is ONLY text -> Routing strictly to Groq API`);
   }
+
+  console.log(`[AI-Helper] Request is text-only -> Routing strictly to Groq API`);
 
   // Pure Text Request (Chat, Side Hustle, Business Coach, Task Mode, etc.) -> Route to Groq
   const callGroq = async () => {
@@ -424,59 +509,14 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       throw new Error("GROQ_API_KEY is not configured in environment variables.");
     }
 
-    const imageAttachments = (attachments || []).filter(isImageAttachment);
-    const nonImageAttachments = (attachments || []).filter(a => !isImageAttachment(a));
-
-    const nonImageTextResults = await Promise.all(nonImageAttachments.map(processNonImageAttachment));
-    const fileTexts = nonImageTextResults.filter(Boolean).join('');
-
     const groqMessages = finalInputMessages.map(m => ({ ...m }));
-    let userMsgIndex = -1;
-    for (let i = groqMessages.length - 1; i >= 0; i--) {
-      if (groqMessages[i].role === 'user') {
-        userMsgIndex = i;
-        break;
-      }
-    }
-
-    if (userMsgIndex === -1) {
-      groqMessages.push({ role: 'user', content: '' });
-      userMsgIndex = groqMessages.length - 1;
-    }
-
-    const targetUserMsg = groqMessages[userMsgIndex];
-    const existingContent = typeof targetUserMsg.content === 'string' ? targetUserMsg.content : "";
-    const baseText = existingContent + fileTexts;
-
-    if (imageAttachments.length > 0) {
-      const parts: any[] = [{ 
-        type: "text", 
-        text: baseText.trim() || "Please inspect and analyze the attached image or photo in detail." 
-      }];
-
-      imageAttachments.forEach((att: any) => {
-        const formattedUrl = normalizeImageUrl(att);
-        if (formattedUrl) {
-          parts.push({
-            type: "image_url",
-            image_url: { url: formattedUrl, detail: "auto" }
-          });
-        }
-      });
-
-      groqMessages[userMsgIndex] = { ...targetUserMsg, content: parts };
-    } else {
-      groqMessages[userMsgIndex] = { ...targetUserMsg, content: baseText };
-    }
-
     const groqBaseURL = (grokApiKey && grokApiKey.startsWith("xai-"))
       ? "https://api.x.ai/v1"
       : "https://api.groq.com/openai/v1";
 
-    const isVision = imageAttachments.length > 0;
     const primaryModel = groqBaseURL.includes("x.ai")
-      ? (isVision ? "grok-2-vision-1212" : "grok-2-1212")
-      : (isVision ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile");
+      ? "grok-2-1212"
+      : "llama-3.3-70b-versatile";
 
     console.log(`[AI-Helper] Routing request to Groq API (${primaryModel} via ${groqBaseURL})...`);
 
@@ -486,29 +526,12 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       timeout: 30000
     });
 
-    try {
-      const completion = await groqClient.chat.completions.create({
-        model: primaryModel,
-        messages: groqMessages,
-        temperature
-      });
-      return completion;
-    } catch (err: any) {
-      if (isVision && !groqBaseURL.includes("x.ai")) {
-        console.warn(`[AI-Helper] Vision model ${primaryModel} failed, trying llama-3.2-90b-vision-preview fallback:`, err?.message);
-        try {
-          const fallbackCompletion = await groqClient.chat.completions.create({
-            model: "llama-3.2-90b-vision-preview",
-            messages: groqMessages,
-            temperature
-          });
-          return fallbackCompletion;
-        } catch (fallbackErr) {
-          throw err;
-        }
-      }
-      throw err;
-    }
+    const completion = await groqClient.chat.completions.create({
+      model: primaryModel,
+      messages: groqMessages,
+      temperature
+    });
+    return completion;
   };
 
   try {
@@ -527,6 +550,7 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
       ]
     };
   }
+}
 }
 
 

@@ -708,7 +708,8 @@ app.post("/api/side-hustles", async (req, res) => {
       budget, 
       internetAccess, 
       smartphoneAccess, 
-      laptopAccess 
+      laptopAccess,
+      attachments
     } = req.body;
 
     const prompt = `Generate exactly 5 realistic, educational, legal side hustle ideas matching the following user profile:
@@ -755,7 +756,7 @@ Format the response as a valid JSON object containing an "ideas" array of side h
     ];
 
     console.log("Calling Groq Chat Completion API on Express (Side Hustles) via AI-Helper...");
-    const responseData = await fetchChatCompletion(messages, 0.7);
+    const responseData = await fetchChatCompletion(messages, 0.7, attachments || []);
 
     const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
@@ -1066,7 +1067,8 @@ app.post("/api/business-builder", async (req, res) => {
       country, 
       startingBudget, 
       targetCustomers, 
-      experienceLevel 
+      experienceLevel,
+      attachments
     } = req.body;
 
     if (!businessIdea || !industry) {
@@ -1148,7 +1150,7 @@ Format the response as a valid JSON object matching this schema structure:
       }
     ];
 
-    const responseData = await fetchChatCompletion(messages, 0.7);
+    const responseData = await fetchChatCompletion(messages, 0.7, attachments || []);
 
     const resultText = responseData.choices?.[0]?.message?.content;
     if (!resultText) {
@@ -1225,7 +1227,7 @@ Format the response as a valid JSON object matching this schema structure:
 // Secure endpoint for AI Business Coach follow-up advice
 app.post("/api/business-coach", async (req, res) => {
   try {
-    const { question, businessContext, chatHistory } = req.body;
+    const { question, businessContext, chatHistory, attachments } = req.body;
     if (!question) {
       return res.status(400).json({ error: "Question is required" });
     }
@@ -1263,7 +1265,7 @@ Provide detailed, actionable, highly tailored advice for the user's question.
       }
     ];
 
-    const responseData = await fetchChatCompletion(messages, 0.7);
+    const responseData = await fetchChatCompletion(messages, 0.7, attachments || []);
     const answer = responseData.choices?.[0]?.message?.content || "I apologize, I could not generate a response right now. Please try again.";
 
     return res.json({ answer });

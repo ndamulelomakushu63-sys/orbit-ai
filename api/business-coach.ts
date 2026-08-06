@@ -9,7 +9,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { question, businessContext, chatHistory } = req.body;
+    const { question, businessContext, chatHistory, attachments } = req.body || {};
     if (!question) {
       return res.status(400).json({ error: "Question is required" });
     }
@@ -47,7 +47,7 @@ Provide detailed, actionable, highly tailored advice for the user's question.
       }
     ];
 
-    const responseData = await fetchChatCompletion(messages, 0.7);
+    const responseData = await fetchChatCompletion(messages, 0.7, attachments || []);
     const answer = responseData.choices?.[0]?.message?.content || "I apologize, I could not generate a response right now. Please try again.";
 
     return res.status(200).json({ answer });
