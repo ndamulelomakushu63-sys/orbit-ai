@@ -551,7 +551,6 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
     };
   }
 }
-}
 
 
 function generateLocalFallbackResponse(messages: any[]): string {
