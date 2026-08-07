@@ -252,6 +252,31 @@ async function prepareGeminiAttachmentPart(att: any): Promise<any | null> {
           data: base64Data
         }
       };
+    } else if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
+      try {
+        const resp = await fetch(url);
+        const arrayBuf = await resp.arrayBuffer();
+        const base64Data = Buffer.from(arrayBuf).toString('base64');
+        const ext = fileName.split('.').pop()?.toLowerCase();
+        const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+        return {
+          inlineData: {
+            mimeType,
+            data: base64Data
+          }
+        };
+      } catch (e) {
+        console.error(`[AI-Helper] Failed to fetch image HTTP URL ${url}:`, e);
+      }
+    } else if (typeof url === 'string' && url.length > 50) {
+      const ext = fileName.split('.').pop()?.toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+      return {
+        inlineData: {
+          mimeType,
+          data: url
+        }
+      };
     }
   }
 
@@ -268,7 +293,7 @@ async function prepareGeminiAttachmentPart(att: any): Promise<any | null> {
       } catch (e) {
         console.error(`[AI-Helper] Failed to fetch PDF URL ${url}:`, e);
       }
-    } else if (typeof url === 'string' && url.length > 100) {
+    } else if (typeof url === 'string' && url.length > 50) {
       base64Data = url;
     }
 
@@ -356,7 +381,7 @@ async function callGeminiMultimodal(messages: any[], attachments: any[], tempera
     geminiContents.push({ role: 'user', parts });
   }
 
-  const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const modelsToTry = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let response: any = null;
   let lastError: any = null;
 
@@ -380,49 +405,20 @@ async function callGeminiMultimodal(messages: any[], attachments: any[], tempera
     }
   }
 
-  const replyText = response?.text || "I have analyzed your attached files.";
+  if (!response || !response.text) {
+    throw new Error(`Gemini Multimodal API Error: ${lastError?.message || 'Failed to process attachment with Gemini.'}`);
+  }
 
   return {
     choices: [
       {
         message: {
           role: "assistant",
-          content: replyText
+          content: response.text
         }
       }
     ]
   };
-}
-
-async function generateAttachmentFallbackResponse(messages: any[], attachments: any[]): Promise<string> {
-  const lastUserMsg = messages[messages.length - 1]?.content || "";
-  let extractedTexts: string[] = [];
-
-  for (const att of attachments) {
-    if (att) {
-      if (isImageAttachment(att)) {
-        extractedTexts.push(`[Attached Visual File/Photo: ${att.name || 'Captured Image'}]`);
-      } else {
-        const text = await processNonImageAttachment(att);
-        if (text && text.trim()) {
-          extractedTexts.push(`--- ${att.name || 'Document'} ---\n${text.trim()}`);
-        } else {
-          extractedTexts.push(`[Attached Document/File: ${att.name || 'Attachment'}]`);
-        }
-      }
-    }
-  }
-
-  const combinedDocText = extractedTexts.join("\n\n");
-  const docPromptMessage = [
-    ...messages,
-    {
-      role: "user",
-      content: `Attached Media & Files:\n${combinedDocText}\n\nUser Question:\n${lastUserMsg}`
-    }
-  ];
-
-  return generateLocalFallbackResponse(docPromptMessage);
 }
 
 export async function fetchChatCompletion(messages: any[], temperature: number = 0.7, attachments: any[] = []): Promise<any> {
@@ -430,6 +426,13 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
 
   // Parse inline attachments from messages if any
   for (const m of messages) {
+    if (m && Array.isArray(m.attachments)) {
+      m.attachments.forEach((att: any) => {
+        if (!allAttachments.some(a => a.id === att.id || (a.name === att.name && a.url === att.url))) {
+          allAttachments.push(att);
+        }
+      });
+    }
     if (m && typeof m.content === 'string') {
       const delimiterStart = "|||ATTACHMENTS_JSON_START|||";
       const delimiterEnd = "|||ATTACHMENTS_JSON_END|||";
@@ -485,22 +488,7 @@ export async function fetchChatCompletion(messages: any[], temperature: number =
   // Multimodal Request (Images, PDFs, Camera photos, Files) -> Route strictly to Gemini
   if (hasAttachments) {
     console.log(`[AI-Helper] Request contains ${allAttachments.length} attachments -> Routing strictly to Gemini API`);
-    try {
-      return await callGeminiMultimodal(finalInputMessages, allAttachments, temperature);
-    } catch (geminiErr: any) {
-      console.error(`[AI-Helper] Gemini API execution error:`, geminiErr?.message || geminiErr);
-      const fallbackText = await generateAttachmentFallbackResponse(finalInputMessages, allAttachments);
-      return {
-        choices: [
-          {
-            message: {
-              role: "assistant",
-              content: fallbackText
-            }
-          }
-        ]
-      };
-    }
+    return await callGeminiMultimodal(finalInputMessages, allAttachments, temperature);
   }
 
   console.log(`[AI-Helper] Request is text-only -> Routing strictly to Groq API`);
