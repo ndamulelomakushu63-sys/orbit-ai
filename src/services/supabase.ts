@@ -66,18 +66,25 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // --- 1. PROFILES DB OPERATIONS ---
 export function generateAgentId(): string {
+  const prefixes = ["AGT", "ORB", "GLEN"];
+  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let result = "AGT-";
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  let suffix = "";
+  for (let i = 0; i < 4; i++) {
+    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return result;
+  return prefix + suffix;
+}
+
+export function getReferralLink(referralCode: string): string {
+  const code = (referralCode || '').trim() || 'AGT82KQ';
+  return `https://orbitai.vercel.app/?ref=${code}`;
 }
 
 export function parseProfileFromDb(item: any): UserProfile {
   const rawAgentId = item.agent_id || item.referral_code || '';
   const agentId = (rawAgentId && rawAgentId.trim()) ? rawAgentId.trim() : generateAgentId();
-  const refLink = item.referral_link || `https://orbitai.co.za/register?ref=${agentId}`;
+  const refLink = getReferralLink(agentId);
   const verifiedCount = Number(item.verified_referrals ?? item.verified_referrals_count ?? 0);
   const referredByVal = item.referred_by || item.referredBy || null;
 
@@ -170,7 +177,7 @@ export async function dbFetchProfileByAgentId(agentId: string): Promise<UserProf
 export async function dbUpsertProfile(p: UserProfile): Promise<boolean> {
   try {
     const agentId = p.agent_id || p.agentId || p.referralCode || generateAgentId();
-    const refLink = p.referral_link || p.referralLink || `https://orbitai.co.za/register?ref=${agentId}`;
+    const refLink = getReferralLink(agentId);
     const referredByVal = p.referred_by !== undefined ? p.referred_by : (p.referredBy !== undefined ? p.referredBy : null);
     const verifiedCount = p.verified_referrals !== undefined ? p.verified_referrals : (p.verifiedReferrals !== undefined ? p.verifiedReferrals : 0);
 

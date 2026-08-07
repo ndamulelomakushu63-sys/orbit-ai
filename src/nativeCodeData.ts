@@ -495,7 +495,7 @@ export default function AgentDashboardScreen() {
 
   const copyToClipboard = () => {
     if (!profile || !profile.referralCode) return;
-    const refLink = \`https://orbitai.co.za/register?ref=\${profile.referralCode}\`;
+    const refLink = \`https://orbitai.vercel.app/?ref=\${profile.referralCode}\`;
     Clipboard.setString(refLink);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
@@ -528,7 +528,7 @@ export default function AgentDashboardScreen() {
             <Text style={styles.sectionLabel}>Your Referral Link</Text>
             <TouchableOpacity style={styles.copyBox} onPress={copyToClipboard}>
               <Text numberOfLines={1} style={styles.linkText}>
-                https://orbitai.co.za/register?ref={profile.referralCode}
+                https://orbitai.vercel.app/?ref={profile.referralCode}
               </Text>
               <Ionicons name={isCopied ? "checkmark-circle" : "copy"} size={18} color="#0080FF" />
             </TouchableOpacity>

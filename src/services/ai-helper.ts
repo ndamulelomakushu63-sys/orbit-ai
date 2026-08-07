@@ -400,27 +400,29 @@ async function generateAttachmentFallbackResponse(messages: any[], attachments: 
 
   for (const att of attachments) {
     if (att) {
-      const text = await processNonImageAttachment(att);
-      if (text && text.trim()) {
-        extractedTexts.push(`--- ${att.name || 'Document'} ---\n${text.trim()}`);
+      if (isImageAttachment(att)) {
+        extractedTexts.push(`[Attached Visual File/Photo: ${att.name || 'Captured Image'}]`);
+      } else {
+        const text = await processNonImageAttachment(att);
+        if (text && text.trim()) {
+          extractedTexts.push(`--- ${att.name || 'Document'} ---\n${text.trim()}`);
+        } else {
+          extractedTexts.push(`[Attached Document/File: ${att.name || 'Attachment'}]`);
+        }
       }
     }
   }
 
-  if (extractedTexts.length > 0) {
-    const combinedDocText = extractedTexts.join("\n\n");
-    const docPromptMessage = [
-      ...messages,
-      {
-        role: "user",
-        content: `Attached Document Content:\n${combinedDocText}\n\nUser Instruction:\n${lastUserMsg}`
-      }
-    ];
-    return generateLocalFallbackResponse(docPromptMessage);
-  }
+  const combinedDocText = extractedTexts.join("\n\n");
+  const docPromptMessage = [
+    ...messages,
+    {
+      role: "user",
+      content: `Attached Media & Files:\n${combinedDocText}\n\nUser Question:\n${lastUserMsg}`
+    }
+  ];
 
-  const imageNames = attachments.map(a => a.name || 'Image').join(', ');
-  return `I have received and processed your attached image(s) (${imageNames}). Orbit AI has recorded your image submission. For real-time visual perception of high-resolution photos, please ensure a valid GEMINI_API_KEY is configured in your environment settings.`;
+  return generateLocalFallbackResponse(docPromptMessage);
 }
 
 export async function fetchChatCompletion(messages: any[], temperature: number = 0.7, attachments: any[] = []): Promise<any> {

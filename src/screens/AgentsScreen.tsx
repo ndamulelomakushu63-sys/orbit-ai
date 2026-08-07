@@ -3,7 +3,7 @@ import { View, Text, SafeAreaView, TouchableOpacity, ScrollView } from '../compo
 import { ArrowLeft, Copy, Check } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { UserPlan, UserProfile, ReferralRecord } from '../types';
-import { supabase, dbFetchProfileById } from '../services/supabase';
+import { supabase, dbFetchProfileById, getReferralLink } from '../services/supabase';
 
 export const AgentsScreen: React.FC = () => {
   const { 
@@ -72,7 +72,7 @@ export const AgentsScreen: React.FC = () => {
 
   const currentProf = profile || currentUser;
   const agentId = currentProf.agent_id || currentProf.referralCode || "AGT-XXXXXX";
-  const refLink = currentProf.referral_link || `https://orbitai.co.za/register?ref=${agentId}`;
+  const refLink = getReferralLink(agentId);
 
   const verifiedCount = currentProf.verified_referrals !== undefined 
     ? currentProf.verified_referrals 

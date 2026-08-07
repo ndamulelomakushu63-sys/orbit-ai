@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView } from '../components/ReactNativeShim';
 import { ArrowLeft, Copy, Check } from '../components/Icons';
 import { useAppState } from '../services/state';
-import { supabase, dbFetchProfileById } from '../services/supabase';
+import { supabase, dbFetchProfileById, getReferralLink } from '../services/supabase';
 import { UserProfile, ReferralRecord } from '../types';
 
 export const AgentDashboardScreen: React.FC = () => {
@@ -70,7 +70,7 @@ export const AgentDashboardScreen: React.FC = () => {
 
   const currentProf = profile || currentUser;
   const agentId = currentProf.agent_id || currentProf.referralCode || "AGT-XXXXXX";
-  const referralLink = currentProf.referral_link || `https://orbitai.co.za/register?ref=${agentId}`;
+  const referralLink = getReferralLink(agentId);
   
   // Calculate verified referrals count directly from database
   const verifiedCount = currentProf.verified_referrals !== undefined 

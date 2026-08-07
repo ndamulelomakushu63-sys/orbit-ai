@@ -3,7 +3,7 @@ import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from '../compon
 import { Compass, Mail, Lock, User, AlertCircle } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { UserPlan, UserProfile, ReferralRecord } from '../types';
-import { supabase, dbUpsertProfile, dbUpsertReferral, generateAgentId, dbFetchProfileByAgentId } from '../services/supabase';
+import { supabase, dbUpsertProfile, dbUpsertReferral, generateAgentId, dbFetchProfileByAgentId, getReferralLink } from '../services/supabase';
 
 export const RegisterScreen: React.FC = () => {
   const { users, setUsers, referrals, setReferrals, setCurrentUser, setMobileScreen, invitedByCode } = useAppState();
@@ -51,7 +51,7 @@ export const RegisterScreen: React.FC = () => {
 
       const registeredUid = data.user?.id || "usr-" + Date.now();
       const agentId = generateAgentId();
-      const refLink = `https://orbitai.co.za/register?ref=${agentId}`;
+      const refLink = getReferralLink(agentId);
       
       const newProf: UserProfile = {
         uid: registeredUid,
@@ -101,11 +101,30 @@ export const RegisterScreen: React.FC = () => {
             referredUserId: registeredUid,
             referredName: name.trim(),
             reward: 10.00,
-            status: "Pending",
+            status: "Verified",
             timestamp: new Date().toISOString()
           };
           setReferrals(prev => [newRefLog, ...prev]);
           await dbUpsertReferral(newRefLog);
+
+          // Credit referring agent
+          const currentVerified = Number(matchReferrer.verified_referrals ?? matchReferrer.verifiedReferrals ?? 0);
+          const newVerified = currentVerified + 1;
+          const currentBal = Number(matchReferrer.balance || 0);
+          const newBal = currentBal + 10.00;
+
+          await supabase.from('profiles').update({
+            verified_referrals: newVerified,
+            verified_referrals_count: newVerified,
+            balance: newBal
+          }).eq('id', matchReferrer.uid);
+
+          setUsers(prev => prev.map(u => u.uid === matchReferrer.uid ? {
+            ...u,
+            verified_referrals: newVerified,
+            verifiedReferrals: newVerified,
+            balance: newBal
+          } : u));
         }
       }
 
@@ -120,7 +139,7 @@ export const RegisterScreen: React.FC = () => {
       // Fallback
       const newUid = "usr-" + Date.now();
       const agentId = generateAgentId();
-      const refLink = `https://orbitai.co.za/register?ref=${agentId}`;
+      const refLink = getReferralLink(agentId);
 
       const newProf: UserProfile = {
         uid: newUid,
@@ -169,11 +188,29 @@ export const RegisterScreen: React.FC = () => {
             referredUserId: newUid,
             referredName: name.trim(),
             reward: 10.00,
-            status: "Pending",
+            status: "Verified",
             timestamp: new Date().toISOString()
           };
           setReferrals(prev => [newRefLog, ...prev]);
           await dbUpsertReferral(newRefLog);
+
+          const currentVerified = Number(matchReferrer.verified_referrals ?? matchReferrer.verifiedReferrals ?? 0);
+          const newVerified = currentVerified + 1;
+          const currentBal = Number(matchReferrer.balance || 0);
+          const newBal = currentBal + 10.00;
+
+          await supabase.from('profiles').update({
+            verified_referrals: newVerified,
+            verified_referrals_count: newVerified,
+            balance: newBal
+          }).eq('id', matchReferrer.uid);
+
+          setUsers(prev => prev.map(u => u.uid === matchReferrer.uid ? {
+            ...u,
+            verified_referrals: newVerified,
+            verifiedReferrals: newVerified,
+            balance: newBal
+          } : u));
         }
       }
 
