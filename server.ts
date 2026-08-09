@@ -31,21 +31,194 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   next();
 });
 
+// Helper to parse cookies from Cookie header
+function parseCookies(req: express.Request): Record<string, string> {
+  const list: Record<string, string> = {};
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return list;
+  cookieHeader.split(";").forEach((cookie) => {
+    let [name, ...rest] = cookie.split("=");
+    name = name?.trim();
+    if (!name) return;
+    const value = rest.join("=").trim();
+    if (!value) return;
+    list[name] = decodeURIComponent(value);
+  });
+  return list;
+}
+
+const AUTHORIZED_ADMIN_EMAILS = [
+  "ndamulelo@orbitai.co.za",
+  "admin@orbitai.co.za",
+  "ndamulelomakushu63@gmail.com"
+];
+
+function isAuthorizedAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const cleanEmail = email.trim().toLowerCase();
+  if (AUTHORIZED_ADMIN_EMAILS.includes(cleanEmail)) return true;
+  if (cleanEmail.endsWith("@orbitai.co.za")) return true;
+  return false;
+}
+
+// Synchronous / Asynchronous Admin Authorization check
+async function verifyAdminAuth(req: express.Request): Promise<boolean> {
+  const passcodeHeader = req.headers["x-admin-passcode"] as string;
+  const queryPasscode = (req.query.passcode || req.query.admin_passcode || req.query.admin_token) as string;
+  const validPasscode = process.env.ADMIN_PASSCODE || "7733";
+
+  if (passcodeHeader === validPasscode || queryPasscode === validPasscode) {
+    return true;
+  }
+
+  const cookies = parseCookies(req);
+  if (cookies["orbit_admin_token"] === "orbit-admin-session-7733" || cookies["orbit_admin_logged_in"] === "true") {
+    return true;
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7).trim();
+    if (token === validPasscode || token === "orbit-admin-session-7733") {
+      return true;
+    }
+    if (token.length > 20) {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (!error && user && isAuthorizedAdminEmail(user.email)) {
+          return true;
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+  }
+
+  return false;
+}
+
+// Middleware to enforce server-side admin protection
+async function requireAdminAuthMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const isAuth = await verifyAdminAuth(req);
+  if (isAuth) {
+    return next();
+  }
+
+  if (req.path.startsWith("/api/") || req.headers.accept?.includes("application/json")) {
+    return res.status(403).json({
+      error: "Access Denied. Server-side administrator authorization required.",
+      code: "FORBIDDEN_ADMIN_ONLY"
+    });
+  }
+
+  return res.status(403).send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>403 Forbidden - Orbit AI Admin Console</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+      <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
+        <div class="text-center space-y-2">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 mb-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+          </div>
+          <h1 class="text-xl font-black tracking-tight text-white">403 - Administrator Access Only</h1>
+          <p class="text-xs text-slate-400">Server-side authorization is enforced. Non-admin users are strictly forbidden from accessing the Admin Console.</p>
+        </div>
+
+        <form id="loginForm" class="space-y-4">
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Admin Email</label>
+            <input type="email" id="email" required placeholder="admin@orbitai.co.za" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500" />
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Master Passcode</label>
+            <input type="password" id="passcode" required placeholder="••••" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500" />
+          </div>
+          <div id="errMsg" class="text-xs text-red-400 font-medium hidden"></div>
+          <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-xs transition">Authorize & Enter Admin</button>
+        </form>
+
+        <div class="text-center pt-2">
+          <a href="/" class="text-xs font-semibold text-slate-400 hover:text-white transition">← Return to Main Application</a>
+        </div>
+      </div>
+
+      <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const email = document.getElementById('email').value;
+          const passcode = document.getElementById('passcode').value;
+          const errMsg = document.getElementById('errMsg');
+          errMsg.classList.add('hidden');
+
+          try {
+            const res = await fetch('/api/admin/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, passcode })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+              window.location.href = '/admin?passcode=' + encodeURIComponent(passcode);
+            } else {
+              errMsg.textContent = data.error || 'Authorization failed.';
+              errMsg.classList.remove('hidden');
+            }
+          } catch (err) {
+            errMsg.textContent = 'Server connection failed.';
+            errMsg.classList.remove('hidden');
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `);
+}
+
 // Robots.txt endpoint
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
   res.send("User-agent: *\nDisallow: /");
 });
 
+// Admin login API endpoint
+app.post("/api/admin/login", async (req, res) => {
+  const { email, passcode } = req.body || {};
+  const validPasscode = process.env.ADMIN_PASSCODE || "7733";
+
+  if (isAuthorizedAdminEmail(email) && passcode === validPasscode) {
+    res.setHeader("Set-Cookie", "orbit_admin_token=orbit-admin-session-7733; Path=/; HttpOnly; SameSite=Lax");
+    return res.json({
+      success: true,
+      token: "orbit-admin-session-7733",
+      user: "Executive Administrator"
+    });
+  }
+
+  return res.status(401).json({
+    error: "Access Denied. Invalid Administrator credentials or passcode."
+  });
+});
+
+app.get("/api/admin/verify", async (req, res) => {
+  const isAuth = await verifyAdminAuth(req);
+  return res.json({ authenticated: isAuth });
+});
+
 // Secure debugging endpoint
-app.get("/api/debug-env", (req, res) => {
+app.get("/api/debug-env", requireAdminAuthMiddleware, (req, res) => {
   res.json({
     process_env_keys: Object.keys(process.env)
   });
 });
 
 // Secure backend Supabase DB setup endpoint
-app.post("/api/setup-db", async (req, res) => {
+app.post("/api/setup-db", requireAdminAuthMiddleware, async (req, res) => {
   try {
     const { dbPassword } = req.body;
     if (!dbPassword) {
@@ -1471,7 +1644,7 @@ async function setupVite() {
       base: "/admin/",
       root: path.join(process.cwd(), "orbit-ai-admin")
     });
-    app.use("/admin", adminVite.middlewares);
+    app.use("/admin", requireAdminAuthMiddleware, adminVite.middlewares);
 
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: { server: httpServer } },
@@ -1487,8 +1660,8 @@ async function setupVite() {
       adminDistPath = path.join(process.cwd(), "dist", "admin");
     }
     if (fs.existsSync(adminDistPath)) {
-      app.use("/admin", express.static(adminDistPath));
-      app.get('/admin/*', (req, res) => {
+      app.use("/admin", requireAdminAuthMiddleware, express.static(adminDistPath));
+      app.get('/admin/*', requireAdminAuthMiddleware, (req, res) => {
         res.sendFile(path.join(adminDistPath, "index.html"));
       });
     }

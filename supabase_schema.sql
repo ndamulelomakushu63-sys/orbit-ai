@@ -89,19 +89,27 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies (Drop first to avoid duplicate policy errors)
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
-CREATE POLICY "Public profiles are viewable by everyone." 
+DROP POLICY IF EXISTS "Users can view their own profile only" ON public.profiles;
+CREATE POLICY "Users can view their own profile only" 
     ON public.profiles FOR SELECT 
-    USING (true);
+    USING (auth.uid() = id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
 CREATE POLICY "Users can insert their own profile." 
     ON public.profiles FOR INSERT 
-    WITH CHECK (auth.uid() = id);
+    WITH CHECK (auth.uid() = id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
 CREATE POLICY "Users can update their own profile." 
     ON public.profiles FOR UPDATE 
-    USING (auth.uid() = id);
+    USING (auth.uid() = id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'))
+    WITH CHECK (auth.uid() = id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Users can view their own profile only" ON public.profiles 
+    USING (auth.uid() = id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Users can update their own profile." ON public.profiles 
+    USING (auth.uid() = id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 -- Trigger function to automatically create a profile for new auth users
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -145,14 +153,15 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own subscriptions." ON public.subscriptions;
-CREATE POLICY "Users can view their own subscriptions."
-    ON public.subscriptions FOR SELECT
-    USING (auth.uid() = user_id);
-
 DROP POLICY IF EXISTS "Service/Admin can insert/update subscriptions." ON public.subscriptions;
-CREATE POLICY "Service/Admin can insert/update subscriptions."
+DROP POLICY IF EXISTS "Users manage own subscriptions, admins manage all" ON public.subscriptions;
+CREATE POLICY "Users manage own subscriptions, admins manage all"
     ON public.subscriptions FOR ALL
-    USING (true);
+    USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'))
+    WITH CHECK (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Users manage own subscriptions, admins manage all" ON public.subscriptions
+    USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 
 -- ==========================================
@@ -235,14 +244,15 @@ CREATE TABLE IF NOT EXISTS public.referrals (
 ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view referrals they generated." ON public.referrals;
-CREATE POLICY "Users can view referrals they generated."
-    ON public.referrals FOR SELECT
-    USING (auth.uid() = referrer_id);
-
 DROP POLICY IF EXISTS "Users can create/update referrals." ON public.referrals;
-CREATE POLICY "Users can create/update referrals."
+DROP POLICY IF EXISTS "Users manage referrals they are part of" ON public.referrals;
+CREATE POLICY "Users manage referrals they are part of"
     ON public.referrals FOR ALL
-    USING (true);
+    USING (auth.uid() = referrer_id OR auth.uid() = referred_user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'))
+    WITH CHECK (auth.uid() = referrer_id OR auth.uid() = referred_user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Users manage referrals they are part of" ON public.referrals
+    USING (auth.uid() = referrer_id OR auth.uid() = referred_user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 
 -- ==========================================
@@ -278,19 +288,16 @@ ALTER TABLE public.withdrawal_requests ADD COLUMN IF NOT EXISTS created_at TIMES
 ALTER TABLE public.withdrawal_requests ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own withdrawals." ON public.withdrawal_requests;
-CREATE POLICY "Users can view their own withdrawals."
-    ON public.withdrawal_requests FOR SELECT
-    USING (auth.uid() = user_id);
-
 DROP POLICY IF EXISTS "Users can request withdrawals." ON public.withdrawal_requests;
-CREATE POLICY "Users can request withdrawals."
-    ON public.withdrawal_requests FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
 DROP POLICY IF EXISTS "Admin can update withdrawals." ON public.withdrawal_requests;
-CREATE POLICY "Admin can update withdrawals."
+DROP POLICY IF EXISTS "Users manage own withdrawals, admins manage all" ON public.withdrawal_requests;
+CREATE POLICY "Users manage own withdrawals, admins manage all"
     ON public.withdrawal_requests FOR ALL
-    USING (true);
+    USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'))
+    WITH CHECK (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Users manage own withdrawals, admins manage all" ON public.withdrawal_requests
+    USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 
 -- ==========================================
@@ -545,19 +552,17 @@ END $$;
 ALTER TABLE public.business_registrations ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public and users can view registrations." ON public.business_registrations;
-CREATE POLICY "Public and users can view registrations."
-    ON public.business_registrations FOR SELECT
-    USING (true);
-
 DROP POLICY IF EXISTS "Users can submit registrations." ON public.business_registrations;
-CREATE POLICY "Users can submit registrations."
-    ON public.business_registrations FOR INSERT
+DROP POLICY IF EXISTS "Admin/Owners can update registrations." ON public.business_registrations;
+DROP POLICY IF EXISTS "Users view own registrations, admins view all" ON public.business_registrations;
+
+CREATE POLICY "Users view own registrations, admins view all"
+    ON public.business_registrations FOR ALL
+    USING (email = auth.email() OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'))
     WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Admin/Owners can update registrations." ON public.business_registrations;
-CREATE POLICY "Admin/Owners can update registrations."
-    ON public.business_registrations FOR ALL
-    USING (true);
+ALTER POLICY "Users view own registrations, admins view all" ON public.business_registrations
+    USING (email = auth.email() OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 
 -- ==========================================
@@ -577,14 +582,15 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own notifications." ON public.notifications;
-CREATE POLICY "Users can view their own notifications."
-    ON public.notifications FOR SELECT
-    USING (auth.uid() = user_id OR user_id IS NULL);
-
 DROP POLICY IF EXISTS "System can manage notifications." ON public.notifications;
-CREATE POLICY "System can manage notifications."
+DROP POLICY IF EXISTS "Users view own notifications, admins manage all" ON public.notifications;
+CREATE POLICY "Users view own notifications, admins manage all"
     ON public.notifications FOR ALL
-    USING (true);
+    USING (auth.uid() = user_id OR user_id IS NULL OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'))
+    WITH CHECK (auth.uid() = user_id OR user_id IS NULL OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Users view own notifications, admins manage all" ON public.notifications
+    USING (auth.uid() = user_id OR user_id IS NULL OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 
 -- ==========================================
@@ -604,19 +610,17 @@ CREATE TABLE IF NOT EXISTS public.support_tickets (
 ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own support tickets." ON public.support_tickets;
-CREATE POLICY "Users can view their own support tickets."
-    ON public.support_tickets FOR SELECT
-    USING (auth.uid() = user_id);
-
 DROP POLICY IF EXISTS "Users can submit support tickets." ON public.support_tickets;
-CREATE POLICY "Users can submit support tickets."
-    ON public.support_tickets FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
 DROP POLICY IF EXISTS "Admin/Support can update tickets." ON public.support_tickets;
-CREATE POLICY "Admin/Support can update tickets."
+DROP POLICY IF EXISTS "Users view own tickets, admins manage all" ON public.support_tickets;
+
+CREATE POLICY "Users view own tickets, admins manage all"
     ON public.support_tickets FOR ALL
-    USING (true);
+    USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'))
+    WITH CHECK (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Users view own tickets, admins manage all" ON public.support_tickets
+    USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 
 -- ==========================================
@@ -633,19 +637,17 @@ CREATE TABLE IF NOT EXISTS public.user_limits (
 ALTER TABLE public.user_limits ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own limits." ON public.user_limits;
-CREATE POLICY "Users can view their own limits."
-    ON public.user_limits FOR SELECT
-    USING (auth.uid() = user_id);
-
 DROP POLICY IF EXISTS "Users can insert their own limits." ON public.user_limits;
-CREATE POLICY "Users can insert their own limits."
-    ON public.user_limits FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
 DROP POLICY IF EXISTS "Users can update their own limits." ON public.user_limits;
-CREATE POLICY "Users can update their own limits."
-    ON public.user_limits FOR UPDATE
-    USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users manage own limits" ON public.user_limits;
+
+CREATE POLICY "Users manage own limits"
+    ON public.user_limits FOR ALL
+    USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'))
+    WITH CHECK (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Users manage own limits" ON public.user_limits
+    USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_limits TO anon, authenticated, service_role;
 
@@ -678,18 +680,17 @@ ALTER TABLE public.obdi_leads ENABLE ROW LEVEL SECURITY;
 -- Grant permissions to public, anon, and authenticated roles
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.obdi_leads TO anon, authenticated, service_role;
 
--- 1. SELECT policy: Allow public select on obdi_leads
 DROP POLICY IF EXISTS "Allow public select on obdi_leads" ON public.obdi_leads;
-CREATE POLICY "Allow public select on obdi_leads"
-    ON public.obdi_leads FOR SELECT
-    USING (true);
-
--- 2. INSERT/UPDATE/DELETE policy: Allow authenticated and anonymous users to manage obdi_leads
 DROP POLICY IF EXISTS "Allow management of obdi_leads" ON public.obdi_leads;
-CREATE POLICY "Allow management of obdi_leads"
+DROP POLICY IF EXISTS "Admins manage obdi_leads" ON public.obdi_leads;
+
+CREATE POLICY "Admins manage obdi_leads"
     ON public.obdi_leads FOR ALL
-    USING (true)
-    WITH CHECK (true);
+    USING ((auth.jwt() ->> 'role') IN ('admin', 'service_role'))
+    WITH CHECK ((auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+ALTER POLICY "Admins manage obdi_leads" ON public.obdi_leads
+    USING ((auth.jwt() ->> 'role') IN ('admin', 'service_role'));
 
 
 -- ==========================================
@@ -983,4 +984,32 @@ CREATE TRIGGER trigger_auto_unlock_orbit_rewards
 
 -- Grants summary confirmation
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- SECURE REFERRAL LOOKUP RPC (Prevents exposing email/profiles on public lookup)
+CREATE OR REPLACE FUNCTION public.get_referrer_by_code(p_code TEXT)
+RETURNS TABLE (
+    uid UUID,
+    name TEXT,
+    referral_code TEXT,
+    agent_status BOOLEAN,
+    balance NUMERIC,
+    verified_referrals INT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.id AS uid,
+        p.name,
+        p.referral_code,
+        p.agent_status,
+        p.balance,
+        p.verified_referrals
+    FROM public.profiles p
+    WHERE UPPER(TRIM(p.referral_code)) = UPPER(TRIM(p_code))
+       OR UPPER(TRIM(p.agent_id)) = UPPER(TRIM(p_code))
+    LIMIT 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.get_referrer_by_code(TEXT) TO anon, authenticated, service_role;
 
