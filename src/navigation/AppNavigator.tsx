@@ -9,6 +9,7 @@ import { ChatHistoryScreen } from '../screens/ChatHistoryScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SubscriptionScreen } from '../screens/SubscriptionScreen';
 import { AgentsScreen } from '../screens/AgentsScreen';
+import { AgentPublicPreviewScreen } from '../screens/AgentPublicPreviewScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { HelpSupportScreen } from '../screens/HelpSupportScreen';
@@ -58,12 +59,7 @@ export const AppNavigator: React.FC = () => {
       case "agents":
       case "agent":
         if (!isPro) {
-          return (
-            <PremiumLockScreen 
-              title="Agent Program" 
-              description="Upgrade to Orbit Pro to activate Agent Mode and earn referral commissions." 
-            />
-          );
+          return <AgentPublicPreviewScreen />;
         }
         return <AgentsScreen />;
       case "settings":

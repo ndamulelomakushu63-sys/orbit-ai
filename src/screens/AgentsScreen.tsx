@@ -4,6 +4,7 @@ import { ArrowLeft, Copy, Check } from '../components/Icons';
 import { useAppState } from '../services/state';
 import { UserPlan, UserProfile, ReferralRecord } from '../types';
 import { supabase, dbFetchProfileById, getReferralLink } from '../services/supabase';
+import { AgentPublicPreviewScreen } from './AgentPublicPreviewScreen';
 
 export const AgentsScreen: React.FC = () => {
   const { 
@@ -68,7 +69,12 @@ export const AgentsScreen: React.FC = () => {
     };
   }, [currentUser?.uid]);
 
-  if (!currentUser) return null;
+  if (!currentUser) return <AgentPublicPreviewScreen />;
+
+  const isProUser = currentUser.subscription_status === "pro_monthly" || currentUser.subscription_status === "pro_yearly" || currentUser.plan === UserPlan.PRO;
+  if (!isProUser) {
+    return <AgentPublicPreviewScreen />;
+  }
 
   const currentProf = profile || currentUser;
   const agentId = currentProf.agent_id || currentProf.referralCode || "AGT-XXXXXX";

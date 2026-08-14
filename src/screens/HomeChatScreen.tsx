@@ -204,6 +204,10 @@ export const HomeChatScreen: React.FC = () => {
 
   const handlePremiumRoute = (screen: string) => {
     setShowMenu(false);
+    if (screen === "agents" || screen === "agent") {
+      setMobileScreen("agents");
+      return;
+    }
     if (isPro) {
       setMobileScreen(screen);
     } else {
