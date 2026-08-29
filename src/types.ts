@@ -225,5 +225,121 @@ export interface OrbitRewardSettings {
   updatedAt: string;
 }
 
+// ==========================================
+// ORBIT MARKET (VISION 1) TYPES
+// ==========================================
+
+export type MarketOrderStatus = 
+  | 'PAID'
+  | 'PREPARING'
+  | 'READY FOR COLLECTION'
+  | 'RECEIVED BY ORBIT'
+  | 'OUT FOR DELIVERY'
+  | 'DELIVERED'
+  | 'CANCELLED'
+  | 'REFUNDED';
+
+export type MarketPaymentStatus = 'Pending' | 'Paid' | 'Failed';
+
+export interface MarketBrand {
+  id: string;
+  userId?: string;
+  name: string;
+  slug: string;
+  description: string;
+  location?: string;
+  logoUrl?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  isVerified?: boolean;
+  isOrbitCollection?: boolean;
+  status?: 'Active' | 'Pending' | 'Suspended';
+  createdAt?: string;
+}
+
+export interface MarketProductVariant {
+  id: string;
+  productId: string;
+  sizeName: string; // e.g. "S", "M", "L", "XL"
+  stockQuantity: number;
+  priceOverride?: number;
+}
+
+export interface MarketProduct {
+  id: string;
+  brandId: string;
+  brandName: string;
+  name: string;
+  description: string;
+  price: number;
+  category?: string;
+  imageUrl?: string;
+  images?: string[];
+  isPublished?: boolean;
+  inStock: boolean;
+  stockQuantity: number;
+  variants: MarketProductVariant[];
+  createdAt?: string;
+}
+
+export interface CartItem {
+  id: string;
+  productId: string;
+  productName: string;
+  brandId: string;
+  brandName: string;
+  variantId?: string;
+  variantName?: string;
+  price: number;
+  quantity: number;
+  maxStock: number;
+  imageUrl?: string;
+}
+
+export interface MarketOrderItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  brandId: string;
+  sellerId?: string;
+  productName: string;
+  brandName: string;
+  variantName?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface MarketOrder {
+  id: string;
+  orderNumber: string; // e.g. "ORB-10482"
+  userId?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  subtotal: number;
+  deliveryFee: number;
+  commissionRate: number; // e.g. 0.10 for 10%
+  commissionAmount: number;
+  sellerPayoutAmount: number;
+  total: number;
+  paymentStatus: MarketPaymentStatus;
+  orderStatus: MarketOrderStatus;
+  paymentId?: string;
+  trackingNumber?: string;
+  createdAt: string;
+  updatedAt: string;
+  items: MarketOrderItem[];
+}
+
+export interface MarketSettings {
+  id: string;
+  commissionRate: number;
+  defaultDeliveryFee: number;
+  minOrderAmount: number;
+  isActive: boolean;
+}
+
 
 

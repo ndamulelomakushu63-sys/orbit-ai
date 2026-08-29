@@ -22,10 +22,14 @@ import { BusinessBuilderScreen } from '../screens/BusinessBuilderScreen';
 import BusinessModeScreen from '../screens/BusinessModeScreen';
 import { TaskModeScreen } from '../screens/TaskModeScreen';
 import { OrbitRewardsScreen } from '../screens/OrbitRewardsScreen';
+import { MarketHomeScreen } from '../screens/MarketHomeScreen';
+import { MarketCheckoutScreen } from '../screens/MarketCheckoutScreen';
+import { MarketOrdersScreen } from '../screens/MarketOrdersScreen';
+import { MarketSellerScreen } from '../screens/MarketSellerScreen';
 import { PremiumLockScreen } from '../components/PremiumLockScreen';
 
 export const AppNavigator: React.FC = () => {
-  const { mobileScreen, currentUser } = useAppState();
+  const { mobileScreen, setMobileScreen, currentUser } = useAppState();
 
   const subStatus = currentUser?.subscription_status;
   const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly" || currentUser?.plan === UserPlan.PRO;
@@ -100,6 +104,34 @@ export const AppNavigator: React.FC = () => {
         return <BusinessModeScreen />;
       case "orbit-rewards":
         return <OrbitRewardsScreen />;
+      case "market":
+        return (
+          <MarketHomeScreen
+            onNavigateToCheckout={() => setMobileScreen("market-checkout")}
+            onNavigateToOrders={() => setMobileScreen("market-orders")}
+            onNavigateToSeller={() => setMobileScreen("market-seller")}
+            onBackToChat={() => setMobileScreen("chat")}
+          />
+        );
+      case "market-checkout":
+        return (
+          <MarketCheckoutScreen
+            onBack={() => setMobileScreen("market")}
+            onOrderSuccess={() => setMobileScreen("market-orders")}
+          />
+        );
+      case "market-orders":
+        return (
+          <MarketOrdersScreen
+            onBack={() => setMobileScreen("market")}
+          />
+        );
+      case "market-seller":
+        return (
+          <MarketSellerScreen
+            onBack={() => setMobileScreen("market")}
+          />
+        );
       default:
         return <SplashScreen />;
     }

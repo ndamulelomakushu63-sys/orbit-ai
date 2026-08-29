@@ -1013,3 +1013,197 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION public.get_referrer_by_code(TEXT) TO anon, authenticated, service_role;
 
+-- ==========================================
+-- 10. ORBIT MARKET (VISION 1) TABLES & RLS
+-- ==========================================
+
+-- Brands / Sellers Table
+CREATE TABLE IF NOT EXISTS public.market_brands (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    description TEXT,
+    location TEXT,
+    contact_email TEXT,
+    contact_phone TEXT,
+    is_verified BOOLEAN DEFAULT FALSE,
+    is_orbit_collection BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Products Table
+CREATE TABLE IF NOT EXISTS public.market_products (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT REFERENCES public.market_brands(id) ON DELETE CASCADE,
+    brand_name TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    price NUMERIC NOT NULL DEFAULT 0.00,
+    category TEXT NOT NULL DEFAULT 'Other Local Brands',
+    image_url TEXT,
+    in_stock BOOLEAN DEFAULT TRUE,
+    stock_quantity INT DEFAULT 10,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Product Variants (Sizes, etc.)
+CREATE TABLE IF NOT EXISTS public.market_product_variants (
+    id TEXT PRIMARY KEY,
+    product_id TEXT REFERENCES public.market_products(id) ON DELETE CASCADE,
+    size_name TEXT NOT NULL,
+    stock_quantity INT DEFAULT 5,
+    price_override NUMERIC
+);
+
+-- Orders Table
+CREATE TABLE IF NOT EXISTS public.market_orders (
+    id TEXT PRIMARY KEY,
+    order_number TEXT UNIQUE NOT NULL,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    customer_name TEXT NOT NULL,
+    customer_email TEXT NOT NULL,
+    customer_phone TEXT NOT NULL,
+    delivery_address TEXT NOT NULL,
+    subtotal NUMERIC NOT NULL DEFAULT 0.00,
+    delivery_fee NUMERIC NOT NULL DEFAULT 50.00,
+    commission_rate NUMERIC NOT NULL DEFAULT 0.10,
+    commission_amount NUMERIC NOT NULL DEFAULT 0.00,
+    seller_payout_amount NUMERIC NOT NULL DEFAULT 0.00,
+    total NUMERIC NOT NULL DEFAULT 0.00,
+    payment_status TEXT NOT NULL DEFAULT 'Pending',
+    order_status TEXT NOT NULL DEFAULT 'PAID',
+    payment_id TEXT,
+    tracking_number TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Order Items Table
+CREATE TABLE IF NOT EXISTS public.market_order_items (
+    id TEXT PRIMARY KEY,
+    order_id TEXT REFERENCES public.market_orders(id) ON DELETE CASCADE,
+    product_id TEXT NOT NULL,
+    brand_id TEXT NOT NULL,
+    seller_id TEXT,
+    product_name TEXT NOT NULL,
+    brand_name TEXT NOT NULL,
+    variant_name TEXT,
+    quantity INT NOT NULL DEFAULT 1,
+    unit_price NUMERIC NOT NULL DEFAULT 0.00,
+    total_price NUMERIC NOT NULL DEFAULT 0.00
+);
+
+-- Market Settings Table
+CREATE TABLE IF NOT EXISTS public.market_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    commission_rate NUMERIC NOT NULL DEFAULT 0.10,
+    default_delivery_fee NUMERIC NOT NULL DEFAULT 50.00,
+    min_order_amount NUMERIC NOT NULL DEFAULT 0.00,
+    is_active BOOLEAN DEFAULT TRUE,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS on Market Tables
+ALTER TABLE public.market_brands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.market_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.market_product_variants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.market_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.market_order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.market_settings ENABLE ROW LEVEL SECURITY;
+
+-- Brands RLS (Public read, seller/admin manage)
+DROP POLICY IF EXISTS "Public can view market brands" ON public.market_brands;
+CREATE POLICY "Public can view market brands" ON public.market_brands FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users can create brand" ON public.market_brands;
+CREATE POLICY "Authenticated users can create brand" ON public.market_brands FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "Owners can update brand" ON public.market_brands;
+CREATE POLICY "Owners can update brand" ON public.market_brands FOR UPDATE USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role'));
+
+-- Products RLS (Public read, seller manage)
+DROP POLICY IF EXISTS "Public can view market products" ON public.market_products;
+CREATE POLICY "Public can view market products" ON public.market_products FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Brand owners can insert products" ON public.market_products;
+CREATE POLICY "Brand owners can insert products" ON public.market_products FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "Brand owners can update products" ON public.market_products;
+CREATE POLICY "Brand owners can update products" ON public.market_products FOR UPDATE USING (true);
+
+-- Product Variants RLS
+DROP POLICY IF EXISTS "Public can view product variants" ON public.market_product_variants;
+CREATE POLICY "Public can view product variants" ON public.market_product_variants FOR SELECT USING (true);
+
+-- Orders RLS (Customer sees own, seller sees orders containing their items, admin sees all)
+DROP POLICY IF EXISTS "Customers can view their own orders" ON public.market_orders;
+CREATE POLICY "Customers can view their own orders" ON public.market_orders FOR SELECT USING (auth.uid() = user_id OR (auth.jwt() ->> 'role') IN ('admin', 'service_role') OR user_id IS NULL);
+
+DROP POLICY IF EXISTS "Customers can insert orders" ON public.market_orders;
+CREATE POLICY "Customers can insert orders" ON public.market_orders FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Order updates authorized" ON public.market_orders;
+CREATE POLICY "Order updates authorized" ON public.market_orders FOR UPDATE USING (true);
+
+-- Order Items RLS
+DROP POLICY IF EXISTS "Public can view order items for their orders" ON public.market_order_items;
+CREATE POLICY "Public can view order items for their orders" ON public.market_order_items FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Insert order items" ON public.market_order_items;
+CREATE POLICY "Insert order items" ON public.market_order_items FOR INSERT WITH CHECK (true);
+
+-- Settings RLS
+DROP POLICY IF EXISTS "Public can read market settings" ON public.market_settings;
+CREATE POLICY "Public can read market settings" ON public.market_settings FOR SELECT USING (true);
+
+-- Seed Initial Default Data
+INSERT INTO public.market_brands (id, name, slug, description, location, is_verified, is_orbit_collection)
+VALUES 
+    ('brand-orbit', 'Orbit Collection', 'orbit-collection', 'Official Orbit AI merchandise and apparel.', 'South Africa', true, true),
+    ('brand-authentic', 'Authentic', 'authentic', 'Premium local clothing crafted for effortless style.', 'Johannesburg, ZA', true, false),
+    ('brand-kasi-crafted', 'Kasi Crafted', 'kasi-crafted', 'Handmade local lifestyle accessories & apparel.', 'Cape Town, ZA', true, false)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.market_products (id, brand_id, brand_name, name, description, price, category, in_stock, stock_quantity)
+VALUES 
+    ('prod-orb-tshirt', 'brand-orbit', 'Orbit Collection', 'Orbit AI Classic T-Shirt', 'Premium heavyweight cotton tee with discreet Orbit AI chest insignia.', 199.00, 'Orbit Collection', true, 50),
+    ('prod-orb-hoodie', 'brand-orbit', 'Orbit Collection', 'Orbit AI Pullover Hoodie', 'Ultra-soft fleece hoodie designed for maximum comfort and longevity.', 399.00, 'Orbit Collection', true, 30),
+    ('prod-orb-cap', 'brand-orbit', 'Orbit Collection', 'Orbit Minimalist Cap', 'Structured cotton 6-panel cap with embroidered metallic emblem.', 149.00, 'Orbit Collection', true, 40),
+    ('prod-auth-tshirt', 'brand-authentic', 'Authentic', 'Authentic Classic T-Shirt', 'Clean-cut modern fit t-shirt tailored with breathable South African cotton.', 159.00, 'Authentic', true, 45),
+    ('prod-auth-sweat', 'brand-authentic', 'Authentic', 'Authentic Crewneck Sweatshirt', 'Relaxed fit pullover sweater with premium ribbed cuffs and neckline.', 299.00, 'Authentic', true, 25),
+    ('prod-auth-jacket', 'brand-authentic', 'Authentic', 'Authentic Denim Overshirt', 'Durable premium raw denim overshirt for all-season layering.', 499.00, 'Authentic', true, 15),
+    ('prod-kasi-wallet', 'brand-kasi-crafted', 'Kasi Crafted', 'Handmade Leather Cardholder', 'Genuine vegetable-tanned leather minimalist card wallet with 6 card slots.', 120.00, 'Other Local Brands', true, 30),
+    ('prod-kasi-tote', 'brand-kasi-crafted', 'Kasi Crafted', 'Heavy Canvas Market Tote', 'Eco-friendly natural canvas tote bag reinforced for everyday carry.', 99.00, 'Other Local Brands', true, 50)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.market_product_variants (id, product_id, size_name, stock_quantity)
+VALUES
+    ('var-orb-ts-s', 'prod-orb-tshirt', 'S', 15),
+    ('var-orb-ts-m', 'prod-orb-tshirt', 'M', 20),
+    ('var-orb-ts-l', 'prod-orb-tshirt', 'L', 10),
+    ('var-orb-ts-xl', 'prod-orb-tshirt', 'XL', 5),
+    ('var-orb-hd-s', 'prod-orb-hoodie', 'S', 8),
+    ('var-orb-hd-m', 'prod-orb-hoodie', 'M', 12),
+    ('var-orb-hd-l', 'prod-orb-hoodie', 'L', 7),
+    ('var-orb-hd-xl', 'prod-orb-hoodie', 'XL', 3),
+    ('var-auth-ts-s', 'prod-auth-tshirt', 'S', 10),
+    ('var-auth-ts-m', 'prod-auth-tshirt', 'M', 20),
+    ('var-auth-ts-l', 'prod-auth-tshirt', 'L', 10),
+    ('var-auth-ts-xl', 'prod-auth-tshirt', 'XL', 5),
+    ('var-auth-sw-s', 'prod-auth-sweat', 'S', 5),
+    ('var-auth-sw-m', 'prod-auth-sweat', 'M', 10),
+    ('var-auth-sw-l', 'prod-auth-sweat', 'L', 7),
+    ('var-auth-sw-xl', 'prod-auth-sweat', 'XL', 3),
+    ('var-auth-jk-s', 'prod-auth-jacket', 'S', 3),
+    ('var-auth-jk-m', 'prod-auth-jacket', 'M', 6),
+    ('var-auth-jk-l', 'prod-auth-jacket', 'L', 4),
+    ('var-auth-jk-xl', 'prod-auth-jacket', 'XL', 2)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.market_settings (id, commission_rate, default_delivery_fee, min_order_amount, is_active)
+VALUES ('default', 0.10, 50.00, 0.00, true)
+ON CONFLICT (id) DO NOTHING;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+

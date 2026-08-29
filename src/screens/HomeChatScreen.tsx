@@ -708,6 +708,13 @@ export const HomeChatScreen: React.FC = () => {
               >
                 <Text className="text-[16px] font-medium text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">Orbit Rewards</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity 
+                onClick={() => { setShowMenu(false); setMobileScreen("market"); }}
+                className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left border-t border-slate-100"
+              >
+                <Text className="text-[16px] font-semibold text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">Orbit Market</Text>
+              </TouchableOpacity>
             </div>
           )}
         </div>

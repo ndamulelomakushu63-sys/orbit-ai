@@ -4,7 +4,8 @@ import {
   UserProfile, SubscriptionRecord, ReferralRecord, 
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, 
   AppNotification, SupportTicket,
-  ObdiLead, Business
+  ObdiLead, Business,
+  MarketBrand, MarketProduct, MarketProductVariant, MarketOrder, MarketOrderItem, MarketSettings, MarketOrderStatus
 } from '../types.js';
 
 // Supabase project credentials provided
@@ -1123,6 +1124,470 @@ export async function dbInsertAuditLog(userId: string, actionType: string, detai
   } catch (err) {
     console.warn("Supabase audit log insert failed:", err);
     return false;
+  }
+}
+
+// ==========================================
+// 12. ORBIT MARKET (VISION 1) DB OPERATIONS
+// ==========================================
+
+export const DEFAULT_MARKET_BRANDS: MarketBrand[] = [
+  {
+    id: 'brand-orbit',
+    name: 'Orbit Collection',
+    slug: 'orbit-collection',
+    description: 'Official Orbit AI merchandise and minimalist streetwear apparel.',
+    location: 'South Africa',
+    isVerified: true,
+    isOrbitCollection: true,
+    status: 'Active',
+    createdAt: new Date().toISOString()
+  }
+];
+
+export const DEFAULT_MARKET_PRODUCTS: MarketProduct[] = [];
+
+export async function dbUploadMarketProductImage(file: File, filename?: string): Promise<string | null> {
+  try {
+    const cleanName = filename || `product_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+    // Try bucket upload first
+    const bucket = supabase.storage.from('obdi-photos');
+    const { data, error } = await bucket.upload(`market/${cleanName}`, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
+    if (!error && data) {
+      const { data: pub } = bucket.getPublicUrl(`market/${cleanName}`);
+      if (pub?.publicUrl) return pub.publicUrl;
+    }
+  } catch (err) {
+    console.warn("Storage upload fallback to base64 reader:", err);
+  }
+
+  // Reliable client-side base64 fallback for instant preview & persistence
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function dbFetchMarketBrands(): Promise<MarketBrand[]> {
+  try {
+    const { data, error } = await supabase
+      .from('market_brands')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      const local = localStorage.getItem('orbit_market_brands');
+      if (local) {
+        try { return JSON.parse(local); } catch (e) {}
+      }
+      return DEFAULT_MARKET_BRANDS;
+    }
+
+    return data.map((b: any) => ({
+      id: b.id,
+      userId: b.user_id,
+      name: b.name,
+      slug: b.slug,
+      description: b.description || '',
+      location: b.location || '',
+      contactEmail: b.contact_email || '',
+      contactPhone: b.contact_phone || '',
+      isVerified: b.is_verified ?? false,
+      isOrbitCollection: b.is_orbit_collection ?? false,
+      createdAt: b.created_at
+    }));
+  } catch (err) {
+    console.warn("Supabase fetch market brands failed, using fallback:", err);
+    return DEFAULT_MARKET_BRANDS;
+  }
+}
+
+export async function dbUpsertMarketBrand(brand: MarketBrand): Promise<boolean> {
+  try {
+    const dbPayload = {
+      id: brand.id,
+      user_id: brand.userId || null,
+      name: brand.name,
+      slug: brand.slug,
+      description: brand.description,
+      location: brand.location,
+      contact_email: brand.contactEmail,
+      contact_phone: brand.contactPhone,
+      is_verified: brand.isVerified ?? false,
+      is_orbit_collection: brand.isOrbitCollection ?? false,
+      created_at: brand.createdAt || new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('market_brands')
+      .upsert(dbPayload);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase upsert market brand failed:", err);
+    try {
+      const local = localStorage.getItem('orbit_market_brands');
+      const list = local ? JSON.parse(local) : [...DEFAULT_MARKET_BRANDS];
+      const idx = list.findIndex((b: any) => b.id === brand.id);
+      if (idx >= 0) list[idx] = brand;
+      else list.push(brand);
+      localStorage.setItem('orbit_market_brands', JSON.stringify(list));
+    } catch (e) {}
+    return true;
+  }
+}
+
+export async function dbFetchMarketProducts(): Promise<MarketProduct[]> {
+  try {
+    const { data: prods, error: pErr } = await supabase
+      .from('market_products')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (pErr || !prods || prods.length === 0) {
+      const local = localStorage.getItem('orbit_market_products');
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
+          const cleaned = Array.isArray(parsed) ? parsed.filter((p: any) => p && !demoIds.includes(p.id)) : [];
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem('orbit_market_products', JSON.stringify(cleaned));
+          }
+          return cleaned;
+        } catch (e) {}
+      }
+      return DEFAULT_MARKET_PRODUCTS;
+    }
+
+    const { data: variants } = await supabase
+      .from('market_product_variants')
+      .select('*');
+
+    const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
+    const activeProds = prods.filter((p: any) => !demoIds.includes(p.id));
+
+    return activeProds.map((p: any) => {
+      const pVariants = (variants || [])
+        .filter((v: any) => v.product_id === p.id)
+        .map((v: any) => ({
+          id: v.id,
+          productId: v.product_id,
+          sizeName: v.size_name,
+          stockQuantity: Number(v.stock_quantity || 0),
+          priceOverride: v.price_override ? Number(v.price_override) : undefined
+        }));
+
+      let imgList: string[] = [];
+      if (Array.isArray(p.images) && p.images.length > 0) {
+        imgList = p.images;
+      } else if (p.image_url) {
+        imgList = [p.image_url];
+      }
+
+      return {
+        id: p.id,
+        brandId: p.brand_id,
+        brandName: p.brand_name || '',
+        name: p.name,
+        description: p.description || '',
+        price: Number(p.price || 0),
+        category: p.category || (p.brand_name || 'Orbit Collection'),
+        imageUrl: p.image_url || imgList[0] || '',
+        images: imgList,
+        isPublished: p.is_published ?? true,
+        inStock: p.in_stock ?? true,
+        stockQuantity: Number(p.stock_quantity || 0),
+        variants: pVariants,
+        createdAt: p.created_at
+      };
+    });
+  } catch (err) {
+    console.warn("Supabase fetch market products failed, using fallback:", err);
+    try {
+      const local = localStorage.getItem('orbit_market_products');
+      if (local) {
+        const parsed = JSON.parse(local);
+        const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
+        return Array.isArray(parsed) ? parsed.filter((p: any) => p && !demoIds.includes(p.id)) : [];
+      }
+    } catch (e) {}
+    return DEFAULT_MARKET_PRODUCTS;
+  }
+}
+
+export async function dbUpsertMarketProduct(product: MarketProduct): Promise<boolean> {
+  try {
+    const mainImg = product.imageUrl || (product.images && product.images.length > 0 ? product.images[0] : null);
+    const { error: pErr } = await supabase
+      .from('market_products')
+      .upsert({
+        id: product.id,
+        brand_id: product.brandId,
+        brand_name: product.brandName,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        category: product.category,
+        image_url: mainImg,
+        images: product.images || (mainImg ? [mainImg] : []),
+        is_published: product.isPublished ?? true,
+        in_stock: product.inStock,
+        stock_quantity: product.stockQuantity,
+        created_at: product.createdAt || new Date().toISOString()
+      });
+
+    if (pErr) throw pErr;
+
+    if (product.variants && product.variants.length > 0) {
+      for (const v of product.variants) {
+        await supabase
+          .from('market_product_variants')
+          .upsert({
+            id: v.id,
+            product_id: product.id,
+            size_name: v.sizeName,
+            stock_quantity: v.stockQuantity,
+            price_override: v.priceOverride || null
+          });
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn("Supabase upsert product failed:", err);
+    try {
+      const local = localStorage.getItem('orbit_market_products');
+      const list = local ? JSON.parse(local) : [...DEFAULT_MARKET_PRODUCTS];
+      const idx = list.findIndex((p: any) => p.id === product.id);
+      if (idx >= 0) list[idx] = product;
+      else list.push(product);
+      localStorage.setItem('orbit_market_products', JSON.stringify(list));
+    } catch (e) {}
+    return true;
+  }
+}
+
+export async function dbFetchMarketOrders(userId?: string): Promise<MarketOrder[]> {
+  try {
+    let query = supabase
+      .from('market_orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data: orders, error: oErr } = await query;
+    if (oErr || !orders) {
+      const local = localStorage.getItem('orbit_market_orders');
+      if (local) {
+        try {
+          const list: MarketOrder[] = JSON.parse(local);
+          return userId ? list.filter(o => o.userId === userId) : list;
+        } catch (e) {}
+      }
+      return [];
+    }
+
+    const orderIds = orders.map((o: any) => o.id);
+    const { data: items } = await supabase
+      .from('market_order_items')
+      .select('*')
+      .in('order_id', orderIds);
+
+    return orders.map((o: any) => {
+      const orderItems = (items || [])
+        .filter((it: any) => it.order_id === o.id)
+        .map((it: any) => ({
+          id: it.id,
+          orderId: it.order_id,
+          productId: it.product_id,
+          brandId: it.brand_id,
+          sellerId: it.seller_id,
+          productName: it.product_name,
+          brandName: it.brand_name,
+          variantName: it.variant_name,
+          quantity: Number(it.quantity || 1),
+          unitPrice: Number(it.unit_price || 0),
+          totalPrice: Number(it.total_price || 0)
+        }));
+
+      return {
+        id: o.id,
+        orderNumber: o.order_number,
+        userId: o.user_id,
+        customerName: o.customer_name,
+        customerEmail: o.customer_email,
+        customerPhone: o.customer_phone,
+        deliveryAddress: o.delivery_address,
+        subtotal: Number(o.subtotal || 0),
+        deliveryFee: Number(o.delivery_fee || 0),
+        commissionRate: Number(o.commission_rate || 0.10),
+        commissionAmount: Number(o.commission_amount || 0),
+        sellerPayoutAmount: Number(o.seller_payout_amount || 0),
+        total: Number(o.total || 0),
+        paymentStatus: o.payment_status,
+        orderStatus: o.order_status,
+        paymentId: o.payment_id,
+        trackingNumber: o.tracking_number,
+        createdAt: o.created_at,
+        updatedAt: o.updated_at,
+        items: orderItems
+      };
+    });
+  } catch (err) {
+    console.warn("Supabase fetch orders failed:", err);
+    try {
+      const local = localStorage.getItem('orbit_market_orders');
+      if (local) {
+        const list: MarketOrder[] = JSON.parse(local);
+        return userId ? list.filter(o => o.userId === userId) : list;
+      }
+    } catch (e) {}
+    return [];
+  }
+}
+
+export async function dbCreateMarketOrder(order: MarketOrder): Promise<boolean> {
+  try {
+    const { error: oErr } = await supabase
+      .from('market_orders')
+      .upsert({
+        id: order.id,
+        order_number: order.orderNumber,
+        user_id: order.userId || null,
+        customer_name: order.customerName,
+        customer_email: order.customerEmail,
+        customer_phone: order.customerPhone,
+        delivery_address: order.deliveryAddress,
+        subtotal: order.subtotal,
+        delivery_fee: order.deliveryFee,
+        commission_rate: order.commissionRate,
+        commission_amount: order.commissionAmount,
+        seller_payout_amount: order.sellerPayoutAmount,
+        total: order.total,
+        payment_status: order.paymentStatus,
+        order_status: order.orderStatus,
+        payment_id: order.paymentId || null,
+        tracking_number: order.trackingNumber || null,
+        created_at: order.createdAt || new Date().toISOString(),
+        updated_at: order.updatedAt || new Date().toISOString()
+      });
+
+    if (oErr) throw oErr;
+
+    if (order.items && order.items.length > 0) {
+      for (const item of order.items) {
+        await supabase
+          .from('market_order_items')
+          .upsert({
+            id: item.id,
+            order_id: order.id,
+            product_id: item.productId,
+            brand_id: item.brandId,
+            seller_id: item.sellerId || null,
+            product_name: item.productName,
+            brand_name: item.brandName,
+            variant_name: item.variantName || null,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            total_price: item.totalPrice
+          });
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn("Supabase create order failed, saving locally:", err);
+    try {
+      const local = localStorage.getItem('orbit_market_orders');
+      const list = local ? JSON.parse(local) : [];
+      const idx = list.findIndex((o: any) => o.id === order.id);
+      if (idx >= 0) list[idx] = order;
+      else list.unshift(order);
+      localStorage.setItem('orbit_market_orders', JSON.stringify(list));
+    } catch (e) {}
+    return true;
+  }
+}
+
+export async function dbUpdateMarketOrderStatus(orderId: string, status: MarketOrderStatus, trackingNumber?: string): Promise<boolean> {
+  try {
+    const updatePayload: any = {
+      order_status: status,
+      updated_at: new Date().toISOString()
+    };
+    if (trackingNumber) {
+      updatePayload.tracking_number = trackingNumber;
+    }
+
+    const { error } = await supabase
+      .from('market_orders')
+      .update(updatePayload)
+      .eq('id', orderId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn("Supabase update order status failed, updating locally:", err);
+    try {
+      const local = localStorage.getItem('orbit_market_orders');
+      if (local) {
+        const list: MarketOrder[] = JSON.parse(local);
+        const idx = list.findIndex(o => o.id === orderId);
+        if (idx >= 0) {
+          list[idx].orderStatus = status;
+          if (trackingNumber) list[idx].trackingNumber = trackingNumber;
+          list[idx].updatedAt = new Date().toISOString();
+          localStorage.setItem('orbit_market_orders', JSON.stringify(list));
+        }
+      }
+    } catch (e) {}
+    return true;
+  }
+}
+
+export async function dbFetchMarketSettings(): Promise<MarketSettings> {
+  try {
+    const { data, error } = await supabase
+      .from('market_settings')
+      .select('*')
+      .eq('id', 'default')
+      .single();
+
+    if (error || !data) {
+      return {
+        id: 'default',
+        commissionRate: 0.10,
+        defaultDeliveryFee: 50.00,
+        minOrderAmount: 0.00,
+        isActive: true
+      };
+    }
+
+    return {
+      id: data.id,
+      commissionRate: Number(data.commission_rate ?? 0.10),
+      defaultDeliveryFee: Number(data.default_delivery_fee ?? 50.00),
+      minOrderAmount: Number(data.min_order_amount ?? 0.00),
+      isActive: data.is_active ?? true
+    };
+  } catch (err) {
+    return {
+      id: 'default',
+      commissionRate: 0.10,
+      defaultDeliveryFee: 50.00,
+      minOrderAmount: 0.00,
+      isActive: true
+    };
   }
 }
 

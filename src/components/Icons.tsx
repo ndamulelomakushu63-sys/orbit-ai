@@ -59,7 +59,21 @@ export {
   Clock,
   ShieldCheck,
   Target,
-  BookOpen
+  BookOpen,
+  ShoppingBag,
+  ShoppingCart,
+  Tag,
+  Package,
+  Truck,
+  Store,
+  MapPin,
+  Minus,
+  ChevronDown,
+  CheckCircle2,
+  X,
+  UploadCloud,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 

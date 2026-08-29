@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppStateProvider } from './services/state';
+import { MarketProvider } from './services/marketState';
 import { AppNavigator } from './navigation/AppNavigator';
 import { AdminDashboardScreen } from './screens/AdminDashboardScreen';
 import { NATIVE_FILES } from './nativeCodeData';
@@ -12,7 +13,9 @@ import {
 export default function App() {
   return (
     <AppStateProvider>
-      <AppContent />
+      <MarketProvider>
+        <AppContent />
+      </MarketProvider>
     </AppStateProvider>
   );
 }

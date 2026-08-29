@@ -58,17 +58,21 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Please verify your email before purchasing." });
     }
 
-    const merchantId = process.env.PAYFAST_MERCHANT_ID || "10000100";
-    const merchantKey = process.env.PAYFAST_MERCHANT_KEY || "46f0z5809up2u";
+    const merchantId = process.env.PAYFAST_MERCHANT_ID;
+    const merchantKey = process.env.PAYFAST_MERCHANT_KEY;
     const passphrase = process.env.PAYFAST_PASSPHRASE;
+
+    if (!merchantId || !merchantKey) {
+      return res.status(500).json({ error: "Server payment configuration error: PAYFAST_MERCHANT_ID and PAYFAST_MERCHANT_KEY environment variables are required." });
+    }
 
     console.log("[PayFast Config Debug] PAYFAST_MERCHANT_ID read:", merchantId ? `${merchantId.substring(0, 4)}*** (length: ${merchantId.length})` : "NOT_SET");
     console.log("[PayFast Config Debug] PAYFAST_MERCHANT_KEY read:", merchantKey ? `${merchantKey.substring(0, 4)}*** (length: ${merchantKey.length})` : "NOT_SET");
     console.log("[PayFast Config Debug] PAYFAST_PASSPHRASE exists:", passphrase ? "YES" : "NO");
 
-    const host = req.headers.host;
-    const protocol = req.headers["x-forwarded-proto"] || "https";
-    const origin = process.env.APP_URL || `${protocol}://${host}`;
+    const host = req.headers?.host;
+    const protocol = req.headers?.["x-forwarded-proto"] || "https";
+    const origin = process.env.APP_URL || (host ? `${protocol}://${host}` : "https://orbitai.co.za");
 
     let returnUrl = `${origin}?payment_success=true`;
     let cancelUrl = `${origin}?payment_cancelled=true`;

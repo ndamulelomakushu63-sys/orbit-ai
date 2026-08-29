@@ -512,9 +512,13 @@ app.post("/api/payfast/checkout", async (req, res) => {
     }
 
     // 1. Log and verify Merchant ID and Merchant Key are being read correctly from Environment Variables
-    const merchantId = process.env.PAYFAST_MERCHANT_ID || "10000100";
-    const merchantKey = process.env.PAYFAST_MERCHANT_KEY || "46f0z5809up2u";
+    const merchantId = process.env.PAYFAST_MERCHANT_ID;
+    const merchantKey = process.env.PAYFAST_MERCHANT_KEY;
     const passphrase = process.env.PAYFAST_PASSPHRASE;
+
+    if (!merchantId || !merchantKey) {
+      return res.status(500).json({ error: "Server payment configuration error: PAYFAST_MERCHANT_ID and PAYFAST_MERCHANT_KEY environment variables are required." });
+    }
 
     console.log("[PayFast Config Debug] PAYFAST_MERCHANT_ID read:", merchantId ? `${merchantId.substring(0, 4)}*** (length: ${merchantId.length})` : "NOT_SET");
     console.log("[PayFast Config Debug] PAYFAST_MERCHANT_KEY read:", merchantKey ? `${merchantKey.substring(0, 4)}*** (length: ${merchantKey.length})` : "NOT_SET");
@@ -522,13 +526,17 @@ app.post("/api/payfast/checkout", async (req, res) => {
 
     const host = req.get('host');
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const origin = process.env.APP_URL || `${protocol}://${host}`;
+    const origin = process.env.APP_URL || (host ? `${protocol}://${host}` : "https://orbitai.co.za");
 
     let returnUrl = `${origin}?payment_success=true`;
     let cancelUrl = `${origin}?payment_cancelled=true`;
     if (plan === "business-registration" && businessId) {
       returnUrl += `&plan=business-registration&business_id=${businessId}`;
       cancelUrl += `&plan=business-registration&business_id=${businessId}`;
+    } else if (plan === "market-order" && (req.body.orderId || req.body.orderNumber)) {
+      const orderRef = req.body.orderId || req.body.orderNumber;
+      returnUrl += `&plan=market-order&order_id=${orderRef}`;
+      cancelUrl += `&plan=market-order&order_id=${orderRef}`;
     }
     const notifyUrl = `${origin}/api/payfast/notify`;
 
@@ -540,6 +548,9 @@ app.post("/api/payfast/checkout", async (req, res) => {
     } else if (plan === "business-registration") {
       amount = "159.00";
       itemName = "Orbit AI Business Registration";
+    } else if (plan === "market-order") {
+      amount = req.body.amount ? Number(req.body.amount).toFixed(2) : "0.00";
+      itemName = req.body.itemName || `Orbit Market Order ${req.body.orderNumber || ''}`.trim();
     }
 
     // Split name into first and last
@@ -564,6 +575,8 @@ app.post("/api/payfast/checkout", async (req, res) => {
 
     if (plan === "business-registration" && businessId) {
       data.custom_str2 = businessId;
+    } else if (plan === "market-order" && req.body.orderId) {
+      data.custom_str2 = req.body.orderId;
     }
 
     // Log the exact payload being sent to PayFast
@@ -770,6 +783,148 @@ app.post("/api/payfast/notify", async (req, res) => {
         }
 
         console.log(`[PayFast ITN] Business ${businessId} successfully saved to businesses table and set to Paid & Pending!`);
+      } else if (plan === "market-order") {
+        const orderId = pfData.custom_str2 || pfData.custom_str3 || userId;
+        console.log(`[PayFast ITN] Processing Market Order payment for Order Ref: ${orderId}...`);
+
+        // 1. Fetch existing order to verify amount & prevent duplicate processing
+        const { data: order, error: orderFetchErr } = await supabase
+          .from('market_orders')
+          .select('*')
+          .or(`id.eq.${orderId},order_number.eq.${orderId}`)
+          .single();
+
+        if (orderFetchErr || !order) {
+          console.error(`[PayFast ITN] Market order ${orderId} not found:`, orderFetchErr);
+          return res.status(404).send("Order not found");
+        }
+
+        // Check if already paid
+        if (order.payment_status === "Paid") {
+          console.log(`[PayFast ITN] Order ${order.id} was already marked as Paid. Duplicate notice ignored.`);
+          return res.status(200).send("OK");
+        }
+
+        // Verify payment amount matches order total within 5 cents tolerance
+        const expectedTotal = Number(order.total);
+        if (Math.abs(expectedTotal - amountGross) > 0.05) {
+          console.error(`[PayFast ITN] Market Order Amount Mismatch! Expected: R${expectedTotal}, Received: R${amountGross}`);
+          
+          await supabase.from('market_payments').insert({
+            id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            order_id: order.id,
+            payment_provider: 'PayFast',
+            pf_payment_id: pfPaymentId || null,
+            amount_gross: amountGross,
+            amount_fee: Number(pfData.amount_fee || 0),
+            amount_net: Number(pfData.amount_net || (amountGross - Number(pfData.amount_fee || 0))),
+            status: 'Amount Mismatch',
+            signature_valid: true,
+            raw_response: pfData,
+            created_at: new Date().toISOString()
+          });
+
+          return res.status(400).send("Payment amount mismatch");
+        }
+
+        // Record verified payment in market_payments audit table
+        const { error: payAuditErr } = await supabase
+          .from('market_payments')
+          .insert({
+            id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            order_id: order.id,
+            payment_provider: 'PayFast',
+            pf_payment_id: pfPaymentId || null,
+            amount_gross: amountGross,
+            amount_fee: Number(pfData.amount_fee || 0),
+            amount_net: Number(pfData.amount_net || (amountGross - Number(pfData.amount_fee || 0))),
+            status: paymentStatus === 'COMPLETE' ? 'Paid' : paymentStatus,
+            signature_valid: true,
+            raw_response: pfData,
+            verified_at: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          });
+
+        if (payAuditErr) {
+          console.warn("[PayFast ITN] Notice recording market_payments audit record:", payAuditErr);
+        }
+
+        if (paymentStatus === "COMPLETE") {
+          // Update market order status to Paid & Processing
+          const { error: orderError } = await supabase
+            .from('market_orders')
+            .update({
+              payment_status: "Paid",
+              order_status: "Processing",
+              payment_id: String(pfPaymentId || `PF-${Date.now()}`),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', order.id);
+
+          if (orderError) {
+            console.warn("[PayFast ITN] Error updating market order status in Supabase:", orderError);
+          } else {
+            console.log(`[PayFast ITN] Market order ${order.id} marked as Paid & Processing.`);
+          }
+
+          // Deduct inventory only upon verified complete payment
+          try {
+            const { data: items } = await supabase
+              .from('market_order_items')
+              .select('*')
+              .eq('order_id', order.id);
+
+            if (items && items.length > 0) {
+              for (const item of items) {
+                // Update variant stock if variant exists
+                if (item.variant_name) {
+                  const { data: variant } = await supabase
+                    .from('market_product_variants')
+                    .select('id, stock_quantity')
+                    .eq('product_id', item.product_id)
+                    .eq('size_name', item.variant_name)
+                    .single();
+
+                  if (variant) {
+                    const newStock = Math.max(0, (variant.stock_quantity || 0) - item.quantity);
+                    await supabase
+                      .from('market_product_variants')
+                      .update({ stock_quantity: newStock })
+                      .eq('id', variant.id);
+                  }
+                }
+
+                // Update product overall stock
+                const { data: product } = await supabase
+                  .from('market_products')
+                  .select('id, stock_quantity')
+                  .eq('id', item.product_id)
+                  .single();
+
+                if (product) {
+                  const newTotalStock = Math.max(0, (product.stock_quantity || 0) - item.quantity);
+                  await supabase
+                    .from('market_products')
+                    .update({
+                      stock_quantity: newTotalStock,
+                      in_stock: newTotalStock > 0
+                    })
+                    .eq('id', product.id);
+                }
+              }
+            }
+          } catch (invErr) {
+            console.warn("[PayFast ITN] Error updating product inventory:", invErr);
+          }
+        } else {
+          await supabase
+            .from('market_orders')
+            .update({
+              payment_status: paymentStatus,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', order.id);
+        }
       } else {
         console.log(`[PayFast ITN] Payment is COMPLETE. Upgrading user ${userId} to PRO...`);
         
@@ -1611,6 +1766,294 @@ async function setupVite() {
       distPath = path.join(__dirname, "dist");
     }
   }
+
+  // --- ORBIT MARKET (VISION 1) API ENDPOINTS ---
+  app.post("/api/market/checkout-init", async (req, res) => {
+    try {
+      const { items, customerName, customerEmail, customerPhone, deliveryAddress, userId } = req.body;
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "Cart is empty" });
+      }
+      if (!customerName || !customerEmail || !customerPhone || !deliveryAddress) {
+        return res.status(400).json({ error: "Customer details and delivery address are required" });
+      }
+
+      // Fetch market settings for commission and delivery fee
+      let commissionRate = 0.10;
+      let deliveryFee = 50.00;
+
+      try {
+        const { data: settings } = await supabase
+          .from('market_settings')
+          .select('*')
+          .eq('id', 'default')
+          .single();
+        if (settings) {
+          if (settings.commission_rate !== undefined) commissionRate = Number(settings.commission_rate);
+          if (settings.default_delivery_fee !== undefined) deliveryFee = Number(settings.default_delivery_fee);
+        }
+      } catch (sErr) {
+        console.warn("[Market Checkout] Using default settings:", sErr);
+      }
+
+      // 2. Authoritative Price & Inventory Verification from Database (Never trust client prices)
+      let calculatedSubtotal = 0;
+      const verifiedItems: any[] = [];
+      const orderId = `order-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const orderNumber = `ORB-${Math.floor(10000 + Math.random() * 90000)}`;
+
+      for (const item of items) {
+        const productId = item.productId;
+        const variantName = item.variantName || null;
+        const requestedQty = Math.max(1, parseInt(item.quantity, 10) || 1);
+
+        // Fetch official product from database
+        const { data: dbProduct, error: prodErr } = await supabase
+          .from('market_products')
+          .select('id, name, price, brand_id, brand_name, stock_quantity, is_published, in_stock')
+          .eq('id', productId)
+          .single();
+
+        if (prodErr || !dbProduct) {
+          return res.status(400).json({ error: `Product with ID ${productId} not found` });
+        }
+
+        if (!dbProduct.is_published) {
+          return res.status(400).json({ error: `Product '${dbProduct.name}' is currently unavailable for purchase` });
+        }
+
+        let authoritativeUnitPrice = Number(dbProduct.price);
+        let availableStock = dbProduct.stock_quantity;
+
+        // Check variant if applicable
+        if (variantName) {
+          const { data: dbVariant } = await supabase
+            .from('market_product_variants')
+            .select('id, size_name, stock_quantity, price_override')
+            .eq('product_id', productId)
+            .eq('size_name', variantName)
+            .single();
+
+          if (dbVariant) {
+            availableStock = dbVariant.stock_quantity;
+            if (dbVariant.price_override !== null && dbVariant.price_override !== undefined) {
+              authoritativeUnitPrice = Number(dbVariant.price_override);
+            }
+          }
+        }
+
+        if (availableStock < requestedQty) {
+          return res.status(400).json({ 
+            error: `Insufficient stock for '${dbProduct.name}${variantName ? ` (${variantName})` : ''}'. Available: ${availableStock}, Requested: ${requestedQty}` 
+          });
+        }
+
+        const itemTotal = Number((authoritativeUnitPrice * requestedQty).toFixed(2));
+        calculatedSubtotal += itemTotal;
+
+        verifiedItems.push({
+          id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          order_id: orderId,
+          product_id: dbProduct.id,
+          brand_id: dbProduct.brand_id,
+          seller_id: item.sellerId || null,
+          product_name: dbProduct.name,
+          brand_name: dbProduct.brand_name,
+          variant_name: variantName,
+          quantity: requestedQty,
+          unit_price: authoritativeUnitPrice,
+          total_price: itemTotal
+        });
+      }
+
+      const commissionAmount = Number((calculatedSubtotal * commissionRate).toFixed(2));
+      const sellerPayoutAmount = Number((calculatedSubtotal - commissionAmount).toFixed(2));
+      const total = Number((calculatedSubtotal + deliveryFee).toFixed(2));
+
+      // Persist order in Supabase with strict Pending state
+      const { error: orderError } = await supabase
+        .from('market_orders')
+        .upsert({
+          id: orderId,
+          order_number: orderNumber,
+          user_id: userId || null,
+          customer_name: customerName,
+          customer_email: customerEmail,
+          customer_phone: customerPhone,
+          delivery_address: deliveryAddress,
+          subtotal: calculatedSubtotal,
+          delivery_fee: deliveryFee,
+          commission_rate: commissionRate,
+          commission_amount: commissionAmount,
+          seller_payout_amount: sellerPayoutAmount,
+          total: total,
+          payment_status: "Pending",
+          order_status: "Pending Payment",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (orderError) {
+        console.warn("[Market Checkout] Supabase order upsert notice:", orderError);
+      }
+
+      if (verifiedItems.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('market_order_items')
+          .upsert(verifiedItems);
+        if (itemsError) {
+          console.warn("[Market Checkout] Supabase items upsert notice:", itemsError);
+        }
+      }
+
+      console.log(`[Market Checkout Init] Order ${orderNumber} created. Subtotal: R${calculatedSubtotal}, Total: R${total}`);
+
+      // Construct server-authoritative PayFast payload
+      const merchantId = process.env.PAYFAST_MERCHANT_ID;
+      const merchantKey = process.env.PAYFAST_MERCHANT_KEY;
+      const passphrase = process.env.PAYFAST_PASSPHRASE;
+
+      if (!merchantId || !merchantKey) {
+        return res.status(500).json({ error: "Server payment configuration error: PAYFAST_MERCHANT_ID and PAYFAST_MERCHANT_KEY environment variables are required." });
+      }
+
+      const host = req.get('host');
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const origin = process.env.APP_URL || (host ? `${protocol}://${host}` : "https://orbitai.co.za");
+
+      const returnUrl = `${origin}?payment_success=true&plan=market-order&order_id=${orderId}&order_number=${orderNumber}`;
+      const cancelUrl = `${origin}?payment_cancelled=true&plan=market-order&order_id=${orderId}`;
+      const notifyUrl = `${origin}/api/payfast/notify`;
+
+      const nameParts = (customerName || "Orbit Customer").split(" ");
+      const nameFirst = nameParts[0] || "Orbit";
+      const nameLast = nameParts.slice(1).join(" ") || "Customer";
+
+      const pfData: Record<string, string> = {
+        merchant_id: merchantId,
+        merchant_key: merchantKey,
+        return_url: returnUrl,
+        cancel_url: cancelUrl,
+        notify_url: notifyUrl,
+        name_first: nameFirst,
+        name_last: nameLast,
+        email_address: customerEmail,
+        cell_number: customerPhone,
+        m_payment_id: orderId,
+        amount: total.toFixed(2),
+        item_name: `Orbit Market Order ${orderNumber}`,
+        item_description: `Order ${orderNumber} with ${verifiedItems.length} item(s)`,
+        custom_str1: "market-order",
+        custom_str2: orderId,
+        custom_str3: orderNumber
+      };
+
+      const { signature } = generatePayfastSignature(pfData, passphrase);
+      pfData.signature = signature;
+
+      const isSandbox = merchantId === "10000100" || process.env.PAYFAST_SANDBOX === "true";
+      const checkoutBaseUrl = isSandbox 
+        ? "https://sandbox.payfast.co.za/eng/process" 
+        : "https://www.payfast.co.za/eng/process";
+
+      res.json({
+        success: true,
+        orderId,
+        orderNumber,
+        subtotal: calculatedSubtotal,
+        deliveryFee,
+        commissionRate,
+        commissionAmount,
+        sellerPayoutAmount,
+        total,
+        items: verifiedItems,
+        payfastEndpoint: checkoutBaseUrl,
+        payfast: pfData
+      });
+    } catch (err: any) {
+      console.error("[Market Checkout Init Error]:", err);
+      res.status(500).json({ error: err.message || "Failed to initialize market checkout" });
+    }
+  });
+
+  app.post("/api/market/complete-order", async (req, res) => {
+    try {
+      const { orderId, paymentId } = req.body;
+      if (!orderId) {
+        return res.status(400).json({ error: "Order ID is required" });
+      }
+
+      console.log(`[Market Complete Order] Marking order ${orderId} as paid...`);
+
+      const { error } = await supabase
+        .from('market_orders')
+        .update({
+          payment_status: "Paid",
+          order_status: "PAID",
+          payment_id: paymentId || `PF-${Date.now()}`,
+          updated_at: new Date().toISOString()
+        })
+        .or(`id.eq.${orderId},order_number.eq.${orderId}`);
+
+      if (error) {
+        console.warn("[Market Complete Order] Supabase update notice:", error);
+      }
+
+      // Deduct inventory
+      try {
+        const { data: items } = await supabase
+          .from('market_order_items')
+          .select('*')
+          .eq('order_id', orderId);
+
+        if (items && items.length > 0) {
+          for (const item of items) {
+            if (item.variant_name) {
+              const { data: variant } = await supabase
+                .from('market_product_variants')
+                .select('id, stock_quantity')
+                .eq('product_id', item.product_id)
+                .eq('size_name', item.variant_name)
+                .single();
+
+              if (variant) {
+                const newStock = Math.max(0, (variant.stock_quantity || 0) - item.quantity);
+                await supabase
+                  .from('market_product_variants')
+                  .update({ stock_quantity: newStock })
+                  .eq('id', variant.id);
+              }
+            }
+
+            const { data: product } = await supabase
+              .from('market_products')
+              .select('id, stock_quantity')
+              .eq('id', item.product_id)
+              .single();
+
+            if (product) {
+              const newTotalStock = Math.max(0, (product.stock_quantity || 0) - item.quantity);
+              await supabase
+                .from('market_products')
+                .update({
+                  stock_quantity: newTotalStock,
+                  in_stock: newTotalStock > 0
+                })
+                .eq('id', product.id);
+            }
+          }
+        }
+      } catch (invErr) {
+        console.warn("[Market Complete Order] Error updating inventory:", invErr);
+      }
+
+      res.json({ success: true, message: "Order payment confirmed." });
+    } catch (err: any) {
+      console.error("[Market Complete Order Error]:", err);
+      res.status(500).json({ error: err.message || "Failed to complete order" });
+    }
+  });
 
   const hasDist = fs.existsSync(path.join(distPath, "index.html"));
   
