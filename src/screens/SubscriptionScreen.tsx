@@ -329,12 +329,6 @@ export const SubscriptionScreen: React.FC = () => {
             <View className="flex flex-row items-center justify-start gap-2">
               <span className="text-[#3bb75e] font-extrabold text-sm">✓</span>
               <Text className="text-[12.5px] text-black font-sans font-medium text-left">
-                AI Business Builder
-              </Text>
-            </View>
-            <View className="flex flex-row items-center justify-start gap-2">
-              <span className="text-[#3bb75e] font-extrabold text-sm">✓</span>
-              <Text className="text-[12.5px] text-black font-sans font-medium text-left">
                 Become an Agent
               </Text>
             </View>

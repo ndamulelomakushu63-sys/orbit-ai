@@ -73,7 +73,18 @@ export {
   X,
   UploadCloud,
   Eye,
-  EyeOff
+  EyeOff,
+  GraduationCap,
+  Building2,
+  Upload,
+  Filter,
+  UserCheck,
+  Share2,
+  Phone,
+  MessageSquare,
+  Navigation,
+  Locate,
+  LocateFixed
 } from 'lucide-react';
 
 

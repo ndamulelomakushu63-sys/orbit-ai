@@ -5,7 +5,8 @@ import {
   WithdrawalRecord, Conversation, ChatMessage, UserPlan, 
   AppNotification, SupportTicket,
   ObdiLead, Business,
-  MarketBrand, MarketProduct, MarketProductVariant, MarketOrder, MarketOrderItem, MarketSettings, MarketOrderStatus
+  MarketBrand, MarketProduct, MarketProductVariant, MarketOrder, MarketOrderItem, MarketSettings, MarketOrderStatus,
+  Opportunity, OpportunityApplication, OpportunityCategory, ApplicationStatus, ApplicationDocument
 } from '../types.js';
 
 // Supabase project credentials provided
@@ -1589,6 +1590,1029 @@ export async function dbFetchMarketSettings(): Promise<MarketSettings> {
       isActive: true
     };
   }
+}
+
+// ==========================================
+// 14. ORBIT OPPORTUNITIES HUB DB OPERATIONS
+// ==========================================
+
+export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radius of the Earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+export const DEFAULT_OPPORTUNITIES: Opportunity[] = [
+  // --- JOBS ---
+  {
+    id: 'opp-job-1',
+    creatorId: 'emp-nexora',
+    creatorName: 'Nexora Tech Solutions',
+    creatorEmail: 'careers@nexoratech.co.za',
+    creatorPhone: '+27 11 450 8200',
+    title: 'Junior Full Stack Developer',
+    companyOrInstitution: 'Nexora Tech Solutions',
+    category: 'job',
+    opportunityType: 'Full-time',
+    workplaceType: 'Hybrid',
+    location: 'Sandton, Johannesburg',
+    address: '140 West Street, Sandown, Sandton',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.1054, lng: 28.0538 },
+    posterImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&auto=format&fit=crop&q=80',
+    description: 'We are seeking an ambitious Junior Full Stack Developer to build and maintain modern web and mobile applications using React, TypeScript, and Node.js. You will collaborate directly with our engineering team on fintech and consumer products.',
+    requirements: [
+      'Grade 12 / Matric Certificate',
+      'Diploma or Degree in Computer Science, IT, or proven software portfolio',
+      'Proficiency in React / TypeScript and modern JavaScript',
+      'Familiarity with REST APIs, Git, and relational or document databases',
+      'Strong problem-solving and proactive communication skills'
+    ],
+    compensationOrGrant: 'R28,000 - R36,000 / month',
+    deadline: '2026-10-30',
+    requiredDocuments: ['CV / Resume', 'ID Copy', 'Academic Transcript or Portfolio'],
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 14
+  },
+  {
+    id: 'opp-job-2',
+    creatorId: 'emp-bluestone',
+    creatorName: 'BlueStone Financial Group',
+    creatorEmail: 'recruitment@bluestone.co.za',
+    creatorPhone: '+27 12 344 1900',
+    title: 'Financial Assistant & Accounts Clerk',
+    companyOrInstitution: 'BlueStone Financial Group',
+    category: 'job',
+    opportunityType: 'Full-time',
+    workplaceType: 'On-site',
+    location: 'Hatfield, Pretoria',
+    address: '254 Park Street, Hatfield',
+    city: 'Pretoria',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -25.7505, lng: 28.2380 },
+    description: 'Manage accounts payable/receivable, reconciliations, invoice verification, and monthly VAT reporting. Excellent career path towards chartered accounting and financial management.',
+    requirements: [
+      'BCom Accounting, Financial Management, or Diploma in Accounting',
+      'Proficiency in MS Excel (Formulas, Pivot Tables, VLOOKUP)',
+      'Experience with Pastel or Sage Accounting is advantageous',
+      'South African ID & Valid Work Authorization',
+      'High attention to detail and numeric accuracy'
+    ],
+    compensationOrGrant: 'R18,000 - R24,000 / month',
+    deadline: '2026-10-15',
+    requiredDocuments: ['CV / Resume', 'ID Copy', 'Matric Results'],
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 9
+  },
+  {
+    id: 'opp-job-3',
+    creatorId: 'emp-orbit-logistics',
+    creatorName: 'Orbit Logistics Africa',
+    creatorEmail: 'jobs@orbitlogistics.co.za',
+    creatorPhone: '+27 21 880 4320',
+    title: 'Client Support & Operations Coordinator',
+    companyOrInstitution: 'Orbit Logistics Africa',
+    category: 'job',
+    opportunityType: 'Full-time',
+    workplaceType: 'Remote',
+    location: 'Foreshore, Cape Town',
+    address: '4 Loop Street, Foreshore',
+    city: 'Cape Town',
+    province: 'Western Cape',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -33.9212, lng: 18.4230 },
+    posterImage: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80',
+    description: 'Coordinate customer shipments, handle client queries via chat and phone, tracking delivery schedules and resolving customs inquiries across Southern Africa.',
+    requirements: [
+      'Grade 12 / Matric with Diploma endorsement',
+      'Fluency in English (spoken & written); bilingualism is an asset',
+      'Computer literate (Email, CRM, Google Workspace)',
+      'Customer-centric demeanor and calm problem-solving ability'
+    ],
+    compensationOrGrant: 'R15,000 - R19,500 / month',
+    deadline: '2026-11-10',
+    requiredDocuments: ['CV / Resume', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 22
+  },
+
+  // --- INTERNSHIPS ---
+  {
+    id: 'opp-int-1',
+    creatorId: 'emp-innovatex',
+    creatorName: 'InnovateX Digital Labs',
+    creatorEmail: 'graduates@innovatex.co.za',
+    creatorPhone: '+27 11 902 1100',
+    title: 'Graduate AI & Software Engineering Internship',
+    companyOrInstitution: 'InnovateX Digital Labs',
+    category: 'internship',
+    opportunityType: 'Internship',
+    workplaceType: 'Hybrid',
+    location: 'Richards Drive, Midrand',
+    address: 'Gallagher Convention Centre Precinct, 19 Richards Drive',
+    city: 'Midrand',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.0028, lng: 28.1293 },
+    posterImage: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=800&auto=format&fit=crop&q=80',
+    description: '12-month structured graduate internship program for aspiring developers. Work on real client AI pipelines, mobile products, and cloud services with dedicated senior engineer mentorship and permanent placement potential.',
+    requirements: [
+      'Recent graduate (2024-2026) with Degree or National Diploma in Computer Science / Software Development / Electrical Engineering',
+      'Foundational understanding of Python, JavaScript or Java',
+      'South African Citizen aged 18 to 34',
+      'Eager to learn modern AI frameworks and cloud architectures'
+    ],
+    compensationOrGrant: 'R12,500 monthly stipend',
+    deadline: '2026-11-30',
+    requiredDocuments: ['CV / Resume', 'Academic Transcript', 'ID Copy', 'Matric Results'],
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 31
+  },
+  {
+    id: 'opp-int-2',
+    creatorId: 'emp-apexmedia',
+    creatorName: 'Apex Media & Communications',
+    creatorEmail: 'talent@apexmedia.co.za',
+    creatorPhone: '+27 31 560 3000',
+    title: 'Digital Marketing & Content Creation Intern',
+    companyOrInstitution: 'Apex Media & Communications',
+    category: 'internship',
+    opportunityType: 'Internship',
+    workplaceType: 'Hybrid',
+    location: 'La Lucia Ridge, Durban',
+    address: '22 Armstrong Avenue, La Lucia Ridge',
+    city: 'Durban',
+    province: 'KwaZulu-Natal',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -29.7344, lng: 31.0628 },
+    description: 'Assist in content strategy, copywriting, social media campaign scheduling, graphic asset creation using Canva/Photoshop, and digital analytics reporting.',
+    requirements: [
+      'Diploma or Degree in Marketing, Media Studies, Graphic Design or Communications',
+      'Hands-on familiarity with TikTok, Instagram Reels, and LinkedIn management',
+      'Creative copywriting skills in English',
+      'Matric Certificate'
+    ],
+    compensationOrGrant: 'R8,500 monthly stipend',
+    deadline: '2026-10-25',
+    requiredDocuments: ['CV / Resume', 'Portfolio or writing samples', 'ID Copy'],
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 18
+  },
+
+  // --- LEARNERSHIPS ---
+  {
+    id: 'opp-lrn-1',
+    creatorId: 'emp-mict-learn',
+    creatorName: 'MICT SETA Tech Academy',
+    creatorEmail: 'learnerships@mict-skills.org.za',
+    creatorPhone: '+27 11 207 2600',
+    title: 'Systems Development NQF 5 Learnership 2026',
+    companyOrInstitution: 'MICT SETA Accredited Academy',
+    category: 'learnership',
+    opportunityType: 'Learnership',
+    workplaceType: 'Hybrid',
+    location: 'Vodavalley, Midrand',
+    address: '082 Vodacom Boulevard, Vodavalley, Midrand',
+    city: 'Midrand',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -25.9922, lng: 28.1325 },
+    posterImage: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&auto=format&fit=crop&q=80',
+    description: '12-month fully funded MICT SETA National Certificate in Systems Development (NQF Level 5). Includes 6 months theoretical coursework in software logic, SQL databases and web development, followed by 6 months workplace experiential placement.',
+    requirements: [
+      'South African Citizen aged 18-35',
+      'Grade 12 / Matric with Pure Mathematics (40%+) or Maths Literacy (50%+)',
+      'Unemployed at time of application',
+      'Not currently enrolled in any other SETA learnership'
+    ],
+    compensationOrGrant: 'R6,500 monthly SETA stipend + Full NQF 5 Qualification',
+    deadline: '2026-11-20',
+    requiredDocuments: ['CV / Resume', 'Certified ID Copy', 'Matric Certificate', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 47
+  },
+  {
+    id: 'opp-lrn-2',
+    creatorId: 'emp-bankseta-learn',
+    creatorName: 'National Financial Learnership Council',
+    creatorEmail: 'banking@bankseta-intake.co.za',
+    creatorPhone: '+27 11 805 9661',
+    title: 'Financial Markets & Wealth Operations Learnership',
+    companyOrInstitution: 'BANKSETA / Top Tier Financial Services',
+    category: 'learnership',
+    opportunityType: 'Learnership',
+    workplaceType: 'On-site',
+    location: 'Johannesburg CBD',
+    address: '15 Troye Street, Johannesburg Central',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.2041, lng: 28.0473 },
+    description: 'Intensive 12-month learnership designed to prepare young talent for high-volume banking operations, compliance checking, investment settlement, and client portfolio administration.',
+    requirements: [
+      'Grade 12 / Matric with Accounting or Business Studies',
+      'Mathematics Level 4 or Mathematical Literacy Level 5',
+      'Clear credit and criminal record',
+      'SA Citizenship with green barcode ID or smart ID card'
+    ],
+    compensationOrGrant: 'R7,200 monthly stipend + NQF Level 6 Certificate',
+    deadline: '2026-10-31',
+    requiredDocuments: ['CV / Resume', 'Certified ID Copy', 'Matric Results'],
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 39
+  },
+
+  // --- SCHOLARSHIPS & BURSARIES ---
+  {
+    id: 'opp-sch-1',
+    creatorId: 'org-sasol-foundation',
+    creatorName: 'Sasol Foundation',
+    creatorEmail: 'bursaries@sasol.com',
+    creatorPhone: '+27 86 010 6226',
+    title: 'Sasol STEM Excellence Bursary Scheme 2026/2027',
+    companyOrInstitution: 'Sasol Foundation',
+    category: 'scholarship',
+    opportunityType: 'Bursary',
+    location: 'Wierda Valley, Sandton (National Coverage)',
+    address: '1 Katherine Street, Wierda Valley, Sandton',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.1042, lng: 28.0588 },
+    posterImage: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800&auto=format&fit=crop&q=80',
+    description: 'Comprehensive undergraduate bursary scheme supporting gifted South African students pursuing Bachelor of Science and Engineering qualifications. Covers 100% of university tuition, on-campus accommodation, meal allowance, book allowance, and a monthly personal allowance.',
+    requirements: [
+      'South African Citizen with valid SA ID',
+      'Current Grade 12 learner or 1st year university student',
+      'Minimum Level 6 (70%+) in Mathematics (Pure Maths)',
+      'Minimum Level 6 (70%+) in Physical Sciences',
+      'Combined APS Score of 33 or higher',
+      'Enrolled or applying for BSc Engineering, Computer Science, Data Science, or Chemistry'
+    ],
+    compensationOrGrant: 'Full Tuition + Accommodation + R5,000 monthly allowance + Laptop',
+    deadline: '2026-11-15',
+    requiredDocuments: ['ID Copy', 'Matric Results / Grade 11 Final Report', 'Proof of Household Income', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 84
+  },
+  {
+    id: 'opp-sch-2',
+    creatorId: 'org-firstrand',
+    creatorName: 'FirstRand Foundation',
+    creatorEmail: 'scholarships@firstrand.co.za',
+    creatorPhone: '+27 11 282 1808',
+    title: 'FirstRand Future Commerce & Tech Scholarship',
+    companyOrInstitution: 'FirstRand Foundation',
+    category: 'scholarship',
+    opportunityType: 'Bursary',
+    location: 'Fredman Drive, Sandton (National Coverage)',
+    address: '4 Merchant Place, Fredman Drive, Sandton',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.1028, lng: 28.0551 },
+    description: 'Designed to unlock potential in ambitious young leaders from under-resourced backgrounds studying Actuarial Science, Accounting (CA stream), Information Technology, or Quantitative Economics.',
+    requirements: [
+      'South African citizen from designated demographic groups',
+      'Minimum Level 5 (60%+) in Mathematics',
+      'Combined household income under R350,000 per annum',
+      'Demonstrated academic merit and community leadership'
+    ],
+    compensationOrGrant: 'Full Tuition + Accommodation + Books + Mentorship',
+    deadline: '2026-10-31',
+    requiredDocuments: ['ID Copy', 'Matric Results', 'Proof of Household Income', 'Motivational Essay'],
+    createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 52
+  },
+
+  // --- UNIVERSITY & TVET ADMISSIONS (PUBLICLY SOURCED DIRECTORY) ---
+  {
+    id: 'opp-uni-1',
+    creatorId: 'inst-uct',
+    creatorName: 'University of Cape Town (UCT)',
+    creatorEmail: 'admissions@uct.ac.za',
+    creatorPhone: '+27 21 650 2128',
+    title: 'BSc Computer Science & Information Technology',
+    companyOrInstitution: 'University of Cape Town (UCT)',
+    category: 'university',
+    opportunityType: 'Undergraduate',
+    workplaceType: 'On-site',
+    location: 'Rondebosch, Cape Town',
+    address: 'Upper Campus, Lovers Walk, Rondebosch',
+    city: 'Cape Town',
+    province: 'Western Cape',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -33.9575, lng: 18.4612 },
+    institutionFaculty: 'Faculty of Science',
+    institutionCourse: 'Bachelor of Science (Computer Science & Business Computing)',
+    minApsScore: 38,
+    isPublicDirectory: true,
+    openingDate: '2 April 2026',
+    deadline: '31 October 2026',
+    officialApplicationUrl: 'https://applyonline.uct.ac.za',
+    applicationInstructions: 'Submit your formal application through the official UCT Online Applications portal. Upload certified copies of your SA ID/Passport and latest Grade 11 final or Grade 12 trial results. Application fee is R100 for South African applicants (automatic fee waiver available for low-income households).',
+    sourceDisclaimer: 'Public admissions directory record compiled from the official University of Cape Town prospectus and Department of Higher Education & Training (DHET). Orbit AI is an independent admissions assistance tool and is not partnered with, affiliated with, or endorsed by University of Cape Town.',
+    posterImage: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=800&auto=format&fit=crop&q=80',
+    description: 'Ranked #1 in Africa. Comprehensive curriculum in algorithms, artificial intelligence, software engineering, systems architecture, and discrete mathematics. Orbit AI can assist you in preparing your personal statement, calculating your exact APS score, and compiling all required application documents.',
+    requirements: [
+      'National Senior Certificate (NSC) with Bachelor Degree endorsement',
+      'Mathematics Level 6 (70%+) minimum',
+      'English Home Language or First Additional Language Level 5 (60%+)',
+      'Minimum Faculty Points Score (FPS) of 38+',
+      'National Benchmark Tests (NBT) Mathematics & AL'
+    ],
+    compensationOrGrant: 'NSFAS & Merit Financial Aid eligible',
+    requiredDocuments: ['Certified ID Copy', 'Matric Results / Grade 11 Report', 'Proof of Residence', 'Personal Motivation Letter'],
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 110
+  },
+  {
+    id: 'opp-uni-2',
+    creatorId: 'inst-wits',
+    creatorName: 'University of the Witwatersrand (Wits)',
+    creatorEmail: 'student.admissions@wits.ac.za',
+    creatorPhone: '+27 11 717 1888',
+    title: 'BSc Electrical & Information Engineering',
+    companyOrInstitution: 'University of the Witwatersrand (Wits)',
+    category: 'university',
+    opportunityType: 'Undergraduate',
+    workplaceType: 'On-site',
+    location: 'Braamfontein, Johannesburg',
+    address: '1 Jan Smuts Avenue, Braamfontein',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.1929, lng: 28.0305 },
+    institutionFaculty: 'Faculty of Engineering and the Built Environment',
+    institutionCourse: 'Bachelor of Science in Engineering (Electrical)',
+    minApsScore: 36,
+    isPublicDirectory: true,
+    openingDate: '1 March 2026',
+    deadline: '30 September 2026',
+    officialApplicationUrl: 'https://www.wits.ac.za/applications/',
+    applicationInstructions: 'Apply via the Wits Student Admissions Portal. Enter biographical details and upload clear PDF copies of your identity document and Grade 11/12 report. Non-refundable R100 application fee applies.',
+    sourceDisclaimer: 'Public admissions directory record compiled from the official University of the Witwatersrand prospectus. Orbit AI is an independent platform and is not partnered with, affiliated with, or endorsed by University of the Witwatersrand.',
+    posterImage: 'https://images.unsplash.com/photo-1562774053-701939374585?w=800&auto=format&fit=crop&q=80',
+    description: 'Internationally recognized engineering qualification accredited by ECSA. Specializations in telecommunications, embedded computing, smart grids, and robotics. Orbit AI can help you draft your letter of intent and verify your entry criteria.',
+    requirements: [
+      'NSC Bachelor Pass with Pure Mathematics Level 6 (70%+)',
+      'Physical Science Level 6 (70%+)',
+      'English Level 5 (60%+)',
+      'Minimum APS Score: 36 points excluding Life Orientation'
+    ],
+    compensationOrGrant: 'NSFAS and Engineering Corporate Bursaries available',
+    requiredDocuments: ['ID Copy', 'Matric Statement of Results', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 76
+  },
+  {
+    id: 'opp-uni-3',
+    creatorId: 'inst-up',
+    creatorName: 'University of Pretoria (UP)',
+    creatorEmail: 'ssc@up.ac.za',
+    creatorPhone: '+27 12 420 3111',
+    title: 'BCom Accounting Sciences (Chartered Accountant CA stream)',
+    companyOrInstitution: 'University of Pretoria (UP)',
+    category: 'university',
+    opportunityType: 'Undergraduate',
+    workplaceType: 'On-site',
+    location: 'Hatfield, Pretoria',
+    address: 'Lynnwood Road, Hatfield',
+    city: 'Pretoria',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -25.7545, lng: 28.2314 },
+    institutionFaculty: 'Faculty of Economic and Management Sciences',
+    institutionCourse: 'BCom Accounting Sciences',
+    minApsScore: 34,
+    isPublicDirectory: true,
+    openingDate: '1 April 2026',
+    deadline: '30 September 2026',
+    officialApplicationUrl: 'https://www.up.ac.za/online-application',
+    applicationInstructions: 'Apply through the UP Student Service Portal. Upload certified copy of ID and official Grade 11/12 results. Initial application processing fee is R300.',
+    sourceDisclaimer: 'Public admissions directory record compiled from the official University of Pretoria curriculum guide. Orbit AI is not partnered with, affiliated with, or endorsed by University of Pretoria.',
+    description: 'Premier SAICA-accredited program with high pass rates in the Initial Test of Competence (ITC). Prepares graduates for careers as Chartered Accountants [CA(SA)]. Orbit AI provides application motivation guidance and subject score evaluation.',
+    requirements: [
+      'NSC with Bachelor pass',
+      'Mathematics Level 5 (60%+)',
+      'English Level 5 (60%+)',
+      'Minimum APS of 34 points'
+    ],
+    compensationOrGrant: 'SAICA Thuthuka and NSFAS funding eligible',
+    requiredDocuments: ['ID Copy', 'Matric Results', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 65
+  },
+  {
+    id: 'opp-uni-4',
+    creatorId: 'inst-uj',
+    creatorName: 'University of Johannesburg (UJ)',
+    creatorEmail: 'mylife@uj.ac.za',
+    creatorPhone: '+27 11 559 4555',
+    title: 'BSc Information Technology & Computer Science',
+    companyOrInstitution: 'University of Johannesburg (UJ)',
+    category: 'university',
+    opportunityType: 'Undergraduate',
+    workplaceType: 'On-site',
+    location: 'Auckland Park, Johannesburg',
+    address: 'Kingsway Campus, Corner Kingsway & University Road, Auckland Park',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.1834, lng: 28.0003 },
+    institutionFaculty: 'Faculty of Science',
+    institutionCourse: 'Bachelor of Science in Information Technology (3 Years)',
+    minApsScore: 30,
+    isPublicDirectory: true,
+    openingDate: '1 April 2026',
+    deadline: '31 October 2026',
+    officialApplicationUrl: 'https://www.uj.ac.za/admission-aid/undergraduate/',
+    applicationInstructions: 'UJ online application is completely FREE for all South African citizens via the official UJ online application portal. No paper applications are accepted. Submit certified ID copy and matric results.',
+    sourceDisclaimer: 'Public admissions directory record from official DHET and UJ admissions guidelines. Orbit AI is an independent assistant and is not partnered with or endorsed by University of Johannesburg.',
+    posterImage: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
+    description: 'Dynamic science degree covering cloud architecture, software engineering, systems administration, and data structures. UJ offers modern computing laboratories and strong ties with Silicon Valley and local industry leaders.',
+    requirements: [
+      'National Senior Certificate with Bachelor Degree endorsement',
+      'Mathematics Level 5 (60%+) minimum',
+      'English Level 4 (50%+)',
+      'Minimum APS Score of 30'
+    ],
+    compensationOrGrant: 'Full NSFAS eligibility & Merit Bursaries',
+    requiredDocuments: ['Certified ID Copy', 'Matric Results', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 88
+  },
+  {
+    id: 'opp-uni-5',
+    creatorId: 'inst-stellenbosch',
+    creatorName: 'Stellenbosch University (SU)',
+    creatorEmail: 'info@sun.ac.za',
+    creatorPhone: '+27 21 808 9111',
+    title: 'BDatSci - Bachelor of Data Science',
+    companyOrInstitution: 'Stellenbosch University (SU)',
+    category: 'university',
+    opportunityType: 'Undergraduate',
+    workplaceType: 'On-site',
+    location: 'Stellenbosch Central, Western Cape',
+    address: 'Victoria Street, Stellenbosch Central',
+    city: 'Stellenbosch',
+    province: 'Western Cape',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -33.9321, lng: 18.8602 },
+    institutionFaculty: 'Faculty of Science & Economic and Management Sciences',
+    institutionCourse: 'Bachelor of Data Science (Multi-disciplinary 4-Year Degree)',
+    minApsScore: 36,
+    isPublicDirectory: true,
+    openingDate: '1 April 2026',
+    deadline: '31 July 2026',
+    officialApplicationUrl: 'https://www.maties.com',
+    applicationInstructions: 'Apply online via the Maties Applicant Portal. Early closing date applies for selection courses. Application fee: R100.',
+    sourceDisclaimer: 'Public admissions directory record from official Stellenbosch University prospectus. Orbit AI is not partnered with or endorsed by Stellenbosch University.',
+    description: 'Cutting-edge multi-faculty program combining machine learning, computational statistics, high-performance computing, and business intelligence.',
+    requirements: [
+      'National Senior Certificate with Bachelor endorsement',
+      'Mathematics Level 7 (80%+) minimum',
+      'English Home Language (60%+) or First Additional Language (70%+)',
+      'Minimum APS Score of 36 points'
+    ],
+    compensationOrGrant: 'NSFAS and Innovation Fund eligible',
+    requiredDocuments: ['ID Copy', 'Matric Results', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 54
+  },
+  {
+    id: 'opp-uni-6',
+    creatorId: 'inst-tshwane-south',
+    creatorName: 'Tshwane South TVET College',
+    creatorEmail: 'info@tsc.edu.za',
+    creatorPhone: '+27 12 401 5000',
+    title: 'NC(V) Information Technology & Computer Science',
+    companyOrInstitution: 'Tshwane South TVET College',
+    category: 'university',
+    opportunityType: 'TVET',
+    workplaceType: 'On-site',
+    location: 'Pretoria Central, Gauteng',
+    address: '85 Francis Baard Street, Pretoria Central',
+    city: 'Pretoria',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -25.7479, lng: 28.1871 },
+    institutionFaculty: 'Information & Communication Technology',
+    institutionCourse: 'NC(V) Level 2 to Level 4 (3 Years) - Fully NSFAS Accredited',
+    minApsScore: 20,
+    isPublicDirectory: true,
+    openingDate: '1 September 2026',
+    deadline: '30 November 2026',
+    officialApplicationUrl: 'https://www.tsc.edu.za',
+    applicationInstructions: 'Apply online via the TSC Coltech portal or visit any campus registration hub. Required documents: Certified ID copy, latest school report (Grade 9 or Matric), and proof of residence. Free application.',
+    sourceDisclaimer: 'Public TVET college directory record compiled from Department of Higher Education & Training (DHET). Orbit AI is an independent portal and is not partnered with or endorsed by Tshwane South TVET College.',
+    posterImage: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800&auto=format&fit=crop&q=80',
+    description: 'Vocational national curriculum focused on practical networking, software installation, hardware repair, and workplace readiness. Direct pathway into IT technician and systems support roles.',
+    requirements: [
+      'Grade 9 Pass with Mathematics or Grade 12 / Matric Certificate',
+      'South African Citizenship',
+      'Minimum APS of 20 points',
+      'Pass in pre-entry placement assessment'
+    ],
+    compensationOrGrant: '100% NSFAS TVET bursary covers tuition, textbooks & travel stipend',
+    requiredDocuments: ['Certified ID Copy', 'Matric or Grade 9 School Report', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 95
+  },
+  {
+    id: 'opp-uni-7',
+    creatorId: 'inst-cjc',
+    creatorName: 'Central Johannesburg TVET College (CJC)',
+    creatorEmail: 'admissions@cjc.edu.za',
+    creatorPhone: '+27 11 351 6000',
+    title: 'National Diploma (N4-N6) Electrical Engineering & Electronics',
+    companyOrInstitution: 'Central Johannesburg TVET College (CJC)',
+    category: 'university',
+    opportunityType: 'TVET',
+    workplaceType: 'On-site',
+    location: 'Parktown, Johannesburg',
+    address: '5 Ubla Avenue, Parktown, Johannesburg',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.1776, lng: 28.0435 },
+    institutionFaculty: 'Engineering Studies',
+    institutionCourse: 'NATED Report 191 N4 to N6 + 18 Months Practical Internship',
+    minApsScore: 22,
+    isPublicDirectory: true,
+    openingDate: '1 October 2026',
+    deadline: '15 December 2026',
+    officialApplicationUrl: 'https://cjc.edu.za',
+    applicationInstructions: 'Apply online via CJC student portal or on-campus walk-in registration. Submit certified Grade 12 certificate, ID copy, and proof of residence. Eligible for full NSFAS tuition and living allowance bursary.',
+    sourceDisclaimer: 'Public TVET college directory record from Department of Higher Education & Training (DHET). Orbit AI is not partnered with or endorsed by Central Johannesburg TVET College.',
+    description: 'Technical vocational program leading to the National N Diploma in Electrical Engineering. Covers power systems, electronics, industrial instruments, and electrotechnics.',
+    requirements: [
+      'National Senior Certificate / Matric with Mathematics and Physical Science (40%+)',
+      'SA Citizenship',
+      'APS Score of 22+'
+    ],
+    compensationOrGrant: 'Full NSFAS TVET grant + Travel allowance',
+    requiredDocuments: ['Certified ID Copy', 'Matric Results', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 71
+  },
+  {
+    id: 'opp-uni-8',
+    creatorId: 'inst-falsebay',
+    creatorName: 'False Bay TVET College',
+    creatorEmail: 'info@falsebay.org.za',
+    creatorPhone: '+27 21 787 0800',
+    title: 'NC(V) Renewable Energy & Electrical Infrastructure',
+    companyOrInstitution: 'False Bay TVET College',
+    category: 'university',
+    opportunityType: 'TVET',
+    workplaceType: 'On-site',
+    location: 'Westlake, Cape Town',
+    address: 'Corner of Westlake Drive & Main Road, Westlake',
+    city: 'Cape Town',
+    province: 'Western Cape',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -34.0792, lng: 18.4418 },
+    institutionFaculty: 'Engineering & Green Economy Studies',
+    institutionCourse: 'NC(V) Electrical Infrastructure Construction (Solar & Grid)',
+    minApsScore: 21,
+    isPublicDirectory: true,
+    openingDate: '1 August 2026',
+    deadline: '31 October 2026',
+    officialApplicationUrl: 'https://www.falsebaycollege.co.za',
+    applicationInstructions: 'Complete the online career placement evaluation on the False Bay College portal, then choose your program campus. Full bursary support through NSFAS.',
+    sourceDisclaimer: 'Public TVET college directory record from DHET. Orbit AI is not partnered with or endorsed by False Bay TVET College.',
+    posterImage: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=800&auto=format&fit=crop&q=80',
+    description: 'Award-winning TVET college program equipping students with solar PV installation, electrical compliance, safety protocols, and commercial wiring certification.',
+    requirements: [
+      'Grade 9 or Grade 12 Certificate with Mathematics/Maths Lit',
+      'Pass in foundational numeracy and technical screening',
+      'South African ID'
+    ],
+    compensationOrGrant: 'Full NSFAS Tuition & Equipment Coverage',
+    requiredDocuments: ['ID Copy', 'Latest School Report / Matric', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 62
+  }
+];
+
+export async function dbFetchOpportunities(): Promise<Opportunity[]> {
+  try {
+    const { data, error } = await supabase
+      .from('opportunities')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) {
+      const local = localStorage.getItem('orbit_opportunities');
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+      try {
+        localStorage.setItem('orbit_opportunities', JSON.stringify(DEFAULT_OPPORTUNITIES));
+      } catch (e) {}
+      return DEFAULT_OPPORTUNITIES;
+    }
+
+    return data.map((d: any) => ({
+      id: d.id,
+      creatorId: d.creator_id,
+      creatorName: d.creator_name,
+      creatorEmail: d.creator_email,
+      creatorPhone: d.creator_phone,
+      title: d.title,
+      companyOrInstitution: d.company_or_institution || d.company,
+      category: d.category as OpportunityCategory,
+      opportunityType: d.opportunity_type as any,
+      workplaceType: d.workplace_type as any,
+      location: d.location,
+      address: d.address,
+      city: d.city,
+      province: d.province,
+      country: d.country || 'South Africa',
+      locationPrecision: d.location_precision as any,
+      coordinates: d.coordinates ? (typeof d.coordinates === 'string' ? JSON.parse(d.coordinates) : d.coordinates) : undefined,
+      posterImage: d.poster_image || d.posterImage,
+      logoUrl: d.logo_url || d.logoUrl,
+      description: d.description,
+      requirements: Array.isArray(d.requirements) ? d.requirements : (d.requirements ? JSON.parse(d.requirements) : []),
+      compensationOrGrant: d.compensation_or_grant,
+      deadline: d.deadline,
+      isPublicDirectory: d.is_public_directory ?? d.isPublicDirectory,
+      sourceDisclaimer: d.source_disclaimer || d.sourceDisclaimer,
+      openingDate: d.opening_date || d.openingDate,
+      institutionFaculty: d.institution_faculty,
+      institutionCourse: d.institution_course,
+      minApsScore: d.min_aps_score ? Number(d.min_aps_score) : undefined,
+      applicationInstructions: d.application_instructions || d.applicationInstructions,
+      officialApplicationUrl: d.official_application_url || d.officialApplicationUrl,
+      proofOfResidenceRequired: d.proof_of_residence_required ?? d.proofOfResidenceRequired,
+      qualificationRequired: d.qualification_required || d.qualificationRequired,
+      screeningQuestions: d.screening_questions ? (typeof d.screening_questions === 'string' ? JSON.parse(d.screening_questions) : d.screening_questions) : d.screeningQuestions,
+      requiredDocuments: Array.isArray(d.required_documents) ? d.required_documents : (d.required_documents ? JSON.parse(d.required_documents) : []),
+      createdAt: d.created_at || new Date().toISOString(),
+      status: d.status || 'Open',
+      applicantCount: Number(d.applicant_count || 0)
+    }));
+  } catch (err) {
+    console.warn("Supabase fetch opportunities failed, using fallback:", err);
+    try {
+      const local = localStorage.getItem('orbit_opportunities');
+      if (local) return JSON.parse(local);
+    } catch (e) {}
+    return DEFAULT_OPPORTUNITIES;
+  }
+}
+
+export async function dbUpsertOpportunity(opp: Opportunity): Promise<boolean> {
+  try {
+    try {
+      const local = localStorage.getItem('orbit_opportunities');
+      const list: Opportunity[] = local ? JSON.parse(local) : [...DEFAULT_OPPORTUNITIES];
+      const idx = list.findIndex(o => o.id === opp.id);
+      if (idx >= 0) list[idx] = opp;
+      else list.unshift(opp);
+      localStorage.setItem('orbit_opportunities', JSON.stringify(list));
+    } catch (e) {}
+
+    const { error } = await supabase
+      .from('opportunities')
+      .upsert({
+        id: opp.id,
+        creator_id: opp.creatorId,
+        creator_name: opp.creatorName,
+        creator_email: opp.creatorEmail,
+        creator_phone: opp.creatorPhone,
+        title: opp.title,
+        company_or_institution: opp.companyOrInstitution,
+        category: opp.category,
+        opportunity_type: opp.opportunityType,
+        workplace_type: opp.workplaceType,
+        location: opp.location,
+        address: opp.address,
+        city: opp.city,
+        province: opp.province,
+        country: opp.country || 'South Africa',
+        location_precision: opp.locationPrecision,
+        coordinates: opp.coordinates,
+        poster_image: opp.posterImage,
+        logo_url: opp.logoUrl,
+        proof_of_residence_required: opp.proofOfResidenceRequired,
+        qualification_required: opp.qualificationRequired,
+        screening_questions: opp.screeningQuestions,
+        description: opp.description,
+        requirements: opp.requirements,
+        compensation_or_grant: opp.compensationOrGrant,
+        deadline: opp.deadline,
+        institution_faculty: opp.institutionFaculty,
+        institution_course: opp.institutionCourse,
+        min_aps_score: opp.minApsScore,
+        required_documents: opp.requiredDocuments,
+        created_at: opp.createdAt,
+        status: opp.status,
+        applicant_count: opp.applicantCount || 0
+      });
+
+    if (error && error.code !== '42P01') {
+      console.warn("Supabase upsert opportunity notice:", error.message);
+    }
+    return true;
+  } catch (err) {
+    console.warn("dbUpsertOpportunity exception handled:", err);
+    return true;
+  }
+}
+
+export async function dbDeleteOpportunity(id: string): Promise<boolean> {
+  try {
+    try {
+      const local = localStorage.getItem('orbit_opportunities');
+      if (local) {
+        const list: Opportunity[] = JSON.parse(local);
+        const filtered = list.filter(o => o.id !== id);
+        localStorage.setItem('orbit_opportunities', JSON.stringify(filtered));
+      }
+    } catch (e) {}
+
+    await supabase.from('opportunities').delete().eq('id', id);
+    return true;
+  } catch (err) {
+    return true;
+  }
+}
+
+export async function dbFetchOpportunityApplications(userId?: string, opportunityId?: string): Promise<OpportunityApplication[]> {
+  try {
+    let query = supabase.from('opportunity_applications').select('*');
+    if (userId) query = query.eq('applicant_id', userId);
+    if (opportunityId) query = query.eq('opportunity_id', opportunityId);
+    query = query.order('submitted_at', { ascending: false });
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) {
+      const local = localStorage.getItem('orbit_opportunity_applications');
+      if (local) {
+        try {
+          const list: OpportunityApplication[] = JSON.parse(local);
+          let filtered = list;
+          if (userId) filtered = filtered.filter(a => a.applicantId === userId);
+          if (opportunityId) filtered = filtered.filter(a => a.opportunityId === opportunityId);
+          return filtered;
+        } catch (e) {}
+      }
+      return [];
+    }
+
+    return data.map((d: any) => ({
+      id: d.id,
+      opportunityId: d.opportunity_id,
+      opportunityTitle: d.opportunity_title,
+      opportunityCompany: d.opportunity_company,
+      opportunityCategory: d.opportunity_category as OpportunityCategory,
+      applicantId: d.applicant_id,
+      applicantName: d.applicant_name,
+      applicantEmail: d.applicant_email,
+      applicantPhone: d.applicant_phone,
+      residentialAddress: d.residential_address,
+      applicantLocationName: d.applicant_location_name,
+      applicantCoordinates: d.applicant_coordinates,
+      qualificationType: d.qualification_type,
+      screeningAnswers: d.screening_answers ? (typeof d.screening_answers === 'string' ? JSON.parse(d.screening_answers) : d.screening_answers) : undefined,
+      cvText: d.cv_text,
+      cvFileName: d.cv_file_name,
+      coverNote: d.cover_note,
+      documents: Array.isArray(d.documents) ? d.documents : (d.documents ? JSON.parse(d.documents) : []),
+      selectedInstitution: d.selected_institution,
+      selectedCourse: d.selected_course,
+      matricScoresSummary: d.matric_scores_summary,
+      apsCalculated: d.aps_calculated ? Number(d.aps_calculated) : undefined,
+      status: d.status as ApplicationStatus,
+      statusNotes: d.status_notes,
+      employerNotes: d.employer_notes,
+      aiMatchEvaluation: d.ai_match_evaluation ? (typeof d.ai_match_evaluation === 'string' ? JSON.parse(d.ai_match_evaluation) : d.ai_match_evaluation) : undefined,
+      submittedAt: d.submitted_at || new Date().toISOString(),
+      updatedAt: d.updated_at || new Date().toISOString()
+    }));
+  } catch (err) {
+    console.warn("Supabase fetch opportunity applications fallback:", err);
+    try {
+      const local = localStorage.getItem('orbit_opportunity_applications');
+      if (local) {
+        const list: OpportunityApplication[] = JSON.parse(local);
+        let filtered = list;
+        if (userId) filtered = filtered.filter(a => a.applicantId === userId);
+        if (opportunityId) filtered = filtered.filter(a => a.opportunityId === opportunityId);
+        return filtered;
+      }
+    } catch (e) {}
+    return [];
+  }
+}
+
+export async function dbUpsertOpportunityApplication(app: OpportunityApplication): Promise<boolean> {
+  try {
+    try {
+      const local = localStorage.getItem('orbit_opportunity_applications');
+      const list: OpportunityApplication[] = local ? JSON.parse(local) : [];
+      const idx = list.findIndex(a => a.id === app.id);
+      if (idx >= 0) list[idx] = app;
+      else list.unshift(app);
+      localStorage.setItem('orbit_opportunity_applications', JSON.stringify(list));
+
+      const oppsLocal = localStorage.getItem('orbit_opportunities');
+      if (oppsLocal) {
+        const opps: Opportunity[] = JSON.parse(oppsLocal);
+        const oIdx = opps.findIndex(o => o.id === app.opportunityId);
+        if (oIdx >= 0) {
+          opps[oIdx].applicantCount = (opps[oIdx].applicantCount || 0) + 1;
+          localStorage.setItem('orbit_opportunities', JSON.stringify(opps));
+        }
+      }
+    } catch (e) {}
+
+    const { error } = await supabase
+      .from('opportunity_applications')
+      .upsert({
+        id: app.id,
+        opportunity_id: app.opportunityId,
+        opportunity_title: app.opportunityTitle,
+        opportunity_company: app.opportunityCompany,
+        opportunity_category: app.opportunityCategory,
+        applicant_id: app.applicantId,
+        applicant_name: app.applicantName,
+        applicant_email: app.applicantEmail,
+        applicant_phone: app.applicantPhone,
+        residential_address: app.residentialAddress,
+        applicant_location_name: app.applicantLocationName,
+        applicant_coordinates: app.applicantCoordinates,
+        qualification_type: app.qualificationType,
+        screening_answers: app.screeningAnswers,
+        cv_text: app.cvText,
+        cv_file_name: app.cvFileName,
+        cover_note: app.coverNote,
+        documents: app.documents,
+        selected_institution: app.selectedInstitution,
+        selected_course: app.selectedCourse,
+        matric_scores_summary: app.matricScoresSummary,
+        aps_calculated: app.apsCalculated,
+        status: app.status,
+        status_notes: app.statusNotes,
+        employer_notes: app.employerNotes,
+        ai_match_evaluation: app.aiMatchEvaluation,
+        submitted_at: app.submittedAt,
+        updated_at: app.updatedAt
+      });
+
+    if (error && error.code !== '42P01') {
+      console.warn("Supabase upsert opportunity application notice:", error.message);
+    }
+    return true;
+  } catch (err) {
+    console.warn("dbUpsertOpportunityApplication exception handled:", err);
+    return true;
+  }
+}
+
+export async function dbUpdateApplicationStatus(
+  appId: string, 
+  status: ApplicationStatus, 
+  notes?: string,
+  employerNotes?: string
+): Promise<boolean> {
+  try {
+    try {
+      const local = localStorage.getItem('orbit_opportunity_applications');
+      if (local) {
+        const list: OpportunityApplication[] = JSON.parse(local);
+        const idx = list.findIndex(a => a.id === appId);
+        if (idx >= 0) {
+          list[idx].status = status;
+          if (notes !== undefined) list[idx].statusNotes = notes;
+          if (employerNotes !== undefined) list[idx].employerNotes = employerNotes;
+          list[idx].updatedAt = new Date().toISOString();
+          localStorage.setItem('orbit_opportunity_applications', JSON.stringify(list));
+        }
+      }
+    } catch (e) {}
+
+    const payload: any = {
+      status,
+      updated_at: new Date().toISOString()
+    };
+    if (notes !== undefined) payload.status_notes = notes;
+    if (employerNotes !== undefined) payload.employer_notes = employerNotes;
+
+    await supabase
+      .from('opportunity_applications')
+      .update(payload)
+      .eq('id', appId);
+
+    return true;
+  } catch (err) {
+    return true;
+  }
+}
+
+export async function dbUploadOpportunityDocument(file: File, filename?: string): Promise<string | null> {
+  try {
+    const cleanName = filename || `doc_${Date.now()}_${Math.random().toString(36).substring(7)}_${file.name.replace(/\s+/g, '_')}`;
+    const bucket = supabase.storage.from('obdi-photos');
+    const { data, error } = await bucket.upload(`opportunities/${cleanName}`, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
+    if (!error && data) {
+      const { data: pub } = bucket.getPublicUrl(`opportunities/${cleanName}`);
+      if (pub?.publicUrl) return pub.publicUrl;
+    }
+  } catch (err) {
+    console.warn("Storage upload fallback to base64 reader:", err);
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+export function dbFetchUserStoredDocuments(userId: string): ApplicationDocument[] {
+  try {
+    const key = `orbit_docs_${userId || 'guest'}`;
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [];
+}
+
+export function dbSaveUserStoredDocument(userId: string, doc: ApplicationDocument): void {
+  try {
+    const key = `orbit_docs_${userId || 'guest'}`;
+    const existing = dbFetchUserStoredDocuments(userId);
+    const idx = existing.findIndex(d => d.name === doc.name && d.type === doc.type);
+    if (idx >= 0) existing[idx] = doc;
+    else existing.push(doc);
+    localStorage.setItem(key, JSON.stringify(existing));
+  } catch (e) {}
+}
+
+export function dbDeleteUserStoredDocument(userId: string, docId: string): void {
+  try {
+    const key = `orbit_docs_${userId || 'guest'}`;
+    const existing = dbFetchUserStoredDocuments(userId);
+    const filtered = existing.filter(d => d.id !== docId);
+    localStorage.setItem(key, JSON.stringify(filtered));
+  } catch (e) {}
 }
 
 

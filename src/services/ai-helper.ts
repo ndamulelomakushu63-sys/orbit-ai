@@ -766,70 +766,7 @@ function generateLocalFallbackResponse(messages: any[]): string {
     return JSON.stringify({ ideas });
   }
 
-  // 3. Check for "comprehensive, educational business concept" (JSON object)
-  if (combinedContent.includes("comprehensive, educational business concept") || combinedContent.includes("Orbit AI Business Builder consultant")) {
-    const businessIdea = matchField(combinedContent, /Proposed Business Idea: ([^\n]+)/) || "Coffee Shop";
-    const industry = matchField(combinedContent, /Industry: ([^\n]+)/) || "Retail";
-    const budget = matchField(combinedContent, /Starting Budget: ([^\n]+)/) || "R5000";
-
-    const plan = {
-      businessNames: [
-        { name: `Orbit ${businessIdea}`, tagline: `Innovating the ${industry} experience.` },
-        { name: `${businessIdea} Junction`, tagline: `Your premium destination for quality service.` },
-        { name: `The Daily ${businessIdea}`, tagline: `Crafted with care, delivered with passion.` },
-        { name: `Apex ${businessIdea}`, tagline: `Elevating standard solutions in ${industry}.` },
-        { name: `Eco${businessIdea}`, tagline: `Sustainably sourced, beautifully designed.` }
-      ],
-      businessDescription: `This business plan details the framework for starting a professional, highly localized, and sustainable ${businessIdea} operating within the ${industry} sector. With an initial starting budget of ${budget}, the business model is built on lean operations, high-quality service delivery, and direct customer engagement to build solid local loyalty from day one.`,
-      targetAudience: `Primary customer personas include young professionals, local residents, and quality-conscious customers looking for convenience, custom options, and reliable service in the ${industry} market.`,
-      revenueModel: `Revenue will be generated primarily through direct retail sales of product offerings, subscription-based loyalties, and curated gift boxes or custom bundles.`,
-      startupChecklist: [
-        "Register the business name and secure domain/social media handles.",
-        "Secure necessary municipal operating licenses and compliance certificates.",
-        "Sourced high-grade initial stock and essential workspace equipment.",
-        "Design a clean, modern digital menu or catalog showing core services.",
-        "Set up an online payment processor (e.g., PayFast or standard merchant bank).",
-        "Design eye-catching flyers and launching social media campaigns.",
-        "Establish partnerships with local South African logistics or delivery services.",
-        "Perform a dry run of standard services to refine execution speed and quality."
-      ],
-      marketingPlan: `To match a starting budget of ${budget}, marketing will rely on high-impact organic strategies: local community group outreach, engaging visual storytelling on Instagram/TikTok, and a referral program offering discounts to existing customers who recommend new ones.`,
-      pricingSuggestions: `Basic Tier: Standard product or service with core features priced affordably. Premium Tier: Enhanced service offering with priority response, custom options, and branded packaging at a 30% markup.`,
-      launchPlan30Day: [
-        "Days 1-7: Register business, complete licensing, and finalize brand identity.",
-        "Days 8-14: Source tools, ingredients, or equipment, and build digital storefront/catalog.",
-        "Days 15-21: Initiate social media countdown, print flyers, and test payment gateway.",
-        "Days 22-30: Run soft launch with close friends/family, optimize, and officially launch!"
-      ],
-      socialMediaStrategy: `Focus on visual platforms (Instagram/TikTok) with weekly behind-the-scenes content showing our service preparation, tips/hacks relevant to ${industry}, and highlighting customer reviews to build instant credibility.`,
-      riskAssessment: `Risk: Cash flow constraints in the first 2 months due to slower adoption. Mitigation: Maintain a tight, lean operational budget and keep inventory minimal until sales volume establishes a predictable pattern.`,
-      healthScore: {
-        score: 88,
-        strengths: [
-          `Strong local demand in the ${industry} market`,
-          "Lean startup model requiring minimal initial overhead",
-          "Scalable revenue streams via retail and recurring packages"
-        ],
-        improvements: [
-          "Requires consistent initial client acquisition efforts",
-          "Managing supply chain or logistics during peak demand"
-        ],
-        breakdown: {
-          branding: 90,
-          businessModel: 88,
-          marketing: 85,
-          sales: 87,
-          financials: 86,
-          launchReadiness: 90
-        },
-        recommendations: "Focus on establishing strong early client trust through high-quality service, local social media proof, and word-of-mouth referral incentives."
-      }
-    };
-
-    return JSON.stringify(plan);
-  }
-
-  // 4. Check for "Task Specialist" / task-generate endpoint
+  // 3. Check for "Task Specialist" / task-generate endpoint
   if (combinedContent.includes("curriculum vitae") || combinedContent.includes("Curriculum Vitae") || combinedContent.includes("ATS-friendly CV") || combinedContent.includes("User Interview Data:")) {
     const fullName = matchField(combinedContent, /Full Name: ([^\n]+)/) || "Ndamulelo Makushu Glen";
     const skills = matchField(combinedContent, /Key Skills: ([^\n]+)/) || "Programming, Web Development";

@@ -682,13 +682,6 @@ export const HomeChatScreen: React.FC = () => {
               </TouchableOpacity>
 
               <TouchableOpacity 
-                onClick={() => handlePremiumRoute("business-builder")}
-                className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left"
-              >
-                <Text className="text-[16px] font-medium text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">AI Business Builder</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
                 onClick={() => { setShowMenu(false); setMobileScreen("business-mode"); }}
                 className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left"
               >
@@ -714,6 +707,13 @@ export const HomeChatScreen: React.FC = () => {
                 className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left border-t border-slate-100"
               >
                 <Text className="text-[16px] font-semibold text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">Orbit Market</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                onClick={() => { setShowMenu(false); setMobileScreen("opportunities"); }}
+                className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left border-t border-slate-100"
+              >
+                <Text className="text-[16px] font-semibold text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">Opportunities</Text>
               </TouchableOpacity>
             </div>
           )}
@@ -819,14 +819,15 @@ export const HomeChatScreen: React.FC = () => {
         </div>
       </View>
 
-      {/* WHATSAPP-STYLE PLAIN WHITE CHAT STREAM AREA */}
+      {/* CHAT STREAM AREA - CHATGPT-STYLE PRESENTATION */}
       <ScrollView 
          id="chat-scroll-wrapper"
          ref={scrollRef}
-         className="bg-white flex-1 px-4 pt-1.5 pb-2"
-         contentContainerClassName="space-y-2.5 pb-4"
+         className="bg-white flex-1 overflow-y-auto"
+         contentContainerClassName="flex flex-col min-h-full justify-between"
          showsVerticalScrollIndicator={false}
        >
+        <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex flex-col gap-6 flex-1">
          {activeMessages.length === 0 ? (
            <View className="flex flex-col items-center justify-center text-center p-4 space-y-6 my-auto pt-4 max-w-lg mx-auto">
              <View className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center">
@@ -926,13 +927,102 @@ export const HomeChatScreen: React.FC = () => {
         ) : (
           activeMessages.map((msg, idx) => {
             const isError = msg.id.includes("-error");
+            const isUser = msg.role === 'user';
+            const { text: cleanText, attachments: msgAttachments } = parseMessageAttachments(msg.message);
+
+            if (isUser) {
+              return (
+                <div 
+                  key={msg.id || idx} 
+                  className="flex flex-col items-end w-full"
+                >
+                  <div 
+                    onMouseDown={() => handlePressStart(msg)}
+                    onMouseUp={handlePressEnd}
+                    onMouseLeave={handlePressEnd}
+                    onTouchStart={() => handlePressStart(msg)}
+                    onTouchEnd={handlePressEnd}
+                    onTouchMove={handlePressEnd}
+                    onContextMenu={(e: any) => {
+                      e.preventDefault();
+                      setSelectedMessageForMenu(msg);
+                      setShowActionMenu(true);
+                    }}
+                    className="max-w-[85%] sm:max-w-[75%] md:max-w-[70%] px-4 sm:px-5 py-3 rounded-3xl bg-[#96c4ec] hover:bg-[#8cc0ea] text-slate-900 transition-colors shadow-2xs border border-[#82b8e5] cursor-pointer select-text text-left relative"
+                  >
+                    {/* Reply preview if replying to a message */}
+                    {msg.replyToMessageId && (() => {
+                      const parentMsg = chatMessages.find(m => m.id === msg.replyToMessageId);
+                      if (!parentMsg) return null;
+                      const parentText = parseMessageAttachments(parentMsg.message).text;
+                      return (
+                        <div className="mb-2 p-2 bg-black/5 rounded-2xl border-l-3 border-[#1d4ed8] text-left select-none max-w-full">
+                          <span className="text-[10px] font-bold text-slate-800 block">
+                            {parentMsg.role === 'user' ? 'You' : 'Orbit AI'}
+                          </span>
+                          <span className="text-[11px] text-slate-700 truncate block mt-0.5">
+                            {parentText}
+                          </span>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Attachments if any */}
+                    {msgAttachments && msgAttachments.length > 0 && (
+                      <div className="flex flex-col gap-2 mb-2 w-full max-w-[280px]">
+                        {msgAttachments.map((att: any) => {
+                          if (att.type === 'image') {
+                            return (
+                              <div key={att.id} className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-black/5 bg-white/40 shadow-3xs">
+                                <img 
+                                  src={att.url} 
+                                  className="w-full h-full object-cover" 
+                                  alt={att.name || "Attachment"} 
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div 
+                                key={att.id} 
+                                className="flex flex-row items-center gap-2.5 p-2.5 bg-white border border-slate-200/80 rounded-xl shadow-3xs text-left"
+                              >
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                  <FileText className="w-4 h-4 text-blue-500" />
+                                </div>
+                                <div className="flex-1 min-w-0 flex flex-col">
+                                  <span className="text-[11px] font-bold text-slate-800 truncate leading-tight block">{att.name}</span>
+                                  <span className="text-[9px] text-slate-400 font-mono leading-none mt-0.5">{att.sizeStr}</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                        })}
+                      </div>
+                    )}
+
+                    {/* Main clean user text */}
+                    {cleanText && (
+                      <FormattedMessage text={cleanText} isUser={true} />
+                    )}
+
+                    {/* Timestamp */}
+                    <div className="text-[10px] text-slate-600/80 font-mono text-right mt-1 select-none">
+                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // Model / Assistant message: clean, plain ChatGPT-style layout
             return (
-              <View 
+              <div 
                 key={msg.id || idx} 
-                className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full space-y-1`}
+                className="flex flex-col items-start w-full space-y-2"
               >
-                {/* WHATSAPP-STYLE MSG BUBBLE */}
-                <View 
+                <div 
                   onMouseDown={() => handlePressStart(msg)}
                   onMouseUp={handlePressEnd}
                   onMouseLeave={handlePressEnd}
@@ -944,237 +1034,172 @@ export const HomeChatScreen: React.FC = () => {
                     setSelectedMessageForMenu(msg);
                     setShowActionMenu(true);
                   }}
-                  className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl relative shadow-3xs cursor-pointer select-none transition-all active:scale-[0.98] ${
-                    msg.role === 'user' 
-                      ? 'bg-[#d9fdd3] rounded-tr-none' // WhatsApp Light Green bubble 
-                      : isError 
-                        ? 'bg-red-50 border border-red-150 rounded-tl-none'
-                        : 'bg-slate-100 rounded-tl-none' // Recipient standard grey bubble
+                  className={`w-full text-left transition-colors cursor-pointer select-text ${
+                    isError 
+                      ? 'p-4 rounded-3xl bg-red-50/80 border border-red-200 text-red-900 shadow-2xs' 
+                      : 'py-1'
                   }`}
                 >
-                  {(() => {
-                    const { text: cleanText, attachments: msgAttachments } = parseMessageAttachments(msg.message);
-                    
-                    return (
-                      <>
-                        {msg.replyToMessageId && (() => {
-                          const parentMsg = chatMessages.find(m => m.id === msg.replyToMessageId);
-                          if (!parentMsg) return null;
-                          const parentText = parseMessageAttachments(parentMsg.message).text;
-                          return (
-                            <View className="mb-2.5 p-2 bg-black/5 rounded-xl border-l-4 border-blue-500 text-left select-none max-w-full">
-                              <Text className="text-[9px] font-bold text-blue-600 block">
-                                {parentMsg.role === 'user' ? 'You' : 'Orbit AI'}
-                              </Text>
-                              <Text className="text-[10px] text-slate-600 truncate block">
-                                {parentText}
-                              </Text>
-                            </View>
-                          );
-                        })()}
+                  {/* Clean readable assistant content area */}
+                  <div className="w-full text-slate-800">
+                    {/* Reply preview if replying */}
+                    {msg.replyToMessageId && (() => {
+                      const parentMsg = chatMessages.find(m => m.id === msg.replyToMessageId);
+                      if (!parentMsg) return null;
+                      const parentText = parseMessageAttachments(parentMsg.message).text;
+                      return (
+                        <div className="mb-3 p-2.5 bg-slate-100 rounded-2xl border-l-3 border-blue-500 text-left select-none max-w-full">
+                          <span className="text-[10px] font-bold text-blue-600 block">
+                            {parentMsg.role === 'user' ? 'You' : 'Orbit AI'}
+                          </span>
+                          <span className="text-xs text-slate-600 truncate block mt-0.5">
+                            {parentText}
+                          </span>
+                        </div>
+                      );
+                    })()}
 
-                        {isError && (
-                          <View className="flex flex-row items-center gap-1.5 mb-1.5 font-semibold text-red-900 border-b border-red-100 pb-1 align-middle">
-                            <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                            <Text className="text-red-900 font-bold text-xs select-none font-sans">API Alert</Text>
-                          </View>
-                        )}
+                    {isError && (
+                      <div className="flex flex-row items-center gap-1.5 mb-2 font-semibold text-red-900 border-b border-red-100 pb-1 align-middle">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                        <span className="text-red-900 font-bold text-xs select-none font-sans">API Alert</span>
+                      </div>
+                    )}
 
-                        {/* RENDER RICH ATTACHMENTS LARGE INSIDE BUBBLE */}
-                        {msgAttachments && msgAttachments.length > 0 && (
-                          <View className="flex flex-col gap-2 mb-2 w-full max-w-[280px]">
-                            {msgAttachments.map((att: any) => {
-                              if (att.type === 'image') {
-                                const isAiGenerated = msg.role === 'model' || att.isAiGenerated || att.prompt;
-                                return (
-                                  <View key={att.id} className="flex flex-col gap-2 w-full">
+                    {/* Rich attachments (AI images or documents) */}
+                    {msgAttachments && msgAttachments.length > 0 && (
+                      <div className="flex flex-col gap-2.5 mb-3 w-full max-w-md">
+                        {msgAttachments.map((att: any) => {
+                          if (att.type === 'image') {
+                            const isAiGenerated = msg.role === 'model' || att.isAiGenerated || att.prompt;
+                            return (
+                              <div key={att.id} className="flex flex-col gap-2 w-full">
+                                <TouchableOpacity
+                                  onClick={() => setZoomImageUrl(att.url)}
+                                  className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-black/5 bg-slate-50 shadow-2xs cursor-pointer active:scale-[0.99] transition"
+                                >
+                                  <img 
+                                    src={att.url} 
+                                    className="w-full h-full object-cover" 
+                                    alt={att.name || "AI Generated Image"} 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </TouchableOpacity>
+
+                                {isAiGenerated && (
+                                  <div className="flex flex-row items-center gap-1.5 pt-1 border-t border-slate-200/60 w-full select-none">
                                     <TouchableOpacity
-                                      onClick={() => setZoomImageUrl(att.url)}
-                                      className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-black/5 bg-slate-50 shadow-3xs cursor-pointer active:scale-[0.99] transition"
+                                      onClick={() => handleDownloadImage(att.url, att.name)}
+                                      className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 transition cursor-pointer active:scale-95 shadow-3xs"
                                     >
-                                      <img 
-                                        src={att.url} 
-                                        className="w-full h-full object-cover" 
-                                        alt={att.name || "AI Generated Image"} 
-                                        referrerPolicy="no-referrer"
-                                      />
+                                      <Download className="w-3 h-3 text-slate-500 shrink-0" />
+                                      <span>Download</span>
                                     </TouchableOpacity>
-
-                                    {/* Action buttons under AI generated image */}
-                                    {isAiGenerated && (
-                                      <View className="flex flex-row items-center gap-1.5 pt-1 border-t border-slate-200/60 w-full select-none">
-                                        <TouchableOpacity
-                                          onClick={() => handleDownloadImage(att.url, att.name)}
-                                          className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 transition cursor-pointer active:scale-95 shadow-3xs"
-                                        >
-                                          <Download className="w-3 h-3 text-slate-500 shrink-0" />
-                                          <span>Download</span>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                          onClick={() => handleShareImage(att.url, att.prompt || cleanText)}
-                                          className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 transition cursor-pointer active:scale-95 shadow-3xs"
-                                        >
-                                          <Share2 className="w-3 h-3 text-slate-500 shrink-0" />
-                                          <span>Share</span>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                          onClick={() => handleRegenerateImage(att.prompt || cleanText)}
-                                          className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl text-[10px] font-bold text-blue-600 transition cursor-pointer active:scale-95 shadow-3xs"
-                                        >
-                                          <RefreshCw className="w-3 h-3 text-blue-600 shrink-0" />
-                                          <span>Regenerate</span>
-                                        </TouchableOpacity>
-                                      </View>
-                                    )}
-                                  </View>
-                                );
-                              } else {
-                                return (
-                                  <div 
-                                    key={att.id} 
-                                    className="flex flex-row items-center gap-2.5 p-2.5 bg-white border border-slate-200/80 rounded-xl shadow-3xs text-left"
-                                  >
-                                    <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                                      <FileText className="w-5 h-5 text-blue-500" />
-                                    </div>
-                                    <div className="flex-1 min-w-0 flex flex-col">
-                                      <span className="text-[11px] font-bold text-slate-800 truncate leading-tight block">{att.name}</span>
-                                      <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">{att.sizeStr}</span>
-                                    </div>
+                                    <TouchableOpacity
+                                      onClick={() => handleShareImage(att.url, att.prompt || cleanText)}
+                                      className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 transition cursor-pointer active:scale-95 shadow-3xs"
+                                    >
+                                      <Share2 className="w-3 h-3 text-slate-500 shrink-0" />
+                                      <span>Share</span>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onClick={() => handleRegenerateImage(att.prompt || cleanText)}
+                                      className="flex-1 flex flex-row items-center justify-center gap-1 py-1.5 px-2 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl text-[10px] font-bold text-blue-600 transition cursor-pointer active:scale-95 shadow-3xs"
+                                    >
+                                      <RefreshCw className="w-3 h-3 text-blue-600 shrink-0" />
+                                      <span>Regenerate</span>
+                                    </TouchableOpacity>
                                   </div>
-                                );
-                              }
-                            })}
-                          </View>
-                        )}
+                                )}
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div 
+                                key={att.id} 
+                                className="flex flex-row items-center gap-2.5 p-2.5 bg-white border border-slate-200/80 rounded-xl shadow-3xs text-left"
+                              >
+                                <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                  <FileText className="w-5 h-5 text-blue-500" />
+                                </div>
+                                <div className="flex-1 min-w-0 flex flex-col">
+                                  <span className="text-[11px] font-bold text-slate-800 truncate leading-tight block">{att.name}</span>
+                                  <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">{att.sizeStr}</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                        })}
+                      </div>
+                    )}
 
-                        {/* RENDER MAIN MESSAGE TEXT */}
-                        {cleanText && (
-                          <FormattedMessage text={cleanText} isUser={msg.role === 'user'} />
-                        )}
-                      </>
-                    );
-                  })()}
-                  
-                  <Text className={`text-[8px] mt-1 block text-right font-mono ${msg.role === 'user' ? 'text-slate-500' : isError ? 'text-red-400' : 'text-slate-400'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </View>
+                    {/* Main assistant formatted markdown */}
+                    {cleanText && (
+                      <FormattedMessage text={cleanText} isUser={false} />
+                    )}
+                  </div>
+                </div>
 
                 {isError && (
-                  <TouchableOpacity
-                    onClick={() => {
-                      const lastUser = [...activeMessages].slice(0, activeMessages.indexOf(msg)).reverse().find(m => m.role === 'user');
-                      if (lastUser) {
-                        triggerChatMessage(lastUser.message);
-                      } else {
-                        const firstUser = activeMessages.find(m => m.role === 'user');
-                        if (firstUser) triggerChatMessage(firstUser.message);
-                      }
-                    }}
-                    className="flex flex-row items-center gap-1 px-3 py-1 bg-slate-100 hover:bg-slate-150 text-slate-700 rounded-full border border-slate-200 transition text-[9px] font-bold cursor-pointer ml-1 select-none font-sans active:opacity-75"
-                  >
-                    <RefreshCw className="w-2.5 h-2.5 text-slate-500" />
-                    <span>Retry sending last prompt</span>
-                  </TouchableOpacity>
+                  <div className="w-full pt-1">
+                    <TouchableOpacity
+                      onClick={() => {
+                        const lastUser = [...activeMessages].slice(0, activeMessages.indexOf(msg)).reverse().find(m => m.role === 'user');
+                        if (lastUser) {
+                          triggerChatMessage(lastUser.message);
+                        } else {
+                          const firstUser = activeMessages.find(m => m.role === 'user');
+                          if (firstUser) triggerChatMessage(firstUser.message);
+                        }
+                      }}
+                      className="inline-flex flex-row items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full border border-slate-200 transition text-[10px] font-bold cursor-pointer select-none font-sans active:opacity-75"
+                    >
+                      <RefreshCw className="w-3 h-3 text-slate-500" />
+                      <span>Retry prompt</span>
+                    </TouchableOpacity>
+                  </div>
                 )}
-              </View>
+              </div>
             );
           })
         )}
 
         {isGeneratingImage && (
-          <View className="flex flex-col items-start w-full my-2 animate-fade-in">
-            <View className="max-w-[85%] bg-slate-50 border border-slate-200/80 p-4 rounded-2xl rounded-tl-none shadow-3xs flex flex-col gap-3">
-              <View className="flex flex-row items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-5 h-5 text-blue-600 animate-spin" style={{ animationDuration: '3s' }} />
+          <div className="flex flex-col items-start w-full my-2 animate-fade-in">
+            <div className="w-full max-w-md">
+              <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-3xl shadow-2xs flex flex-col gap-3">
+                <div className="flex flex-row items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-5 h-5 text-blue-600 animate-spin" style={{ animationDuration: '3s' }} />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-xs font-bold text-slate-900 font-sans block">
+                      Generating your image...
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-sans block mt-0.5">
+                      Please wait while Orbit AI creates your image.
+                    </span>
+                  </div>
                 </div>
-                <View className="flex flex-col text-left">
-                  <Text className="text-xs font-bold text-slate-900 font-sans block">
-                    Generating your image...
-                  </Text>
-                  <Text className="text-[11px] text-slate-500 font-sans block mt-0.5">
-                    Please wait while Orbit AI creates your image.
-                  </Text>
-                </View>
-              </View>
-              
-              {/* Animated loading progress bar */}
-              <View className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden relative">
-                <div className="h-full bg-blue-600 rounded-full animate-pulse w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600" />
-              </View>
-            </View>
-          </View>
+                <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden relative">
+                  <div className="h-full bg-blue-600 rounded-full animate-pulse w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600" />
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {isAiTyping && (
-          <View className="flex flex-row justify-start w-full">
-            <View className="bg-slate-100 p-3 rounded-2xl rounded-tl-none flex flex-row gap-1 items-center shadow-3xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-            </View>
-          </View>
+          <div className="flex items-center gap-2 w-full py-2">
+            <div className="bg-slate-100 px-4 py-2.5 rounded-3xl flex items-center gap-1.5 shadow-2xs border border-slate-200/50">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
         )}
+        </div>
       </ScrollView>
-
-      {/* FLOATING ATTACHMENT ACTION MENU */}
-      {showAttachments && (
-        <View className="bg-slate-50 border-t border-slate-100 p-4 grid grid-cols-4 gap-2 animate-slide-up select-none shadow-inner">
-          <TouchableOpacity 
-            onClick={() => handleAttachment("Camera")}
-            className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
-          >
-            <Camera className="w-5 h-5 text-slate-500" />
-            <Text className="text-[9px] font-bold text-slate-600">Camera</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            onClick={() => handleAttachment("Photos")}
-            className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
-          >
-            <Image className="w-5 h-5 text-slate-500" />
-            <Text className="text-[9px] font-bold text-slate-600">Photos</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            onClick={() => handleAttachment("Document")}
-            className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
-          >
-            <FileText className="w-5 h-5 text-slate-500" />
-            <Text className="text-[9px] font-bold text-slate-600">Files</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            onClick={() => handleAttachment("AI Image")}
-            className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
-          >
-            <Sparkles className="w-5 h-5 text-blue-500" />
-            <Text className="text-[9px] font-bold text-slate-600">AI Image</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* WHATSAPP-STYLE REPLY PREVIEW BAR */}
-      {replyingToMessage && (
-        <View className="px-4 py-2.5 bg-slate-100 border-t border-slate-200 flex flex-row items-center justify-between animate-fade-in select-none">
-          <View className="border-l-4 border-blue-500 pl-2.5 text-left flex-1 max-w-[85%]">
-            <Text className="text-[10px] font-black text-blue-600 block uppercase tracking-wider">
-              {replyingToMessage.role === 'user' ? 'Replying to you' : 'Replying to Orbit AI'}
-            </Text>
-            <Text className="text-xs text-slate-600 truncate block mt-0.5 font-sans font-medium">
-              {replyingToMessage.message}
-            </Text>
-          </View>
-          <TouchableOpacity 
-            onClick={() => setReplyingToMessage(null)}
-            className="p-1.5 hover:bg-slate-200/60 rounded-full text-slate-400 hover:text-slate-600 transition cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Hidden File Inputs for Device Integration */}
       <input 
@@ -1198,64 +1223,6 @@ export const HomeChatScreen: React.FC = () => {
         capture="environment" 
         onChange={handleFallbackCameraChange} 
       />
-
-      {/* LOCAL ATTACHMENTS PREVIEW ROW */}
-      {localAttachments.length > 0 && (
-        <View className="bg-slate-50/90 border-t border-slate-200/80 py-2.5 px-4 animate-fade-in select-none">
-          <View className="flex flex-row overflow-x-auto gap-2.5 scrollbar-none py-0.5">
-            {localAttachments.map(att => {
-              const isImage = att.type === 'image';
-              const isPdf = att.name.toLowerCase().endsWith('.pdf');
-
-              return (
-                <View 
-                  key={att.id} 
-                  className="relative shrink-0 flex flex-row items-center gap-2.5 p-2 pr-2.5 bg-white border border-slate-200/90 hover:border-slate-300 rounded-xl shadow-2xs w-[220px] sm:w-[250px] h-[56px] transition group"
-                >
-                  {/* Thumbnail / File Icon on the Left */}
-                  {isImage ? (
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 border border-slate-200/70 shrink-0 relative flex items-center justify-center">
-                      <img 
-                        src={att.url} 
-                        className="w-full h-full object-cover" 
-                        alt="Preview" 
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  ) : (
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border ${
-                      isPdf 
-                        ? 'bg-red-50 border-red-100 text-red-500' 
-                        : 'bg-blue-50 border-blue-100 text-blue-500'
-                    }`}>
-                      <FileText className="w-5 h-5" />
-                    </div>
-                  )}
-
-                  {/* File Name & Size in Center */}
-                  <div className="flex-1 min-w-0 text-left">
-                    <span className="text-xs font-semibold text-slate-800 truncate block leading-tight">
-                      {att.name}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                      {att.sizeStr || (isImage ? 'IMAGE' : 'FILE')}
-                    </span>
-                  </div>
-
-                  {/* Close / Remove (X) Button */}
-                  <TouchableOpacity
-                    onClick={() => setLocalAttachments(prev => prev.filter(a => a.id !== att.id))}
-                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200/80 active:scale-90 flex items-center justify-center text-slate-400 hover:text-slate-700 transition cursor-pointer shrink-0 ml-1"
-                    title="Remove attachment"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      )}
 
       {/* DETAILED UPLOAD PROGRESS DIALOG */}
       {isUploading && (
@@ -1324,7 +1291,7 @@ export const HomeChatScreen: React.FC = () => {
               </View>
             ) : (
               <video 
-                ref={videoRef}
+                ref={videoRef} 
                 autoPlay 
                 playsInline 
                 muted
@@ -1369,7 +1336,122 @@ export const HomeChatScreen: React.FC = () => {
         </div>
       )}
 
-      {/* WHATSAPP WHITESPACE-OPTIMIZED INPUT BAR */}
+      {/* FLOATING ATTACHMENT ACTION MENU */}
+      {showAttachments && (
+        <View className="bg-slate-50 border-t border-slate-100 p-4 grid grid-cols-4 gap-2 animate-slide-up select-none shadow-inner">
+          <TouchableOpacity 
+            onClick={() => handleAttachment("Camera")}
+            className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
+          >
+            <Camera className="w-5 h-5 text-slate-500" />
+            <Text className="text-[9px] font-bold text-slate-600">Camera</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onClick={() => handleAttachment("Photos")}
+            className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
+          >
+            <Image className="w-5 h-5 text-slate-500" />
+            <Text className="text-[9px] font-bold text-slate-600">Photos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onClick={() => handleAttachment("Document")}
+            className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
+          >
+            <FileText className="w-5 h-5 text-slate-500" />
+            <Text className="text-[9px] font-bold text-slate-600">Files</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onClick={() => handleAttachment("AI Image")}
+            className="bg-white p-2.5 rounded-2xl border border-slate-200/70 hover:bg-slate-50 items-center justify-center flex flex-col gap-1 cursor-pointer"
+          >
+            <Sparkles className="w-5 h-5 text-blue-500" />
+            <Text className="text-[9px] font-bold text-slate-600">AI Image</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* WHATSAPP-STYLE REPLY PREVIEW BAR */}
+      {replyingToMessage && (
+        <View className="px-4 py-2.5 bg-slate-100 border-t border-slate-200 flex flex-row items-center justify-between animate-fade-in select-none">
+          <View className="border-l-4 border-blue-500 pl-2.5 text-left flex-1 max-w-[85%]">
+            <Text className="text-[10px] font-black text-blue-600 block uppercase tracking-wider">
+              {replyingToMessage.role === 'user' ? 'Replying to you' : 'Replying to Orbit AI'}
+            </Text>
+            <Text className="text-xs text-slate-600 truncate block mt-0.5 font-sans font-medium">
+              {replyingToMessage.message}
+            </Text>
+          </View>
+          <TouchableOpacity 
+            onClick={() => setReplyingToMessage(null)}
+            className="p-1.5 hover:bg-slate-200/60 rounded-full text-slate-400 hover:text-slate-600 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* LOCAL ATTACHMENTS PREVIEW ROW */}
+      {localAttachments.length > 0 && (
+        <View className="bg-slate-50/90 border-t border-slate-200/80 py-2.5 px-4 animate-fade-in select-none">
+          <View className="flex flex-row overflow-x-auto gap-2.5 scrollbar-none py-0.5">
+            {localAttachments.map(att => {
+              const isImage = att.type === 'image';
+              const isPdf = att.name.toLowerCase().endsWith('.pdf');
+
+              return (
+                <View 
+                  key={att.id} 
+                  className="relative shrink-0 flex flex-row items-center gap-2.5 p-2 pr-2.5 bg-white border border-slate-200/90 hover:border-slate-300 rounded-xl shadow-2xs w-[220px] sm:w-[250px] h-[56px] transition group"
+                >
+                  {/* Thumbnail / File Icon on the Left */}
+                  {isImage ? (
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 border border-slate-200/70 shrink-0 relative flex items-center justify-center">
+                      <img 
+                        src={att.url} 
+                        className="w-full h-full object-cover" 
+                        alt="Preview" 
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  ) : (
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border ${
+                      isPdf 
+                        ? 'bg-red-50 border-red-100 text-red-500' 
+                        : 'bg-blue-50 border-blue-100 text-blue-500'
+                    }`}>
+                      <FileText className="w-5 h-5" />
+                    </div>
+                  )}
+
+                  {/* File Name & Size in Center */}
+                  <div className="flex-1 min-w-0 text-left">
+                    <span className="text-xs font-semibold text-slate-800 truncate block leading-tight">
+                      {att.name}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                      {att.sizeStr || (isImage ? 'IMAGE' : 'FILE')}
+                    </span>
+                  </div>
+
+                  {/* Close / Remove (X) Button */}
+                  <TouchableOpacity
+                    onClick={() => setLocalAttachments(prev => prev.filter(a => a.id !== att.id))}
+                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200/80 active:scale-90 flex items-center justify-center text-slate-400 hover:text-slate-700 transition cursor-pointer shrink-0 ml-1"
+                    title="Remove attachment"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* ORIGINAL ORBIT AI INPUT BAR */}
       <View className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex flex-row items-center gap-2 select-none shrink-0">
         
         {/* INPUT TIER CONTAINER */}
@@ -1379,7 +1461,7 @@ export const HomeChatScreen: React.FC = () => {
           <TouchableOpacity 
             onClick={() => setShowAttachments(!showAttachments)}
             className={`mr-2.5 p-1 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-              showAttachments ? 'bg-slate-100 text-slate-800' : 'text-slate-450 hover:bg-slate-50'
+              showAttachments ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:bg-slate-50'
             }`}
           >
             <Plus className="w-5 h-5" />
@@ -1590,7 +1672,7 @@ export const HomeChatScreen: React.FC = () => {
         let message = "";
         if (limitModalType === 'chat') {
           title = "Daily Free Limit Reached";
-          message = "You have used all 20 free AI messages for today. Upgrade to Orbit Pro for unlimited AI chat, unlimited uploads, AI Business Builder, AI Side Hustle Generator, and Agent access. You may continue using your free messages again after 24 hours if you choose not to upgrade.";
+          message = "You have used all 20 free AI messages for today. Upgrade to Orbit Pro for unlimited AI chat, unlimited uploads, AI Side Hustle Generator, and Agent access. You may continue using your free messages again after 24 hours if you choose not to upgrade.";
         } else if (limitModalType === 'image') {
           title = "Image Limit Reached";
           message = "You have used your 2 free image generations for today. Upgrade to Orbit Pro for unlimited image generation. You may try again after 24 hours.";

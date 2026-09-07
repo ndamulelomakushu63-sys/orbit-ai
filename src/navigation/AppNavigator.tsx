@@ -18,7 +18,6 @@ import { WithdrawScreen } from '../screens/WithdrawScreen';
 import { PaymentSuccessScreen } from '../screens/PaymentSuccessScreen';
 import { PaymentFailedScreen } from '../screens/PaymentFailedScreen';
 import { SideHustleScreen } from '../screens/SideHustleScreen';
-import { BusinessBuilderScreen } from '../screens/BusinessBuilderScreen';
 import BusinessModeScreen from '../screens/BusinessModeScreen';
 import { TaskModeScreen } from '../screens/TaskModeScreen';
 import { OrbitRewardsScreen } from '../screens/OrbitRewardsScreen';
@@ -26,6 +25,7 @@ import { MarketHomeScreen } from '../screens/MarketHomeScreen';
 import { MarketCheckoutScreen } from '../screens/MarketCheckoutScreen';
 import { MarketOrdersScreen } from '../screens/MarketOrdersScreen';
 import { MarketSellerScreen } from '../screens/MarketSellerScreen';
+import { OpportunitiesScreen } from '../screens/OpportunitiesScreen';
 import { PremiumLockScreen } from '../components/PremiumLockScreen';
 
 export const AppNavigator: React.FC = () => {
@@ -90,16 +90,6 @@ export const AppNavigator: React.FC = () => {
           );
         }
         return <SideHustleScreen />;
-      case "business-builder":
-        if (!isPro) {
-          return (
-            <PremiumLockScreen 
-              title="Premium Feature" 
-              description="This feature is available only to Orbit Pro members." 
-            />
-          );
-        }
-        return <BusinessBuilderScreen />;
       case "business-mode":
         return <BusinessModeScreen />;
       case "orbit-rewards":
@@ -130,6 +120,12 @@ export const AppNavigator: React.FC = () => {
         return (
           <MarketSellerScreen
             onBack={() => setMobileScreen("market")}
+          />
+        );
+      case "opportunities":
+        return (
+          <OpportunitiesScreen
+            onBack={() => setMobileScreen("chat")}
           />
         );
       default:

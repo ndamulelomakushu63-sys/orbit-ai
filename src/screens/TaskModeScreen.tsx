@@ -532,6 +532,23 @@ export const TaskModeScreen: React.FC = () => {
         if (data.coverLetter) setCoverLetterText(data.coverLetter);
         if (data.score) setCvScoreData(data.score);
         if (data.careerCoach) setCareerCoachData(data.careerCoach);
+        if (selectedTask.id === "cv") {
+          try {
+            localStorage.setItem('orbit_user_cv', JSON.stringify({
+              name: interviewAnswers.fullName || currentUser?.name || "Candidate CV",
+              position: interviewAnswers.position || "Applicant",
+              phone: interviewAnswers.phone || "",
+              email: interviewAnswers.email || currentUser?.email || "",
+              location: interviewAnswers.location || "",
+              educationLevel: interviewAnswers.educationLevel || "",
+              text: data.result,
+              coverLetter: data.coverLetter || "",
+              updatedAt: new Date().toISOString()
+            }));
+          } catch (e) {
+            console.warn("Could not cache CV:", e);
+          }
+        }
         setActiveResultTab("cv");
         setActiveStep("result");
       } else {
@@ -1640,6 +1657,31 @@ export const TaskModeScreen: React.FC = () => {
                     </TouchableOpacity>
                   )}
                 </View>
+
+                {selectedTask.id === "cv" && (
+                  <TouchableOpacity 
+                    onClick={() => {
+                      try {
+                        localStorage.setItem('orbit_user_cv', JSON.stringify({
+                          name: interviewAnswers.fullName || currentUser?.name || "Candidate CV",
+                          position: interviewAnswers.position || "Applicant",
+                          phone: interviewAnswers.phone || "",
+                          email: interviewAnswers.email || currentUser?.email || "",
+                          location: interviewAnswers.location || "",
+                          educationLevel: interviewAnswers.educationLevel || "",
+                          text: resultText,
+                          coverLetter: coverLetterText,
+                          updatedAt: new Date().toISOString()
+                        }));
+                      } catch (e) {}
+                      setMobileScreen("opportunities");
+                    }}
+                    className="w-full py-2.5 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-2xl text-center text-[11px] font-bold cursor-pointer transition flex items-center justify-center gap-2 mb-1"
+                  >
+                    <Briefcase className="w-4 h-4 text-blue-600" />
+                    <span>Apply for Jobs & Internships with this CV in Opportunity Hub →</span>
+                  </TouchableOpacity>
+                )}
 
                 {/* RESULT CONTENT DISPLAY */}
                 {isEditingResult ? (

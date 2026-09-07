@@ -341,5 +341,108 @@ export interface MarketSettings {
   isActive: boolean;
 }
 
+// ==========================================
+// ORBIT OPPORTUNITIES HUB TYPES
+// ==========================================
+
+export type OpportunityCategory = 'job' | 'internship' | 'learnership' | 'scholarship' | 'university';
+export type OpportunityType = 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Learnership' | 'Bursary' | 'Undergraduate' | 'Postgraduate' | 'TVET';
+export type OpportunityWorkplace = 'On-site' | 'Remote' | 'Hybrid';
+
+export interface Opportunity {
+  id: string;
+  creatorId?: string;
+  creatorName?: string;
+  creatorEmail?: string;
+  creatorPhone?: string;
+  title: string;
+  companyOrInstitution: string;
+  category: OpportunityCategory;
+  opportunityType: OpportunityType;
+  workplaceType?: OpportunityWorkplace;
+  location: string;
+  // Precise location details
+  address?: string;
+  city?: string;
+  province?: string;
+  country?: string;
+  locationPrecision?: 'exact' | 'approximate' | 'remote';
+  coordinates?: { lat: number; lng: number };
+  // Media / Branding
+  posterImage?: string;
+  logoUrl?: string;
+  // Details & requirements
+  description: string;
+  requirements: string[];
+  compensationOrGrant?: string;
+  deadline?: string;
+  // Custom document requirements & screening
+  proofOfResidenceRequired?: boolean;
+  qualificationRequired?: 'matric' | 'grade9' | 'diploma_degree' | 'other' | 'none';
+  customRequiredDocuments?: string[];
+  screeningQuestions?: Array<{ id: string; question: string; type?: 'text' | 'yes_no' | 'choice'; options?: string[]; required?: boolean }>;
+  // Public University / TVET & Admissions specific
+  isPublicDirectory?: boolean;
+  sourceDisclaimer?: string;
+  openingDate?: string;
+  institutionFaculty?: string;
+  institutionCourse?: string;
+  minApsScore?: number;
+  applicationInstructions?: string;
+  officialApplicationUrl?: string;
+  requiredDocuments?: string[];
+  createdAt: string;
+  status: 'Open' | 'Closed';
+  applicantCount?: number;
+}
+
+export type ApplicationStatus = 'Submitted' | 'Under Review' | 'Shortlisted' | 'Interview' | 'Accepted' | 'Not Selected';
+
+export interface ApplicationDocument {
+  id: string;
+  name: string;
+  type: 'id' | 'residence' | 'matric' | 'qualification' | 'transcript' | 'cv' | 'other';
+  url?: string;
+  dataUrl?: string;
+  sizeStr?: string;
+  uploadedAt: string;
+}
+
+export interface OpportunityApplication {
+  id: string;
+  opportunityId: string;
+  opportunityTitle: string;
+  opportunityCompany: string;
+  opportunityCategory: OpportunityCategory;
+  applicantId: string;
+  applicantName: string;
+  applicantEmail: string;
+  applicantPhone: string;
+  residentialAddress?: string;
+  applicantCoordinates?: { lat: number; lng: number };
+  applicantLocationName?: string;
+  qualificationType?: string;
+  screeningAnswers?: Record<string, string>;
+  cvText?: string;
+  cvFileName?: string;
+  coverNote?: string;
+  documents: ApplicationDocument[];
+  selectedInstitution?: string;
+  selectedCourse?: string;
+  matricScoresSummary?: string;
+  apsCalculated?: number;
+  status: ApplicationStatus;
+  statusNotes?: string;
+  employerNotes?: string;
+  aiMatchEvaluation?: {
+    matchRating: 'Strong Match' | 'Moderate Match' | 'Potential Match';
+    matchedRequirements: string[];
+    gapHighlights: string[];
+    summary: string;
+  };
+  submittedAt: string;
+  updatedAt: string;
+}
+
 
 
