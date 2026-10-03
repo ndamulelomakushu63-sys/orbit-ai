@@ -1164,19 +1164,20 @@ CREATE POLICY "Insert order items" ON public.market_order_items FOR INSERT WITH 
 DROP POLICY IF EXISTS "Public can read market settings" ON public.market_settings;
 CREATE POLICY "Public can read market settings" ON public.market_settings FOR SELECT USING (true);
 
--- Seed Initial Default Data
+-- Clean up legacy placeholder test Orbit Collection brand/products if present
+DELETE FROM public.market_product_variants WHERE product_id IN ('prod-orb-tshirt', 'prod-orb-hoodie', 'prod-orb-cap', 'prod-orb-premium-tee');
+DELETE FROM public.market_products WHERE brand_id = 'brand-orbit' OR id IN ('prod-orb-tshirt', 'prod-orb-hoodie', 'prod-orb-cap', 'prod-orb-premium-tee');
+DELETE FROM public.market_brands WHERE id = 'brand-orbit' AND user_id IS NULL;
+
+-- Seed Initial Default Data (Preserving existing marketplace brands)
 INSERT INTO public.market_brands (id, name, slug, description, location, is_verified, is_orbit_collection)
 VALUES 
-    ('brand-orbit', 'Orbit Collection', 'orbit-collection', 'Official Orbit AI merchandise and apparel.', 'South Africa', true, true),
     ('brand-authentic', 'Authentic', 'authentic', 'Premium local clothing crafted for effortless style.', 'Johannesburg, ZA', true, false),
     ('brand-kasi-crafted', 'Kasi Crafted', 'kasi-crafted', 'Handmade local lifestyle accessories & apparel.', 'Cape Town, ZA', true, false)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.market_products (id, brand_id, brand_name, name, description, price, category, in_stock, stock_quantity)
 VALUES 
-    ('prod-orb-tshirt', 'brand-orbit', 'Orbit Collection', 'Orbit AI Classic T-Shirt', 'Premium heavyweight cotton tee with discreet Orbit AI chest insignia.', 199.00, 'Orbit Collection', true, 50),
-    ('prod-orb-hoodie', 'brand-orbit', 'Orbit Collection', 'Orbit AI Pullover Hoodie', 'Ultra-soft fleece hoodie designed for maximum comfort and longevity.', 399.00, 'Orbit Collection', true, 30),
-    ('prod-orb-cap', 'brand-orbit', 'Orbit Collection', 'Orbit Minimalist Cap', 'Structured cotton 6-panel cap with embroidered metallic emblem.', 149.00, 'Orbit Collection', true, 40),
     ('prod-auth-tshirt', 'brand-authentic', 'Authentic', 'Authentic Classic T-Shirt', 'Clean-cut modern fit t-shirt tailored with breathable South African cotton.', 159.00, 'Authentic', true, 45),
     ('prod-auth-sweat', 'brand-authentic', 'Authentic', 'Authentic Crewneck Sweatshirt', 'Relaxed fit pullover sweater with premium ribbed cuffs and neckline.', 299.00, 'Authentic', true, 25),
     ('prod-auth-jacket', 'brand-authentic', 'Authentic', 'Authentic Denim Overshirt', 'Durable premium raw denim overshirt for all-season layering.', 499.00, 'Authentic', true, 15),
@@ -1186,14 +1187,6 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.market_product_variants (id, product_id, size_name, stock_quantity)
 VALUES
-    ('var-orb-ts-s', 'prod-orb-tshirt', 'S', 15),
-    ('var-orb-ts-m', 'prod-orb-tshirt', 'M', 20),
-    ('var-orb-ts-l', 'prod-orb-tshirt', 'L', 10),
-    ('var-orb-ts-xl', 'prod-orb-tshirt', 'XL', 5),
-    ('var-orb-hd-s', 'prod-orb-hoodie', 'S', 8),
-    ('var-orb-hd-m', 'prod-orb-hoodie', 'M', 12),
-    ('var-orb-hd-l', 'prod-orb-hoodie', 'L', 7),
-    ('var-orb-hd-xl', 'prod-orb-hoodie', 'XL', 3),
     ('var-auth-ts-s', 'prod-auth-tshirt', 'S', 10),
     ('var-auth-ts-m', 'prod-auth-tshirt', 'M', 20),
     ('var-auth-ts-l', 'prod-auth-tshirt', 'L', 10),

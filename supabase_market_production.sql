@@ -129,9 +129,9 @@ INSERT INTO public.market_settings (id, commission_rate, default_delivery_fee, m
 VALUES ('default', 0.10, 50.00, 0.00, TRUE)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.market_brands (id, name, slug, description, location, is_verified, is_orbit_collection)
-VALUES ('brand-orbit', 'Orbit Collection', 'orbit-collection', 'Official Orbit AI merchandise and apparel.', 'South Africa', TRUE, TRUE)
-ON CONFLICT (id) DO NOTHING;
+-- Clean up legacy placeholder test Orbit Collection brand if present
+DELETE FROM public.market_products WHERE brand_id = 'brand-orbit' OR id IN ('prod-orb-tshirt', 'prod-orb-hoodie', 'prod-orb-cap', 'prod-orb-premium-tee');
+DELETE FROM public.market_brands WHERE id = 'brand-orbit' AND user_id IS NULL;
 
 -- 11. PERFORMANCE INDEXES
 CREATE INDEX IF NOT EXISTS idx_market_brands_user_id ON public.market_brands(user_id);

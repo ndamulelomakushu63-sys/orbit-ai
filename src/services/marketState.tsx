@@ -202,23 +202,23 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCart([]);
   };
 
-  // Dynamic categories: 'All', 'Orbit Collection', and all registered brands with published products
+  // Dynamic categories: 'All' and all registered brands with published products
   const categories = useMemo(() => {
-    const list = ['All', 'Orbit Collection'];
+    const list = ['All'];
     
     // Find all brands with published products
     const brandsWithPublishedProducts = new Set<string>();
     products.forEach(p => {
       if (p.isPublished !== false && p.brandName) {
         const trimmed = p.brandName.trim();
-        if (trimmed.toLowerCase() !== 'orbit collection') {
+        if (trimmed) {
           brandsWithPublishedProducts.add(trimmed);
         }
       }
     });
 
     brands.forEach(b => {
-      if (b.name && b.name.toLowerCase() !== 'orbit collection' && brandsWithPublishedProducts.has(b.name.trim())) {
+      if (b.name && brandsWithPublishedProducts.has(b.name.trim())) {
         if (!list.includes(b.name.trim())) {
           list.push(b.name.trim());
         }

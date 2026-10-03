@@ -56,10 +56,8 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({
       return product.brandId === selectedBrandId;
     }
     if (activeCategory === 'All') return true;
-    if (activeCategory === 'Orbit Collection') {
-      return product.brandName?.toLowerCase() === 'orbit collection' || product.category === 'Orbit Collection';
-    }
-    return product.brandName === activeCategory || product.category === activeCategory;
+    return product.brandName?.toLowerCase() === activeCategory.toLowerCase() || 
+           product.category?.toLowerCase() === activeCategory.toLowerCase();
   });
 
   const activeBrandObj = selectedBrandId ? brands.find(b => b.id === selectedBrandId) : null;

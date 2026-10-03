@@ -1151,19 +1151,7 @@ export async function dbInsertAuditLog(userId: string, actionType: string, detai
 // 12. ORBIT MARKET (VISION 1) DB OPERATIONS
 // ==========================================
 
-export const DEFAULT_MARKET_BRANDS: MarketBrand[] = [
-  {
-    id: 'brand-orbit',
-    name: 'Orbit Collection',
-    slug: 'orbit-collection',
-    description: 'Official Orbit AI merchandise and minimalist streetwear apparel.',
-    location: 'South Africa',
-    isVerified: true,
-    isOrbitCollection: true,
-    status: 'Active',
-    createdAt: new Date().toISOString()
-  }
-];
+export const DEFAULT_MARKET_BRANDS: MarketBrand[] = [];
 
 export const DEFAULT_MARKET_PRODUCTS: MarketProduct[] = [];
 
@@ -1205,12 +1193,25 @@ export async function dbFetchMarketBrands(): Promise<MarketBrand[]> {
     if (error || !data || data.length === 0) {
       const local = localStorage.getItem('orbit_market_brands');
       if (local) {
-        try { return JSON.parse(local); } catch (e) {}
+        try {
+          const parsed = JSON.parse(local);
+          // Strip out the placeholder test Orbit Collection brand
+          const cleaned = Array.isArray(parsed) 
+            ? parsed.filter((b: any) => b && b.id !== 'brand-orbit' && !(b.isOrbitCollection && !b.userId))
+            : [];
+          if (cleaned.length !== (parsed ? parsed.length : 0)) {
+            localStorage.setItem('orbit_market_brands', JSON.stringify(cleaned));
+          }
+          return cleaned;
+        } catch (e) {}
       }
       return DEFAULT_MARKET_BRANDS;
     }
 
-    return data.map((b: any) => ({
+    // Filter out the test placeholder brand if present in DB
+    const activeBrands = data.filter((b: any) => b.id !== 'brand-orbit' && !(b.is_orbit_collection && !b.user_id));
+
+    return activeBrands.map((b: any) => ({
       id: b.id,
       userId: b.user_id,
       name: b.name,
@@ -1249,17 +1250,7 @@ export async function dbCheckBrandNameExists(
   const normalized = normalizeBrandName(cleanName);
   const slug = generateBrandSlug(cleanName);
 
-  // 1. Reserved official storefront check: Orbit Collection
-  if (normalized === 'orbit collection' || slug === 'orbit-collection') {
-    if (excludeBrandId !== 'brand-orbit') {
-      return {
-        exists: true,
-        message: "Sorry, that brand/storefront name already exists. Please choose another name."
-      };
-    }
-  }
-
-  // 2. Query Supabase database for duplicates
+  // 1. Query Supabase database for existing duplicates (ignoring old test placeholder brand-orbit)
   try {
     const { data: dbBrands, error } = await supabase
       .from('market_brands')
@@ -1267,6 +1258,7 @@ export async function dbCheckBrandNameExists(
 
     if (!error && dbBrands && dbBrands.length > 0) {
       const match = dbBrands.find((b: any) => {
+        if (b.id === 'brand-orbit' && !b.user_id) return false; // Ignore old test placeholder
         if (excludeBrandId && b.id === excludeBrandId) return false;
         const bNorm = normalizeBrandName(b.name || '');
         const bSlug = (b.slug || generateBrandSlug(b.name || '')).trim().toLowerCase();
@@ -1297,11 +1289,12 @@ export async function dbCheckBrandNameExists(
     console.warn("Supabase check brand query notice:", err);
   }
 
-  // 3. Fallback / supplementary check against local cache and defaults
+  // 2. Fallback check against local cache (ignoring old test placeholder)
   try {
     const local = localStorage.getItem('orbit_market_brands');
     const list: MarketBrand[] = local ? JSON.parse(local) : [...DEFAULT_MARKET_BRANDS];
     const match = list.find(b => {
+      if (b.id === 'brand-orbit' && !b.userId) return false; // Ignore old test placeholder
       if (excludeBrandId && b.id === excludeBrandId) return false;
       const bNorm = normalizeBrandName(b.name || '');
       const bSlug = (b.slug || generateBrandSlug(b.name || '')).trim().toLowerCase();
@@ -1416,7 +1409,7 @@ export async function dbFetchMarketProducts(): Promise<MarketProduct[]> {
         try {
           const parsed = JSON.parse(local);
           const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
-          const cleaned = Array.isArray(parsed) ? parsed.filter((p: any) => p && !demoIds.includes(p.id)) : [];
+          const cleaned = Array.isArray(parsed) ? parsed.filter((p: any) => p && !demoIds.includes(p.id) && p.brandId !== 'brand-orbit') : [];
           if (cleaned.length !== parsed.length) {
             localStorage.setItem('orbit_market_products', JSON.stringify(cleaned));
           }
@@ -1431,7 +1424,7 @@ export async function dbFetchMarketProducts(): Promise<MarketProduct[]> {
       .select('*');
 
     const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
-    const activeProds = prods.filter((p: any) => !demoIds.includes(p.id));
+    const activeProds = prods.filter((p: any) => !demoIds.includes(p.id) && p.brand_id !== 'brand-orbit');
 
     return activeProds.map((p: any) => {
       const pVariants = (variants || [])
@@ -1458,7 +1451,7 @@ export async function dbFetchMarketProducts(): Promise<MarketProduct[]> {
         name: p.name,
         description: p.description || '',
         price: Number(p.price || 0),
-        category: p.category || (p.brand_name || 'Orbit Collection'),
+        category: p.category || p.brand_name || 'Marketplace',
         imageUrl: p.image_url || imgList[0] || '',
         images: imgList,
         isPublished: p.is_published ?? true,
@@ -1475,7 +1468,7 @@ export async function dbFetchMarketProducts(): Promise<MarketProduct[]> {
       if (local) {
         const parsed = JSON.parse(local);
         const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
-        return Array.isArray(parsed) ? parsed.filter((p: any) => p && !demoIds.includes(p.id)) : [];
+        return Array.isArray(parsed) ? parsed.filter((p: any) => p && !demoIds.includes(p.id) && p.brandId !== 'brand-orbit') : [];
       }
     } catch (e) {}
     return DEFAULT_MARKET_PRODUCTS;

@@ -42,19 +42,9 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
   // Active view tab: 'orders' | 'products' | 'new-product' | 'brand-profile'
   const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'new-product' | 'brand-profile'>('products');
 
-  // Check if current user is an authorized official Orbit administrator
-  const isOfficialAdmin = Boolean(
-    currentUser?.email && (
-      currentUser.email.trim().toLowerCase() === 'ndamulelo@orbitai.co.za' ||
-      currentUser.email.trim().toLowerCase() === 'admin@orbitai.co.za' ||
-      currentUser.email.trim().toLowerCase() === 'ndamulelomakushu63@gmail.com' ||
-      currentUser.email.trim().toLowerCase().endsWith('@orbitai.co.za')
-    )
-  );
-
   // Check if current user has an existing registered brand
-  const userOwnedBrand = brands.find(b => b.userId === currentUser?.uid && !b.isOrbitCollection);
-  const userBrand = userOwnedBrand || (isOfficialAdmin ? brands.find(b => b.isOrbitCollection) : undefined) || userOwnedBrand;
+  const userOwnedBrand = brands.find(b => b.userId === currentUser?.uid);
+  const userBrand = userOwnedBrand;
 
   // Brand Creation / Edit State (Tab 4)
   const [brandName, setBrandName] = useState<string>(userOwnedBrand?.name || '');
@@ -66,16 +56,12 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
 
   // New Product State (Tab 2)
   // Editable Brand / Storefront name - DO NOT force Orbit Collection for every seller
-  const [prodBrandName, setProdBrandName] = useState<string>(
-    userOwnedBrand?.name || (isOfficialAdmin ? 'Orbit Collection' : '')
-  );
+  const [prodBrandName, setProdBrandName] = useState<string>(userOwnedBrand?.name || '');
   const [brandError, setBrandError] = useState<string | null>(null);
   const [prodName, setProdName] = useState<string>('');
   const [prodDesc, setProdDesc] = useState<string>('');
   const [prodPrice, setProdPrice] = useState<string>('');
-  const [prodCategory, setProdCategory] = useState<string>(
-    userOwnedBrand?.name || (isOfficialAdmin ? 'Orbit Collection' : '')
-  );
+  const [prodCategory, setProdCategory] = useState<string>(userOwnedBrand?.name || '');
   const [prodHasSizes, setProdHasSizes] = useState<boolean>(true);
   const [stockS, setStockS] = useState<number>(10);
   const [stockM, setStockM] = useState<number>(15);
@@ -140,14 +126,6 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
       return;
     }
 
-    const normalized = trimmed.toLowerCase();
-    if (normalized === 'orbit collection') {
-      if (!isOfficialAdmin) {
-        setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
-        return;
-      }
-    }
-
     const check = await dbCheckBrandNameExists(trimmed, userOwnedBrand?.id);
     if (check.exists) {
       setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
@@ -161,22 +139,15 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
     if (!trimmed) return;
     setBrandProfileError(null);
 
-    const normalized = trimmed.toLowerCase();
-    if (normalized === 'orbit collection') {
-      if (!isOfficialAdmin) {
-        setBrandProfileError("Sorry, that brand/storefront name already exists. Please choose another name.");
-        return;
-      }
-    }
-
     const check = await dbCheckBrandNameExists(trimmed, userOwnedBrand?.id);
     if (check.exists) {
       setBrandProfileError("Sorry, that brand/storefront name already exists. Please choose another name.");
       return;
     }
 
+    const normalized = trimmed.toLowerCase();
     const newBrand: MarketBrand = {
-      id: userOwnedBrand && userOwnedBrand.name !== 'Orbit Collection' ? userOwnedBrand.id : `brand-${Date.now()}`,
+      id: userOwnedBrand?.id || `brand-${Date.now()}`,
       userId: currentUser?.uid,
       name: trimmed,
       slug: generateBrandSlug(trimmed),
@@ -185,7 +156,7 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
       contactEmail: currentUser?.email || '',
       contactPhone: brandContact.trim(),
       isVerified: true,
-      isOrbitCollection: false,
+      isOrbitCollection: normalized === 'orbit collection',
       status: 'Active',
       createdAt: userOwnedBrand?.createdAt || new Date().toISOString()
     };
@@ -213,16 +184,8 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
     setBrandError(null);
 
     const normalized = cleanBrand.toLowerCase();
-    // 1. Reserved brand check: official Orbit Collection
-    if (normalized === 'orbit collection') {
-      if (!isOfficialAdmin) {
-        setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
-        setIsSubmittingProd(false);
-        return;
-      }
-    }
 
-    // 2. Uniqueness check against existing Supabase database data
+    // Check database uniqueness
     const check = await dbCheckBrandNameExists(cleanBrand, userOwnedBrand?.id);
     if (check.exists) {
       setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
@@ -239,15 +202,11 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
     let targetBrandId = '';
     let targetBrandName = cleanBrand;
 
-    if (normalized === 'orbit collection' && isOfficialAdmin) {
-      const orbBrand = brands.find(b => b.isOrbitCollection) || brands[0];
-      targetBrandId = orbBrand?.id || 'brand-orbit';
-      targetBrandName = 'Orbit Collection';
-    } else if (userOwnedBrand && userOwnedBrand.name.trim().toLowerCase() === normalized) {
+    if (userOwnedBrand && userOwnedBrand.name.trim().toLowerCase() === normalized) {
       targetBrandId = userOwnedBrand.id;
       targetBrandName = userOwnedBrand.name;
     } else {
-      // Register new unique brand in the database
+      // Register brand in the database
       const newBrandId = userOwnedBrand?.id || `brand-${Date.now()}`;
       const newBrand: MarketBrand = {
         id: newBrandId,
@@ -259,7 +218,7 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
         contactEmail: currentUser?.email || '',
         contactPhone: brandContact.trim(),
         isVerified: true,
-        isOrbitCollection: false,
+        isOrbitCollection: normalized === 'orbit collection',
         status: 'Active',
         createdAt: userOwnedBrand?.createdAt || new Date().toISOString()
       };

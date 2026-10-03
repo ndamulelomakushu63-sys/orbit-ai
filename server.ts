@@ -1582,17 +1582,7 @@ async function setupVite() {
       const normalized = cleanName.toLowerCase();
       const slug = normalized.replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || normalized;
 
-      // 1. Reserved / Official storefront protection: Orbit Collection
-      if (normalized === "orbit collection" || slug === "orbit-collection") {
-        if (excludeId !== "brand-orbit") {
-          return res.json({
-            available: false,
-            error: "Sorry, that brand/storefront name already exists. Please choose another name."
-          });
-        }
-      }
-
-      // 2. Query Supabase database for duplicates
+      // Query Supabase database for duplicates (ignoring any old unowned placeholder 'brand-orbit')
       try {
         const { data: dbBrands, error } = await supabase
           .from("market_brands")
@@ -1600,6 +1590,7 @@ async function setupVite() {
 
         if (!error && dbBrands && dbBrands.length > 0) {
           const conflict = dbBrands.find((b: any) => {
+            if (b.id === 'brand-orbit' && !b.user_id) return false; // Ignore old unowned test placeholder
             if (excludeId && b.id === excludeId) return false;
             const bNorm = (b.name || "").trim().toLowerCase();
             const bSlug = (b.slug || "").trim().toLowerCase();
