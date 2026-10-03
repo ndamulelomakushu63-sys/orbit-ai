@@ -180,10 +180,27 @@ async function requireAdminAuthMiddleware(req: express.Request, res: express.Res
   `);
 }
 
-// Robots.txt endpoint
+// Robots.txt endpoint compliant with Google AdSense & Search Crawlers
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
-  res.send("User-agent: *\nDisallow: /");
+  res.send(`User-agent: Mediapartners-Google\nAllow: /\n\nUser-agent: Googlebot\nAllow: /\n\nUser-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin/\nDisallow: /orbit-ai-admin/\n\nSitemap: https://orbitai.co.za/sitemap.xml\n`);
+});
+
+// Ads.txt endpoint for Google AdSense verification
+app.get("/ads.txt", (req, res) => {
+  res.type("text/plain");
+  res.send("google.com, pub-4390078695601187, DIRECT, f08c47fec0942fa0\n");
+});
+
+// Sitemap.xml endpoint
+app.get("/sitemap.xml", (req, res) => {
+  const sitemapPath = path.join(process.cwd(), "public", "sitemap.xml");
+  if (fs.existsSync(sitemapPath)) {
+    res.type("application/xml");
+    return res.sendFile(sitemapPath);
+  }
+  res.type("application/xml");
+  res.send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://orbitai.co.za/</loc></url></urlset>`);
 });
 
 // Admin login API endpoint
@@ -1551,6 +1568,66 @@ async function setupVite() {
   }
 
   // --- ORBIT MARKET (VISION 1) API ENDPOINTS ---
+  // Server-side database uniqueness check for storefront/brand names
+  app.all("/api/market/check-brand", async (req, res) => {
+    try {
+      const rawName = req.method === "POST" ? req.body?.name : (req.query?.name as string);
+      const excludeId = req.method === "POST" ? req.body?.excludeBrandId : (req.query?.excludeBrandId as string);
+
+      if (!rawName || typeof rawName !== "string") {
+        return res.status(400).json({ error: "Brand name is required" });
+      }
+
+      const cleanName = rawName.trim();
+      const normalized = cleanName.toLowerCase();
+      const slug = normalized.replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || normalized;
+
+      // 1. Reserved / Official storefront protection: Orbit Collection
+      if (normalized === "orbit collection" || slug === "orbit-collection") {
+        if (excludeId !== "brand-orbit") {
+          return res.json({
+            available: false,
+            error: "Sorry, that brand/storefront name already exists. Please choose another name."
+          });
+        }
+      }
+
+      // 2. Query Supabase database for duplicates
+      try {
+        const { data: dbBrands, error } = await supabase
+          .from("market_brands")
+          .select("id, name, slug, user_id, is_orbit_collection");
+
+        if (!error && dbBrands && dbBrands.length > 0) {
+          const conflict = dbBrands.find((b: any) => {
+            if (excludeId && b.id === excludeId) return false;
+            const bNorm = (b.name || "").trim().toLowerCase();
+            const bSlug = (b.slug || "").trim().toLowerCase();
+            return bNorm === normalized || bSlug === slug;
+          });
+
+          if (conflict) {
+            return res.json({
+              available: false,
+              error: "Sorry, that brand/storefront name already exists. Please choose another name."
+            });
+          }
+        }
+      } catch (dbErr) {
+        console.warn("[Check Brand Server] Supabase query notice:", dbErr);
+      }
+
+      return res.json({
+        available: true,
+        cleanName,
+        slug
+      });
+    } catch (err: any) {
+      console.error("[Check Brand Server Error]:", err);
+      return res.status(500).json({ error: "Failed to verify brand name" });
+    }
+  });
+
   app.post("/api/market/checkout-init", async (req, res) => {
     try {
       const { items, customerName, customerEmail, customerPhone, deliveryAddress, userId } = req.body;

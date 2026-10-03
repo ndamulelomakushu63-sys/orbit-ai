@@ -1385,29 +1385,30 @@ export default function BusinessModeScreen() {
         )}
                 {/* VIEW 3: DETAILED BUSINESS PROFILE SCREEN */}
         {currentView === 'profile' && selectedBusiness && (
-          <View className="space-y-6 text-left" id="detailed-business-profile-view">
+          <div className="space-y-8 text-left max-w-4xl mx-auto" id="detailed-business-profile-view">
             
             {/* Top Navigation Bar / Breadcrumb */}
-            <View className="flex flex-row items-center justify-between pb-2 border-b border-slate-100 select-none">
-              <TouchableOpacity
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 select-none">
+              <button
+                type="button"
                 onClick={() => {
                   setCurrentView('directory');
                   setActivePhotoIdx(0);
                 }}
-                className="flex flex-row items-center gap-1.5 text-blue-600 hover:text-blue-700 transition cursor-pointer"
+                className="flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4 text-blue-600" />
-                <Text className="text-xs font-semibold text-blue-600 font-sans">Back to Directory</Text>
-              </TouchableOpacity>
+                <ArrowLeft className="w-4 h-4 text-slate-500" />
+                <span>Back to Directory</span>
+              </button>
               
-              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
-                Business ID: {selectedBusiness.id}
-              </Text>
-            </View>
+              <span className="text-[11px] font-medium text-slate-400">
+                {selectedBusiness.townCity}, {selectedBusiness.province || 'South Africa'}
+              </span>
+            </div>
 
             {/* Photo Gallery & Main Hero Image */}
-            <View className="space-y-3">
-              <div className="relative h-72 w-full bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 shadow-2xs">
+            <div className="space-y-3">
+              <div className="relative h-72 sm:h-96 w-full bg-slate-100 rounded-2xl overflow-hidden shadow-xs">
                 <img 
                   src={getBusinessPhotos(selectedBusiness)[activePhotoIdx]} 
                   alt={selectedBusiness.name} 
@@ -1415,299 +1416,341 @@ export default function BusinessModeScreen() {
                   referrerPolicy="no-referrer"
                 />
                 
-                {/* Overlay with subtle category tag */}
-                <div className="absolute top-4 right-4 bg-blue-600 text-white px-3 py-1 rounded-full shadow-sm">
+                {/* Category badge */}
+                <div className="absolute top-4 left-4 bg-slate-900/80 backdrop-blur-md text-white px-3.5 py-1 rounded-full shadow-sm">
                   <span className="text-[10px] font-bold uppercase tracking-wider">{selectedBusiness.category}</span>
+                </div>
+
+                {/* Verified badge */}
+                <div className="absolute top-4 right-4 bg-emerald-600/90 backdrop-blur-md text-white px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-white" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Verified Business</span>
                 </div>
               </div>
 
               {/* Photo Gallery Thumbnail Row */}
               {getBusinessPhotos(selectedBusiness).length > 1 && (
-                <div className="flex flex-row gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none">
                   {getBusinessPhotos(selectedBusiness).map((photo, idx) => (
-                    <TouchableOpacity
+                    <button
                       key={idx}
+                      type="button"
                       onClick={() => setActivePhotoIdx(idx)}
-                      className={`relative w-20 h-14 rounded-lg overflow-hidden border-2 cursor-pointer transition ${activePhotoIdx === idx ? 'border-blue-600' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                      className={`relative w-20 h-14 rounded-xl overflow-hidden cursor-pointer transition shrink-0 ${
+                        activePhotoIdx === idx 
+                          ? 'ring-2 ring-blue-600 ring-offset-2 opacity-100' 
+                          : 'opacity-65 hover:opacity-100'
+                      }`}
                     >
                       <img src={photo} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    </TouchableOpacity>
+                    </button>
                   ))}
                 </div>
               )}
-            </View>
+            </div>
 
-            {/* Business Header Info */}
-            <View className="space-y-2 text-left">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 font-mono">
-                    {selectedBusiness.category} Directory
-                  </span>
-                  <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight font-sans leading-tight">
+            {/* Business Header Info: No cards, clear typography and generous whitespace */}
+            <div className="pb-6 border-b border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 uppercase tracking-wider">
+                    <span>{selectedBusiness.category}</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-500 capitalize">{selectedBusiness.villageSuburb || selectedBusiness.townCity}</span>
+                  </div>
+
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
                     {selectedBusiness.name}
-                  </h2>
-                  <div className="flex items-center gap-1.5 mt-1.5 select-none">
+                  </h1>
+
+                  <div className="flex items-center gap-2 select-none pt-1">
                     <span className="text-amber-500 font-bold text-sm">★★★★★</span>
-                    <span className="text-xs font-bold text-slate-700 ml-1">
-                      {(selectedBusiness.rating || 4.9).toFixed(1)}/5.0
+                    <span className="text-xs font-bold text-slate-800">
+                      {(selectedBusiness.rating || 4.9).toFixed(1)}
                     </span>
-                    <span className="text-xs font-semibold text-slate-400">({selectedBusiness.popularity || 145} reviews)</span>
+                    <span className="text-xs text-slate-400">
+                      ({selectedBusiness.popularity || 145} reviews)
+                    </span>
+                    {selectedBusiness.ownerName && (
+                      <>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          Managed by {selectedBusiness.ownerName}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                <div className="bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
-                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider font-sans">Verified Listing</span>
+                {/* Quick Action Bar (Call / WhatsApp) */}
+                <div className="flex items-center gap-2 flex-wrap shrink-0 pt-2 sm:pt-0">
+                  {(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber) && (
+                    <a
+                      href={`https://wa.me/${getCleanNumberForWa(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber || "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                    >
+                      <svg className="w-4 h-4 fill-current text-white shrink-0" viewBox="0 0 24 24">
+                        <path d="M12.012 2c-5.506 0-9.985 4.479-9.985 9.985 0 1.758.459 3.411 1.259 4.867l-1.337 4.89 5.011-1.315c1.4.761 2.986 1.191 4.671 1.191 5.506 0 9.985-4.479 9.985-9.985 0-5.506-4.479-9.985-9.985-9.985zm0 1.624c4.61 0 8.361 3.75 8.361 8.361s-3.751 8.361-8.361 8.361c-1.564 0-3.023-.432-4.279-1.183l-.307-.184-3.181.834.849-3.102-.202-.321c-.815-1.298-1.242-2.808-1.242-4.405 0-4.611 3.75-8.361 8.361-8.361zm-3.411 4.84c-.187 0-.395.037-.562.186-.167.149-.637.624-.637 1.524 0 .901.656 1.77.747 1.895.092.125 1.263 1.93 3.061 2.705.428.185.762.294 1.022.378.43.136.822.117 1.131.071.344-.051 1.06-.433 1.209-.851.15-.418.15-.776.105-.851-.045-.075-.165-.12-.345-.21-.18-.09-1.06-.524-1.224-.584-.165-.06-.285-.09-.395.075-.12.165-.435.54-.539.66-.105.119-.21.134-.39.045-.18-.09-.76-.28-1.448-.894-.535-.477-.896-1.066-1.001-1.246-.105-.18-.011-.277.079-.366.081-.08.18-.21.27-.315.09-.105.12-.18.18-.3.06-.12.03-.225-.015-.315-.045-.09-.395-.953-.541-1.306-.142-.343-.287-.297-.395-.302-.102-.005-.221-.005-.34-.005z"/>
+                      </svg>
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
+
+                  {selectedBusiness.phoneNumber && (
+                    <a
+                      href={`tel:${selectedBusiness.phoneNumber}`}
+                      className="px-4 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-white" />
+                      <span>Call</span>
+                    </a>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleShareBusiness}
+                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                    title="Share Business"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-            </View>
 
-            {/* Profile Grid Section */}
-            <View className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              {copiedShare && (
+                <div className="mt-3 text-xs text-emerald-600 font-semibold flex items-center gap-1.5 animate-fade-in">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Business details copied to clipboard!</span>
+                </div>
+              )}
+            </div>
+
+            {/* Profile Content: Flowing layout with whitespace & subtle dividers */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pt-1">
               
-              {/* Left Column: Description, Pricing, Specials & Hours */}
-              <View className="space-y-6 text-left">
+              {/* Left Column: About, Hours, Pricing & Specials (7 cols) */}
+              <div className="md:col-span-7 space-y-8 text-left">
                 
-                {/* Description */}
-                <div className="space-y-2">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">About the Business</Text>
-                  <Text className="text-sm text-slate-650 leading-relaxed block font-sans">
+                {/* About Section */}
+                <div className="space-y-3">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+                    About the Business
+                  </h2>
+                  <p className="text-sm text-slate-700 leading-relaxed font-sans">
                     {selectedBusiness.description}
-                  </Text>
-                  <div className="flex flex-row items-center gap-1.5 text-xs text-slate-400 mt-2 font-medium">
-                    <span className="font-semibold text-slate-500">Representative:</span>
-                    <span>{selectedBusiness.ownerName}</span>
-                  </div>
+                  </p>
                 </div>
 
-                {/* Contact Information Summary */}
-                <div className="space-y-2">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Contact Information</Text>
-                  <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-3 shadow-3xs text-left">
-                    <div className="flex items-center gap-3">
-                      <Phone className="w-4 h-4 text-blue-600 shrink-0" />
-                      <Text className="text-xs text-slate-700 font-sans font-semibold">
-                        Phone: <span className="font-bold text-slate-900">{selectedBusiness.phoneNumber}</span>
-                      </Text>
-                    </div>
-                    {(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber) && (
+                {/* Pricing & Specials: Clean typography, no card containers */}
+                {(selectedBusiness.startingPrice || (selectedBusiness.specials && selectedBusiness.specials.length > 0)) && (
+                  <div className="pt-6 border-t border-slate-100 space-y-4">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+                      Pricing & Promotions
+                    </h2>
+
+                    {selectedBusiness.startingPrice && (
                       <div className="flex items-center gap-3">
-                        <svg className="w-4 h-4 fill-current text-emerald-600 shrink-0" viewBox="0 0 24 24">
-                          <path d="M12.012 2c-5.506 0-9.985 4.479-9.985 9.985 0 1.758.459 3.411 1.259 4.867l-1.337 4.89 5.011-1.315c1.4.761 2.986 1.191 4.671 1.191 5.506 0 9.985-4.479 9.985-9.985 0-5.506-4.479-9.985-9.985-9.985zm0 1.624c4.61 0 8.361 3.75 8.361 8.361s-3.751 8.361-8.361 8.361c-1.564 0-3.023-.432-4.279-1.183l-.307-.184-3.181.834.849-3.102-.202-.321c-.815-1.298-1.242-2.808-1.242-4.405 0-4.611 3.75-8.361 8.361-8.361zm-3.411 4.84c-.187 0-.395.037-.562.186-.167.149-.637.624-.637 1.524 0 .901.656 1.77.747 1.895.092.125 1.263 1.93 3.061 2.705.428.185.762.294 1.022.378.43.136.822.117 1.131.071.344-.051 1.06-.433 1.209-.851.15-.418.15-.776.105-.851-.045-.075-.165-.12-.345-.21-.18-.09-1.06-.524-1.224-.584-.165-.06-.285-.09-.395.075-.12.165-.435.54-.539.66-.105.119-.21.134-.39.045-.18-.09-.76-.28-1.448-.894-.535-.477-.896-1.066-1.001-1.246-.105-.18-.011-.277.079-.366.081-.08.18-.21.27-.315.09-.105.12-.18.18-.3.06-.12.03-.225-.015-.315-.045-.09-.395-.953-.541-1.306-.142-.343-.287-.297-.395-.302-.102-.005-.221-.005-.34-.005z"/>
-                        </svg>
-                        <Text className="text-xs text-slate-700 font-sans font-semibold">
-                          WhatsApp: <span className="font-bold text-slate-900">{selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber}</span>
-                        </Text>
+                        <Tag className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span className="text-xs text-slate-500 font-medium">Starting from:</span>
+                        <span className="text-sm font-bold text-slate-900">
+                          {selectedBusiness.startingPrice.toUpperCase().includes("R") 
+                            ? selectedBusiness.startingPrice 
+                            : `R${selectedBusiness.startingPrice}`}
+                        </span>
                       </div>
                     )}
-                    {selectedBusiness.email && (
-                      <div className="flex items-center gap-3">
-                        <Mail className="w-4 h-4 text-blue-600 shrink-0" />
-                        <Text className="text-xs text-slate-700 font-sans font-semibold">
-                          Email: <span className="font-bold text-slate-900">{selectedBusiness.email}</span>
-                        </Text>
+
+                    {selectedBusiness.specials && selectedBusiness.specials.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        <span className="text-xs font-semibold text-amber-700 block">Current Specials:</span>
+                        <div className="space-y-2">
+                          {selectedBusiness.specials.map((special, index) => (
+                            <div key={index} className="flex items-start gap-2.5 text-xs text-slate-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                              <span className="leading-relaxed font-medium">{special}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
+                )}
 
-                {/* Business Hours */}
-                <div className="space-y-2">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Business Hours</Text>
-                  <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-2 shadow-3xs text-left">
-                    <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-1">
-                      <Clock className="w-4.5 h-4.5 text-blue-600 shrink-0" />
-                      <Text className="text-xs font-bold text-slate-850 font-sans">Weekly Schedule</Text>
-                    </div>
+                {/* Business Hours: Clean schedule list, no box */}
+                <div className="pt-6 border-t border-slate-100 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+                      Business Hours
+                    </h2>
+                  </div>
+
+                  <div className="space-y-2 pl-6">
                     {(() => {
                       const hoursStr = selectedBusiness.openingHours || "Monday–Friday: 08:00–17:00, Saturday: 08:00–14:00, Sunday: Closed";
                       const lines = hoursStr.split(/[,\n]/).map(l => l.trim()).filter(Boolean);
-                      return (
-                        <div className="space-y-1.5 pl-7">
-                          {lines.map((line, lidx) => (
-                            <Text key={lidx} className="text-xs font-semibold text-slate-650 block font-sans">
-                              {line}
-                            </Text>
-                          ))}
-                        </div>
-                      );
+                      return lines.map((line, lidx) => {
+                        const parts = line.split(':');
+                        const day = parts[0];
+                        const time = parts.slice(1).join(':').trim();
+                        return (
+                          <div key={lidx} className="flex items-center justify-between text-xs py-1 border-b border-slate-50">
+                            <span className="font-semibold text-slate-700">{day}</span>
+                            <span className="text-slate-500">{time || 'Open'}</span>
+                          </div>
+                        );
+                      });
                     })()}
                   </div>
                 </div>
 
-                {/* Pricing: Starting From Price (Optional) */}
-                {selectedBusiness.startingPrice && (
-                  <div className="space-y-2 animate-fade-in">
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Pricing</Text>
-                    <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-3xs">
-                      <div className="flex items-center gap-3">
-                        <Tag className="w-4.5 h-4.5 text-blue-600 shrink-0" />
-                        <Text className="text-xs font-bold text-slate-800 font-sans">Starting From</Text>
-                      </div>
-                      <span className="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
-                        {selectedBusiness.startingPrice.toUpperCase().includes("R") 
-                          ? selectedBusiness.startingPrice 
-                          : `R${selectedBusiness.startingPrice}`}
-                      </span>
-                    </div>
-                  </div>
-                )}
+              </div>
 
-                {/* Current Specials */}
-                {selectedBusiness.specials && selectedBusiness.specials.length > 0 && (
-                  <div className="space-y-2 animate-fade-in">
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Current Specials</Text>
-                    <View className="space-y-2">
-                      {selectedBusiness.specials.map((special, index) => (
-                        <div key={index} className="bg-amber-50/60 border border-amber-100 p-4 rounded-xl flex items-start gap-3 shadow-3xs">
-                          <Tag className="w-4.5 h-4.5 text-amber-500 shrink-0 mt-0.5" />
-                          <Text className="text-xs font-semibold text-amber-950 leading-relaxed block font-sans">{special}</Text>
-                        </div>
-                      ))}
-                    </View>
-                  </div>
-                )}
-
-              </View>
-
-              {/* Right Column: Map, Address, Sharing & Action Buttons */}
-              <View className="space-y-6 text-left">
+              {/* Right Column: Contact info, Location & Map, Channels (5 cols) */}
+              <div className="md:col-span-5 space-y-8 text-left">
                 
-                {/* Physical Location Address & Directions Map */}
-                <div className="space-y-2">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Directions & Map Location</Text>
-                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                    {/* Visual map simulation */}
-                    <div className="h-44 w-full relative bg-blue-50/30 overflow-hidden flex items-center justify-center">
-                      <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
-                        backgroundImage: "radial-gradient(#2563eb 1.2px, transparent 1.2px), radial-gradient(#2563eb 1.2px, transparent 1.2px)",
-                        backgroundSize: "24px 24px",
-                        backgroundPosition: "0 0, 12px 12px"
-                      }} />
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-blue-100/30" />
-                      <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-1 bg-blue-100/30" />
-                      
-                      {/* Sleek Pin visual */}
-                      <div className="relative z-10 flex flex-col items-center">
-                        <div className="absolute -top-1 w-8 h-8 bg-blue-500/20 rounded-full animate-ping" />
-                        <div className="w-11 h-11 bg-blue-600 rounded-full flex items-center justify-center shadow-md">
-                          <MapPin className="w-5.5 h-5.5 text-white" />
-                        </div>
-                        <span className="mt-2 text-[10px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-md shadow-xs border border-blue-100">
-                          {selectedBusiness.villageSuburb ? `${selectedBusiness.villageSuburb}, ${selectedBusiness.townCity}` : selectedBusiness.townCity}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0 text-left">
-                        <Text className="text-xs font-bold text-slate-800 block truncate">Address</Text>
-                        <Text className="text-[11px] text-slate-500 font-medium block truncate mt-0.5 text-left">
-                          {[selectedBusiness.physicalAddress, selectedBusiness.villageSuburb, selectedBusiness.townCity, selectedBusiness.province].filter(Boolean).join(", ")}
-                        </Text>
-                      </div>
-                      <a
-                        href={
-                          selectedBusiness.latitude !== undefined && selectedBusiness.longitude !== undefined
-                            ? `https://www.google.com/maps/search/?api=1&query=${selectedBusiness.latitude},${selectedBusiness.longitude}`
-                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                [selectedBusiness.name, selectedBusiness.physicalAddress, selectedBusiness.villageSuburb, selectedBusiness.townCity, selectedBusiness.province].filter(Boolean).join(', ')
-                              )}`
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                        className="bg-blue-600 hover:bg-blue-700 active:scale-97 text-white font-semibold px-4 py-2 rounded-xl text-xs transition flex flex-row items-center gap-1.5 cursor-pointer shadow-3xs shrink-0"
-                      >
-                        <Navigation className="w-3.5 h-3.5 text-white" />
-                        <span>Navigate</span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
+                {/* Contact Channels: Clean list, no boxed container */}
+                <div className="space-y-4">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+                    Direct Contact
+                  </h2>
 
-                {/* Contact Channels */}
-                <div className="space-y-3 pt-1">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Contact & Actions</Text>
-                  
-                  <div className="flex flex-col gap-2.5">
-                    {/* Phone button */}
+                  <div className="space-y-3 text-xs">
                     {selectedBusiness.phoneNumber && (
-                      <a
+                      <a 
                         href={`tel:${selectedBusiness.phoneNumber}`}
-                        className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer"
+                        className="flex items-center gap-3 text-slate-700 hover:text-blue-600 transition group"
                       >
-                        <Phone className="w-4.5 h-4.5 text-slate-500" />
-                        <span>Call Business: {selectedBusiness.phoneNumber}</span>
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-blue-50 text-slate-600 group-hover:text-blue-600 flex items-center justify-center shrink-0">
+                          <Phone className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Phone</span>
+                          <span className="font-bold text-slate-900">{selectedBusiness.phoneNumber}</span>
+                        </div>
                       </a>
                     )}
 
-                    {/* WhatsApp button */}
                     {(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber) && (
-                      <a
+                      <a 
                         href={`https://wa.me/${getCleanNumberForWa(selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber || "")}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer shadow-xs"
+                        className="flex items-center gap-3 text-slate-700 hover:text-emerald-600 transition group"
                       >
-                        <svg className="w-4.5 h-4.5 fill-current text-white shrink-0" viewBox="0 0 24 24">
-                          <path d="M12.012 2c-5.506 0-9.985 4.479-9.985 9.985 0 1.758.459 3.411 1.259 4.867l-1.337 4.89 5.011-1.315c1.4.761 2.986 1.191 4.671 1.191 5.506 0 9.985-4.479 9.985-9.985 0-5.506-4.479-9.985-9.985-9.985zm0 1.624c4.61 0 8.361 3.75 8.361 8.361s-3.751 8.361-8.361 8.361c-1.564 0-3.023-.432-4.279-1.183l-.307-.184-3.181.834.849-3.102-.202-.321c-.815-1.298-1.242-2.808-1.242-4.405 0-4.611 3.75-8.361 8.361-8.361zm-3.411 4.84c-.187 0-.395.037-.562.186-.167.149-.637.624-.637 1.524 0 .901.656 1.77.747 1.895.092.125 1.263 1.93 3.061 2.705.428.185.762.294 1.022.378.43.136.822.117 1.131.071.344-.051 1.06-.433 1.209-.851.15-.418.15-.776.105-.851-.045-.075-.165-.12-.345-.21-.18-.09-1.06-.524-1.224-.584-.165-.06-.285-.09-.395.075-.12.165-.435.54-.539.66-.105.119-.21.134-.39.045-.18-.09-.76-.28-1.448-.894-.535-.477-.896-1.066-1.001-1.246-.105-.18-.011-.277.079-.366.081-.08.18-.21.27-.315.09-.105.12-.18.18-.3.06-.12.03-.225-.015-.315-.045-.09-.395-.953-.541-1.306-.142-.343-.287-.297-.395-.302-.102-.005-.221-.005-.34-.005z"/>
-                        </svg>
-                        <span>Chat on WhatsApp</span>
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M12.012 2c-5.506 0-9.985 4.479-9.985 9.985 0 1.758.459 3.411 1.259 4.867l-1.337 4.89 5.011-1.315c1.4.761 2.986 1.191 4.671 1.191 5.506 0 9.985-4.479 9.985-9.985 0-5.506-4.479-9.985-9.985-9.985zm0 1.624c4.61 0 8.361 3.75 8.361 8.361s-3.751 8.361-8.361 8.361c-1.564 0-3.023-.432-4.279-1.183l-.307-.184-3.181.834.849-3.102-.202-.321c-.815-1.298-1.242-2.808-1.242-4.405 0-4.611 3.75-8.361 8.361-8.361zm-3.411 4.84c-.187 0-.395.037-.562.186-.167.149-.637.624-.637 1.524 0 .901.656 1.77.747 1.895.092.125 1.263 1.93 3.061 2.705.428.185.762.294 1.022.378.43.136.822.117 1.131.071.344-.051 1.06-.433 1.209-.851.15-.418.15-.776.105-.851-.045-.075-.165-.12-.345-.21-.18-.09-1.06-.524-1.224-.584-.165-.06-.285-.09-.395.075-.12.165-.435.54-.539.66-.105.119-.21.134-.39.045-.18-.09-.76-.28-1.448-.894-.535-.477-.896-1.066-1.001-1.246-.105-.18-.011-.277.079-.366.081-.08.18-.21.27-.315.09-.105.12-.18.18-.3.06-.12.03-.225-.015-.315-.045-.09-.395-.953-.541-1.306-.142-.343-.287-.297-.395-.302-.102-.005-.221-.005-.34-.005z"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">WhatsApp</span>
+                          <span className="font-bold text-slate-900">{selectedBusiness.whatsappNumber || selectedBusiness.phoneNumber}</span>
+                        </div>
                       </a>
                     )}
 
-                    {/* Email button (optional) */}
                     {selectedBusiness.email && (
-                      <a
+                      <a 
                         href={`mailto:${selectedBusiness.email}`}
-                        className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer"
+                        className="flex items-center gap-3 text-slate-700 hover:text-blue-600 transition group"
                       >
-                        <Mail className="w-4.5 h-4.5 text-slate-500" />
-                        <span>Email Business: {selectedBusiness.email}</span>
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-blue-50 text-slate-600 group-hover:text-blue-600 flex items-center justify-center shrink-0">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-slate-400 block">Email</span>
+                          <span className="font-bold text-slate-900 truncate block">{selectedBusiness.email}</span>
+                        </div>
                       </a>
                     )}
 
-                    {/* Visit Website (if available) */}
                     {selectedBusiness.socialMediaLinks?.website && (
-                      <a
+                      <a 
                         href={selectedBusiness.socialMediaLinks.website}
                         target="_blank"
                         rel="noreferrer"
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer shadow-xs animate-fade-in"
+                        className="flex items-center gap-3 text-slate-700 hover:text-blue-600 transition group"
                       >
-                        <Globe className="w-4.5 h-4.5 text-white" />
-                        <span>Visit Official Website</span>
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                          <Globe className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-slate-400 block">Website</span>
+                          <span className="font-bold text-blue-600 truncate block">Visit Official Website</span>
+                        </div>
                       </a>
                     )}
-
-                    {/* Share Business */}
-                    <TouchableOpacity
-                      onClick={handleShareBusiness}
-                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 font-semibold py-3 px-4 rounded-xl flex flex-row items-center justify-center gap-2.5 text-xs transition active:scale-97 cursor-pointer"
-                    >
-                      <Share2 className="w-4.5 h-4.5 text-blue-600" />
-                      <span>{copiedShare ? "Details Copied to Clipboard!" : "Share Business Listing"}</span>
-                    </TouchableOpacity>
                   </div>
                 </div>
 
+                {/* Location & Navigation Map */}
+                <div className="pt-6 border-t border-slate-100 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+                      Location & Directions
+                    </h2>
+                    <a
+                      href={
+                        selectedBusiness.latitude !== undefined && selectedBusiness.longitude !== undefined
+                          ? `https://www.google.com/maps/search/?api=1&query=${selectedBusiness.latitude},${selectedBusiness.longitude}`
+                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                              [selectedBusiness.name, selectedBusiness.physicalAddress, selectedBusiness.villageSuburb, selectedBusiness.townCity, selectedBusiness.province].filter(Boolean).join(', ')
+                            )}`
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>Open in Maps</span>
+                    </a>
+                  </div>
+
+                  {/* Clean Visual Map Section */}
+                  <div className="rounded-2xl overflow-hidden bg-slate-100 relative h-40 flex items-center justify-center">
+                    <div className="absolute inset-0 opacity-20 pointer-events-none" style={{
+                      backgroundImage: "radial-gradient(#2563eb 1.2px, transparent 1.2px), radial-gradient(#2563eb 1.2px, transparent 1.2px)",
+                      backgroundSize: "20px 20px",
+                      backgroundPosition: "0 0, 10px 10px"
+                    }} />
+                    
+                    <div className="relative z-10 flex flex-col items-center text-center p-3">
+                      <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center shadow-md text-white mb-1.5">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-900 bg-white/90 backdrop-blur-xs px-2.5 py-0.5 rounded-md shadow-xs">
+                        {selectedBusiness.villageSuburb ? `${selectedBusiness.villageSuburb}, ${selectedBusiness.townCity}` : selectedBusiness.townCity}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                    {[selectedBusiness.physicalAddress, selectedBusiness.villageSuburb, selectedBusiness.townCity, selectedBusiness.province].filter(Boolean).join(", ")}
+                  </p>
+                </div>
+
                 {/* Back to directory button */}
-                <TouchableOpacity
-                  onClick={() => {
-                    setCurrentView('directory');
-                    setActivePhotoIdx(0);
-                  }}
-                  className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-500 font-semibold py-3.5 rounded-xl text-center transition text-xs cursor-pointer border border-slate-200/50"
-                >
-                  Return to Directory
-                </TouchableOpacity>
+                <div className="pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentView('directory');
+                      setActivePhotoIdx(0);
+                    }}
+                    className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                  >
+                    Back to All Businesses
+                  </button>
+                </div>
 
-              </View>
+              </div>
 
-            </View>
+            </div>
 
-          </View>
+          </div>
         )}
 
       </ScrollView>

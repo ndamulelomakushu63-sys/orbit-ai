@@ -160,7 +160,7 @@ export function generateProfessionalVacancyPoster(options: VacancyPosterOptions)
 
   ctx.fillStyle = subtextColor;
   ctx.font = '500 17px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`📍 ${location}`, locX, currentY);
+  ctx.fillText(location, locX, currentY);
 
   // 6. Requirements Summary Box
   currentY += 34;
@@ -211,18 +211,18 @@ export function generateProfessionalVacancyPoster(options: VacancyPosterOptions)
   // 7. Footer Bar: Compensation, Deadline & Apply Callout
   const footerY = margin + cardH - 52;
 
-  // Compensation Pill
+  // Compensation
   if (compensation) {
     ctx.fillStyle = isLight ? '#047857' : '#34d399';
     ctx.font = 'bold 17px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`💰 ${compensation}`, margin + 44, footerY);
+    ctx.fillText(compensation, margin + 44, footerY);
   }
 
   // Deadline (Center-ish)
   if (deadline) {
     ctx.fillStyle = subtextColor;
     ctx.font = '500 15px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`⏳ Closing: ${deadline}`, margin + (compensation ? 340 : 44), footerY);
+    ctx.fillText(`Closing: ${deadline}`, margin + (compensation ? 340 : 44), footerY);
   }
 
   // Verified Badge (Right)

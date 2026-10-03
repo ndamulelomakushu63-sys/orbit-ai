@@ -18,7 +18,7 @@ import {
 import { useMarket } from '../services/marketState';
 import { useAppState } from '../services/state';
 import { MarketBrand, MarketProduct, MarketProductVariant, MarketOrderStatus } from '../types';
-import { dbUploadMarketProductImage } from '../services/supabase';
+import { dbUploadMarketProductImage, dbCheckBrandNameExists, generateBrandSlug } from '../services/supabase';
 
 interface MarketSellerScreenProps {
   onBack: () => void;
@@ -42,22 +42,40 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
   // Active view tab: 'orders' | 'products' | 'new-product' | 'brand-profile'
   const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'new-product' | 'brand-profile'>('products');
 
-  // Check if current user has a registered brand
-  const userBrand = brands.find(b => b.userId === currentUser?.uid) || brands.find(b => !b.isOrbitCollection) || brands[0];
+  // Check if current user is an authorized official Orbit administrator
+  const isOfficialAdmin = Boolean(
+    currentUser?.email && (
+      currentUser.email.trim().toLowerCase() === 'ndamulelo@orbitai.co.za' ||
+      currentUser.email.trim().toLowerCase() === 'admin@orbitai.co.za' ||
+      currentUser.email.trim().toLowerCase() === 'ndamulelomakushu63@gmail.com' ||
+      currentUser.email.trim().toLowerCase().endsWith('@orbitai.co.za')
+    )
+  );
 
-  // Brand Creation / Edit State
-  const [brandName, setBrandName] = useState<string>(userBrand?.name && userBrand?.name !== 'Orbit Collection' ? userBrand.name : '');
-  const [brandDesc, setBrandDesc] = useState<string>(userBrand?.description && userBrand?.name !== 'Orbit Collection' ? userBrand.description : '');
-  const [brandLocation, setBrandLocation] = useState<string>(userBrand?.location || 'Johannesburg, South Africa');
-  const [brandContact, setBrandContact] = useState<string>(userBrand?.contactPhone || '');
+  // Check if current user has an existing registered brand
+  const userOwnedBrand = brands.find(b => b.userId === currentUser?.uid && !b.isOrbitCollection);
+  const userBrand = userOwnedBrand || (isOfficialAdmin ? brands.find(b => b.isOrbitCollection) : undefined) || userOwnedBrand;
+
+  // Brand Creation / Edit State (Tab 4)
+  const [brandName, setBrandName] = useState<string>(userOwnedBrand?.name || '');
+  const [brandDesc, setBrandDesc] = useState<string>(userOwnedBrand?.description || '');
+  const [brandLocation, setBrandLocation] = useState<string>(userOwnedBrand?.location || 'Johannesburg, South Africa');
+  const [brandContact, setBrandContact] = useState<string>(userOwnedBrand?.contactPhone || '');
   const [brandSavedToast, setBrandSavedToast] = useState<string | null>(null);
+  const [brandProfileError, setBrandProfileError] = useState<string | null>(null);
 
-  // New Product State
-  const [prodBrandId, setProdBrandId] = useState<string>(userBrand?.id || 'brand-orbit');
+  // New Product State (Tab 2)
+  // Editable Brand / Storefront name - DO NOT force Orbit Collection for every seller
+  const [prodBrandName, setProdBrandName] = useState<string>(
+    userOwnedBrand?.name || (isOfficialAdmin ? 'Orbit Collection' : '')
+  );
+  const [brandError, setBrandError] = useState<string | null>(null);
   const [prodName, setProdName] = useState<string>('');
   const [prodDesc, setProdDesc] = useState<string>('');
   const [prodPrice, setProdPrice] = useState<string>('');
-  const [prodCategory, setProdCategory] = useState<string>(userBrand?.name || 'Orbit Collection');
+  const [prodCategory, setProdCategory] = useState<string>(
+    userOwnedBrand?.name || (isOfficialAdmin ? 'Orbit Collection' : '')
+  );
   const [prodHasSizes, setProdHasSizes] = useState<boolean>(true);
   const [stockS, setStockS] = useState<number>(10);
   const [stockM, setStockM] = useState<number>(15);
@@ -114,13 +132,54 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Handle Brand blur uniqueness check
+  const handleBrandBlur = async () => {
+    const trimmed = prodBrandName.trim();
+    if (!trimmed) {
+      setBrandError(null);
+      return;
+    }
+
+    const normalized = trimmed.toLowerCase();
+    if (normalized === 'orbit collection') {
+      if (!isOfficialAdmin) {
+        setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
+        return;
+      }
+    }
+
+    const check = await dbCheckBrandNameExists(trimmed, userOwnedBrand?.id);
+    if (check.exists) {
+      setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
+    } else {
+      setBrandError(null);
+    }
+  };
+
   const handleCreateBrand = async () => {
-    if (!brandName.trim()) return;
+    const trimmed = brandName.trim();
+    if (!trimmed) return;
+    setBrandProfileError(null);
+
+    const normalized = trimmed.toLowerCase();
+    if (normalized === 'orbit collection') {
+      if (!isOfficialAdmin) {
+        setBrandProfileError("Sorry, that brand/storefront name already exists. Please choose another name.");
+        return;
+      }
+    }
+
+    const check = await dbCheckBrandNameExists(trimmed, userOwnedBrand?.id);
+    if (check.exists) {
+      setBrandProfileError("Sorry, that brand/storefront name already exists. Please choose another name.");
+      return;
+    }
+
     const newBrand: MarketBrand = {
-      id: userBrand && userBrand.name !== 'Orbit Collection' ? userBrand.id : `brand-${Date.now()}`,
+      id: userOwnedBrand && userOwnedBrand.name !== 'Orbit Collection' ? userOwnedBrand.id : `brand-${Date.now()}`,
       userId: currentUser?.uid,
-      name: brandName.trim(),
-      slug: brandName.trim().toLowerCase().replace(/\s+/g, '-'),
+      name: trimmed,
+      slug: generateBrandSlug(trimmed),
       description: brandDesc.trim(),
       location: brandLocation.trim() || 'South Africa',
       contactEmail: currentUser?.email || '',
@@ -128,20 +187,92 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
       isVerified: true,
       isOrbitCollection: false,
       status: 'Active',
-      createdAt: userBrand?.createdAt || new Date().toISOString()
+      createdAt: userOwnedBrand?.createdAt || new Date().toISOString()
     };
 
-    const ok = await createBrand(newBrand);
-    if (ok) {
-      setBrandSavedToast("Brand storefront successfully registered!");
-      setTimeout(() => setBrandSavedToast(null), 3000);
-      setActiveTab('products');
+    const res = await createBrand(newBrand);
+    if (typeof res === 'object' && !res.success) {
+      setBrandProfileError(res.error || "Sorry, that brand/storefront name already exists. Please choose another name.");
+      return;
     }
+
+    setProdBrandName(trimmed);
+    setBrandSavedToast("Brand storefront successfully registered!");
+    setTimeout(() => setBrandSavedToast(null), 3000);
+    setActiveTab('products');
   };
 
   const handleCreateProduct = async () => {
-    if (!prodName.trim() || !prodPrice.trim()) return;
+    const cleanBrand = prodBrandName.trim();
+    if (!cleanBrand) {
+      setBrandError("Brand / storefront name is required.");
+      return;
+    }
+
     setIsSubmittingProd(true);
+    setBrandError(null);
+
+    const normalized = cleanBrand.toLowerCase();
+    // 1. Reserved brand check: official Orbit Collection
+    if (normalized === 'orbit collection') {
+      if (!isOfficialAdmin) {
+        setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
+        setIsSubmittingProd(false);
+        return;
+      }
+    }
+
+    // 2. Uniqueness check against existing Supabase database data
+    const check = await dbCheckBrandNameExists(cleanBrand, userOwnedBrand?.id);
+    if (check.exists) {
+      setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
+      setIsSubmittingProd(false);
+      return;
+    }
+
+    if (!prodName.trim() || !prodPrice.trim()) {
+      setIsSubmittingProd(false);
+      return;
+    }
+
+    // Determine target brand id & registration
+    let targetBrandId = '';
+    let targetBrandName = cleanBrand;
+
+    if (normalized === 'orbit collection' && isOfficialAdmin) {
+      const orbBrand = brands.find(b => b.isOrbitCollection) || brands[0];
+      targetBrandId = orbBrand?.id || 'brand-orbit';
+      targetBrandName = 'Orbit Collection';
+    } else if (userOwnedBrand && userOwnedBrand.name.trim().toLowerCase() === normalized) {
+      targetBrandId = userOwnedBrand.id;
+      targetBrandName = userOwnedBrand.name;
+    } else {
+      // Register new unique brand in the database
+      const newBrandId = userOwnedBrand?.id || `brand-${Date.now()}`;
+      const newBrand: MarketBrand = {
+        id: newBrandId,
+        userId: currentUser?.uid,
+        name: cleanBrand,
+        slug: generateBrandSlug(cleanBrand),
+        description: brandDesc.trim() || `Official storefront for ${cleanBrand}`,
+        location: brandLocation.trim() || 'South Africa',
+        contactEmail: currentUser?.email || '',
+        contactPhone: brandContact.trim(),
+        isVerified: true,
+        isOrbitCollection: false,
+        status: 'Active',
+        createdAt: userOwnedBrand?.createdAt || new Date().toISOString()
+      };
+
+      const brandRes = await createBrand(newBrand);
+      if (typeof brandRes === 'object' && !brandRes.success) {
+        setBrandError(brandRes.error || "Sorry, that brand/storefront name already exists. Please choose another name.");
+        setIsSubmittingProd(false);
+        return;
+      }
+      targetBrandId = newBrandId;
+      targetBrandName = cleanBrand;
+    }
 
     const priceNum = parseFloat(prodPrice) || 0;
     const prodId = `prod-${Date.now()}`;
@@ -160,9 +291,6 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
     }
 
     const mainImageUrl = uploadedImages.length > 0 ? uploadedImages[0] : '';
-    const targetBrand = brands.find(b => b.id === prodBrandId) || userBrand || brands[0];
-    const targetBrandName = targetBrand ? targetBrand.name : 'Orbit Collection';
-    const targetBrandId = targetBrand ? targetBrand.id : 'brand-orbit';
 
     const newProd: MarketProduct = {
       id: prodId,
@@ -471,29 +599,36 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
                 )}
               </div>
 
-              {/* Brand Storefront Selector */}
+              {/* Brand Storefront Field */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Brand / Storefront *
                 </label>
-                <select
-                  value={prodBrandId}
+                <input
+                  type="text"
+                  value={prodBrandName}
                   onChange={(e) => {
-                    const bId = e.target.value;
-                    setProdBrandId(bId);
-                    const matched = brands.find(b => b.id === bId);
-                    if (matched) {
-                      setProdCategory(matched.name);
+                    const val = e.target.value;
+                    setProdBrandName(val);
+                    if (brandError) setBrandError(null);
+                    if (!prodCategory || prodCategory === prodBrandName) {
+                      setProdCategory(val);
                     }
                   }}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-medium focus:border-blue-600 focus:bg-white outline-hidden transition-all"
-                >
-                  {brands.map(b => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} {b.isOrbitCollection ? '(Official Orbit Collection)' : ''}
-                    </option>
-                  ))}
-                </select>
+                  onBlur={handleBrandBlur}
+                  placeholder="Enter your brand or storefront name"
+                  className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-slate-900 text-xs font-medium focus:outline-hidden transition-all ${
+                    brandError 
+                      ? 'border-red-500 focus:border-red-600 focus:bg-white bg-red-50/20' 
+                      : 'border-slate-200 focus:border-blue-600 focus:bg-white'
+                  }`}
+                />
+                {brandError && (
+                  <div className="flex items-center space-x-1.5 mt-1.5 text-red-600 text-[11px] font-medium animate-fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{brandError}</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -793,10 +928,23 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
                 <input
                   type="text"
                   value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
-                  placeholder="e.g. Authentic Clothing Co."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-medium focus:border-blue-600 focus:bg-white outline-hidden transition-all"
+                  onChange={(e) => {
+                    setBrandName(e.target.value);
+                    if (brandProfileError) setBrandProfileError(null);
+                  }}
+                  placeholder="Enter your brand or storefront name"
+                  className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-slate-900 text-xs font-medium focus:outline-hidden transition-all ${
+                    brandProfileError 
+                      ? 'border-red-500 focus:border-red-600 focus:bg-white bg-red-50/20' 
+                      : 'border-slate-200 focus:border-blue-600 focus:bg-white'
+                  }`}
                 />
+                {brandProfileError && (
+                  <div className="flex items-center space-x-1.5 mt-1.5 text-red-600 text-[11px] font-medium animate-fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{brandProfileError}</span>
+                  </div>
+                )}
               </div>
 
               <div>

@@ -1032,6 +1032,13 @@ CREATE TABLE IF NOT EXISTS public.market_brands (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure database-level unique constraint on normalized brand name (case-insensitive & trimmed)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_brands_normalized_name 
+ON public.market_brands (LOWER(TRIM(name)));
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_brands_slug 
+ON public.market_brands (slug);
+
 -- Products Table
 CREATE TABLE IF NOT EXISTS public.market_products (
     id TEXT PRIMARY KEY,

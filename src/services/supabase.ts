@@ -6,7 +6,7 @@ import {
   AppNotification, SupportTicket,
   ObdiLead, Business,
   MarketBrand, MarketProduct, MarketProductVariant, MarketOrder, MarketOrderItem, MarketSettings, MarketOrderStatus,
-  Opportunity, OpportunityApplication, OpportunityCategory, ApplicationStatus, ApplicationDocument
+  Opportunity, OpportunityApplication, OpportunityCategory, ApplicationStatus, ApplicationDocument, OpportunityMessage
 } from '../types.js';
 
 // Supabase project credentials provided
@@ -80,7 +80,7 @@ export function generateAgentId(): string {
 
 export function getReferralLink(referralCode: string): string {
   const code = (referralCode || '').trim() || 'AGT82KQ';
-  return `https://orbitai.vercel.app/?ref=${code}`;
+  return `https://orbitai.co.za/?ref=${code}`;
 }
 
 export function parseProfileFromDb(item: any): UserProfile {
@@ -94,6 +94,16 @@ export function parseProfileFromDb(item: any): UserProfile {
     uid: item.id,
     name: item.name || '',
     email: item.email || '',
+    username: item.username || (item.email ? item.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase() : (item.name ? item.name.replace(/\s+/g, '_').toLowerCase() : 'user')),
+    phone: item.phone || '',
+    avatarUrl: item.avatar_url || item.avatarUrl || '',
+    avatar_url: item.avatar_url || item.avatarUrl || '',
+    bio: item.bio || '',
+    allow_contact_discovery: item.allow_contact_discovery !== false,
+    is_discoverable: item.is_discoverable !== false,
+    who_can_message: item.who_can_message || 'everyone',
+    who_can_view_posts: item.who_can_view_posts || 'everyone',
+    contact_syncing_enabled: item.contact_syncing_enabled === true,
     plan: (item.plan as UserPlan) || UserPlan.FREE,
     subscription_status: item.subscription_status,
     chat_count_today: item.chat_count_today || 0,
@@ -189,6 +199,15 @@ export async function dbUpsertProfile(p: UserProfile): Promise<boolean> {
         id: p.uid,
         name: p.name,
         email: p.email,
+        username: p.username || (p.email ? p.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase() : 'user'),
+        phone: p.phone || null,
+        avatar_url: p.avatar_url || p.avatarUrl || null,
+        bio: p.bio || null,
+        allow_contact_discovery: p.allow_contact_discovery !== false,
+        is_discoverable: p.is_discoverable !== false,
+        who_can_message: p.who_can_message || 'everyone',
+        who_can_view_posts: p.who_can_view_posts || 'everyone',
+        contact_syncing_enabled: p.contact_syncing_enabled === true,
         plan: p.plan,
         subscription_status: p.subscription_status,
         chat_count_today: p.chat_count_today,
@@ -1210,17 +1229,124 @@ export async function dbFetchMarketBrands(): Promise<MarketBrand[]> {
   }
 }
 
-export async function dbUpsertMarketBrand(brand: MarketBrand): Promise<boolean> {
+export function normalizeBrandName(name: string): string {
+  return (name || '').trim().toLowerCase();
+}
+
+export function generateBrandSlug(name: string): string {
+  const norm = normalizeBrandName(name);
+  const slug = norm.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return slug || norm;
+}
+
+export async function dbCheckBrandNameExists(
+  rawName: string,
+  excludeBrandId?: string
+): Promise<{ exists: boolean; message?: string; existingBrand?: MarketBrand }> {
+  const cleanName = (rawName || '').trim();
+  if (!cleanName) return { exists: false };
+
+  const normalized = normalizeBrandName(cleanName);
+  const slug = generateBrandSlug(cleanName);
+
+  // 1. Reserved official storefront check: Orbit Collection
+  if (normalized === 'orbit collection' || slug === 'orbit-collection') {
+    if (excludeBrandId !== 'brand-orbit') {
+      return {
+        exists: true,
+        message: "Sorry, that brand/storefront name already exists. Please choose another name."
+      };
+    }
+  }
+
+  // 2. Query Supabase database for duplicates
   try {
+    const { data: dbBrands, error } = await supabase
+      .from('market_brands')
+      .select('*');
+
+    if (!error && dbBrands && dbBrands.length > 0) {
+      const match = dbBrands.find((b: any) => {
+        if (excludeBrandId && b.id === excludeBrandId) return false;
+        const bNorm = normalizeBrandName(b.name || '');
+        const bSlug = (b.slug || generateBrandSlug(b.name || '')).trim().toLowerCase();
+        return bNorm === normalized || bSlug === slug;
+      });
+
+      if (match) {
+        return {
+          exists: true,
+          message: "Sorry, that brand/storefront name already exists. Please choose another name.",
+          existingBrand: {
+            id: match.id,
+            userId: match.user_id,
+            name: match.name,
+            slug: match.slug,
+            description: match.description || '',
+            location: match.location || '',
+            contactEmail: match.contact_email || '',
+            contactPhone: match.contact_phone || '',
+            isVerified: match.is_verified ?? false,
+            isOrbitCollection: match.is_orbit_collection ?? false,
+            createdAt: match.created_at
+          }
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Supabase check brand query notice:", err);
+  }
+
+  // 3. Fallback / supplementary check against local cache and defaults
+  try {
+    const local = localStorage.getItem('orbit_market_brands');
+    const list: MarketBrand[] = local ? JSON.parse(local) : [...DEFAULT_MARKET_BRANDS];
+    const match = list.find(b => {
+      if (excludeBrandId && b.id === excludeBrandId) return false;
+      const bNorm = normalizeBrandName(b.name || '');
+      const bSlug = (b.slug || generateBrandSlug(b.name || '')).trim().toLowerCase();
+      return bNorm === normalized || bSlug === slug;
+    });
+
+    if (match) {
+      return {
+        exists: true,
+        message: "Sorry, that brand/storefront name already exists. Please choose another name.",
+        existingBrand: match
+      };
+    }
+  } catch (e) {}
+
+  return { exists: false };
+}
+
+export async function dbUpsertMarketBrand(brand: MarketBrand): Promise<{ success: boolean; error?: string }> {
+  try {
+    const cleanName = (brand.name || '').trim();
+    if (!cleanName) {
+      return { success: false, error: "Brand name cannot be empty." };
+    }
+
+    // Pre-flight uniqueness verification against existing Supabase data
+    const check = await dbCheckBrandNameExists(cleanName, brand.id);
+    if (check.exists) {
+      return { 
+        success: false, 
+        error: "Sorry, that brand/storefront name already exists. Please choose another name." 
+      };
+    }
+
+    const cleanSlug = brand.slug ? generateBrandSlug(brand.slug) : generateBrandSlug(cleanName);
+
     const dbPayload = {
       id: brand.id,
       user_id: brand.userId || null,
-      name: brand.name,
-      slug: brand.slug,
-      description: brand.description,
-      location: brand.location,
-      contact_email: brand.contactEmail,
-      contact_phone: brand.contactPhone,
+      name: cleanName,
+      slug: cleanSlug,
+      description: brand.description || '',
+      location: brand.location || '',
+      contact_email: brand.contactEmail || '',
+      contact_phone: brand.contactPhone || '',
       is_verified: brand.isVerified ?? false,
       is_orbit_collection: brand.isOrbitCollection ?? false,
       created_at: brand.createdAt || new Date().toISOString()
@@ -1230,19 +1356,50 @@ export async function dbUpsertMarketBrand(brand: MarketBrand): Promise<boolean> 
       .from('market_brands')
       .upsert(dbPayload);
 
-    if (error) throw error;
-    return true;
-  } catch (err) {
-    console.warn("Supabase upsert market brand failed:", err);
+    if (error) {
+      // Catch database-level unique constraint violations (code 23505)
+      if (error.code === '23505' || /duplicate key|unique constraint/i.test(error.message || '')) {
+        return { 
+          success: false, 
+          error: "Sorry, that brand/storefront name already exists. Please choose another name." 
+        };
+      }
+      throw error;
+    }
+
+    // Sync to local cache
     try {
       const local = localStorage.getItem('orbit_market_brands');
       const list = local ? JSON.parse(local) : [...DEFAULT_MARKET_BRANDS];
       const idx = list.findIndex((b: any) => b.id === brand.id);
-      if (idx >= 0) list[idx] = brand;
-      else list.push(brand);
+      const savedBrand = { ...brand, name: cleanName, slug: cleanSlug };
+      if (idx >= 0) list[idx] = savedBrand;
+      else list.push(savedBrand);
       localStorage.setItem('orbit_market_brands', JSON.stringify(list));
     } catch (e) {}
-    return true;
+
+    return { success: true };
+  } catch (err: any) {
+    if (err?.code === '23505' || /duplicate key|unique constraint/i.test(err?.message || '')) {
+      return { 
+        success: false, 
+        error: "Sorry, that brand/storefront name already exists. Please choose another name." 
+      };
+    }
+
+    console.warn("Supabase upsert market brand fallback:", err);
+    try {
+      const cleanName = (brand.name || '').trim();
+      const cleanSlug = brand.slug ? generateBrandSlug(brand.slug) : generateBrandSlug(cleanName);
+      const local = localStorage.getItem('orbit_market_brands');
+      const list = local ? JSON.parse(local) : [...DEFAULT_MARKET_BRANDS];
+      const idx = list.findIndex((b: any) => b.id === brand.id);
+      const savedBrand = { ...brand, name: cleanName, slug: cleanSlug };
+      if (idx >= 0) list[idx] = savedBrand;
+      else list.push(savedBrand);
+      localStorage.setItem('orbit_market_brands', JSON.stringify(list));
+    } catch (e) {}
+    return { success: true };
   }
 }
 
@@ -1608,8 +1765,18 @@ export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lo
   return Math.round(R * c * 10) / 10;
 }
 
+export function isDirectOrbitOpportunity(opp: Opportunity): boolean {
+  if (opp.isDirectOrbitApply !== undefined) return opp.isDirectOrbitApply;
+  if (opp.isPublicDirectory) return false;
+  if (opp.officialApplicationUrl) return false;
+  if (opp.id.startsWith('opp-custom-') || opp.creatorId?.startsWith('emp-') || opp.creatorId === 'recruiter') {
+    return true;
+  }
+  return false;
+}
+
 export const DEFAULT_OPPORTUNITIES: Opportunity[] = [
-  // --- JOBS ---
+  // --- ORBIT EMPLOYER-POSTED JOBS (DIRECT APPLICATION THROUGH ORBIT) ---
   {
     id: 'opp-job-1',
     creatorId: 'emp-nexora',
@@ -1621,6 +1788,8 @@ export const DEFAULT_OPPORTUNITIES: Opportunity[] = [
     category: 'job',
     opportunityType: 'Full-time',
     workplaceType: 'Hybrid',
+    isDirectOrbitApply: true,
+    verified: true,
     location: 'Sandton, Johannesburg',
     address: '140 West Street, Sandown, Sandton',
     city: 'Johannesburg',
@@ -1656,6 +1825,8 @@ export const DEFAULT_OPPORTUNITIES: Opportunity[] = [
     category: 'job',
     opportunityType: 'Full-time',
     workplaceType: 'On-site',
+    isDirectOrbitApply: true,
+    verified: true,
     location: 'Hatfield, Pretoria',
     address: '254 Park Street, Hatfield',
     city: 'Pretoria',
@@ -1689,6 +1860,8 @@ export const DEFAULT_OPPORTUNITIES: Opportunity[] = [
     category: 'job',
     opportunityType: 'Full-time',
     workplaceType: 'Remote',
+    isDirectOrbitApply: true,
+    verified: true,
     location: 'Foreshore, Cape Town',
     address: '4 Loop Street, Foreshore',
     city: 'Cape Town',
@@ -1710,6 +1883,163 @@ export const DEFAULT_OPPORTUNITIES: Opportunity[] = [
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'Open',
     applicantCount: 22
+  },
+
+  // --- EXTERNALLY SOURCED JOBS (OFFICIAL GOVERNMENT & CORPORATE PORTALS) ---
+  {
+    id: 'opp-gov-1',
+    creatorId: 'gov-dpsa',
+    creatorName: 'Department of Public Service and Administration (DPSA)',
+    creatorEmail: 'vacancies@dpsa.gov.za',
+    creatorPhone: '+27 12 336 1000',
+    title: 'Administrative Officer: HR & Records Management',
+    companyOrInstitution: 'Department of Public Service and Administration (DPSA)',
+    category: 'job',
+    opportunityType: 'Government',
+    workplaceType: 'On-site',
+    isDirectOrbitApply: false,
+    isPublicDirectory: true,
+    verified: true,
+    officialApplicationUrl: 'https://www.dpsa.gov.za/vacancies/',
+    sourceDisclaimer: 'Public vacancy record sourced from DPSA Public Service Vacancy Circular. Applications must be submitted via the official department channel using the new Z83 form. Orbit AI provides preparation, qualification verification, and CV analysis.',
+    location: 'Pretoria Central, Gauteng',
+    address: 'Batho Pele House, 546 Edmond Street, Arcadia, Pretoria',
+    city: 'Pretoria',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -25.7461, lng: 28.1881 },
+    posterImage: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop&q=80',
+    description: 'Responsible for general administrative oversight, maintenance of public service personnel records, processing leave registries, coordinating interview schedules, and ensuring compliance with the Public Service Act.',
+    requirements: [
+      'National Senior Certificate (Grade 12 / Matric)',
+      'National Diploma (NQF 6) in Public Administration, Human Resource Management, or Office Management',
+      '1 to 2 years relevant administrative or human resources experience in a public or corporate environment',
+      'Working knowledge of the Public Service Act, Public Service Regulations, and PFMA',
+      'Completed and signed New Z83 application form accompanied by comprehensive CV'
+    ],
+    compensationOrGrant: 'R294,321 - R346,692 per annum (Level 7)',
+    deadline: '2026-10-30',
+    requiredDocuments: ['New Z83 Form (Fully Completed & Signed)', 'Comprehensive CV / Resume', 'Certified Copy of ID', 'Certified Copy of Matric & Qualifications'],
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 48
+  },
+  {
+    id: 'opp-gov-2',
+    creatorId: 'gov-dbe',
+    creatorName: 'Department of Basic Education (DBE)',
+    creatorEmail: 'pyei@dbe.gov.za',
+    creatorPhone: '+27 12 357 3000',
+    title: 'School Digital & Educator Assistant (PYEI Phase V)',
+    companyOrInstitution: 'Department of Basic Education (DBE)',
+    category: 'job',
+    opportunityType: 'Government',
+    workplaceType: 'On-site',
+    isDirectOrbitApply: false,
+    isPublicDirectory: true,
+    verified: true,
+    officialApplicationUrl: 'https://sayouth.datafree.co',
+    sourceDisclaimer: 'Presidential Youth Employment Initiative (PYEI) vacancy collected from the official SAYouth datafree employment portal. Applications must be completed on SAYouth. Orbit AI provides free CV tailoring and eligibility readiness.',
+    location: 'Soweto, Johannesburg',
+    address: 'Selected Public Primary & Secondary Schools, Soweto',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'approximate',
+    coordinates: { lat: -26.2485, lng: 27.8540 },
+    posterImage: 'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=800&auto=format&fit=crop&q=80',
+    description: 'Provide classroom and ICT assistance to teachers in public schools. Responsibilities include recording school attendance on SASAMS, supporting reading clubs, maintaining school digital equipment, and supervising learners in computer labs.',
+    requirements: [
+      'South African Citizen aged between 18 and 35 years old',
+      'Grade 12 / Matric Certificate with diploma or degree endorsement',
+      'Must reside within a 5 km radius of the school location (Proof of Residence required)',
+      'Basic computer literacy (typing, web browsing, word processing)',
+      'Currently unemployed and not studying full-time'
+    ],
+    compensationOrGrant: 'R4,450 monthly national stipend',
+    deadline: '2026-11-15',
+    requiredDocuments: ['Certified ID Copy', 'Matric Certificate', 'Proof of Residential Address (Ward Councillor / Utility bill)'],
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 165
+  },
+  {
+    id: 'opp-ext-transnet',
+    creatorId: 'corp-transnet',
+    creatorName: 'Transnet Freight Rail & Port Terminals',
+    creatorEmail: 'recruitment@transnet.net',
+    creatorPhone: '+27 11 308 3000',
+    title: 'Operations & Rail Yard Assistant Trainee',
+    companyOrInstitution: 'Transnet SOC Ltd',
+    category: 'job',
+    opportunityType: 'Full-time',
+    workplaceType: 'On-site',
+    isDirectOrbitApply: false,
+    isPublicDirectory: true,
+    verified: true,
+    officialApplicationUrl: 'https://transnet.erecruit.co',
+    sourceDisclaimer: 'Official vacancy collected from Transnet e-Recruit careers portal. Applications are submitted directly on the Transnet e-Recruit platform. Orbit AI helps you check requirements and evaluate your CV.',
+    location: 'City Deep, Johannesburg',
+    address: 'City Deep Container Terminal, Heidelberg Road',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.2255, lng: 28.0833 },
+    posterImage: 'https://images.unsplash.com/photo-1519003722824-194d4455a60c?w=800&auto=format&fit=crop&q=80',
+    description: 'Join Transnet Freight Rail as an operations trainee. Receive practical on-site training in shunting operations, rail safety compliance, container tracking, train dispatch protocols, and freight terminal logistics.',
+    requirements: [
+      'National Senior Certificate / Grade 12 with Pure Mathematics or Maths Literacy (50%+)',
+      'Physical stamina and medical fitness for yard operations',
+      'Clear criminal record',
+      'Willingness to work rotating shift schedules including nights and weekends',
+      'South African citizenship'
+    ],
+    compensationOrGrant: 'R14,500 - R18,000 / month + Medical Aid & Pension',
+    deadline: '2026-11-05',
+    requiredDocuments: ['Comprehensive CV', 'Certified Copy of ID', 'Certified Matric Statement of Results'],
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 57
+  },
+  {
+    id: 'opp-ext-eskom',
+    creatorId: 'corp-eskom',
+    creatorName: 'Eskom Holdings SOC Ltd',
+    creatorEmail: 'careers@eskom.co.za',
+    creatorPhone: '+27 11 800 8111',
+    title: 'Assistant Field Technician: Distribution Operations',
+    companyOrInstitution: 'Eskom Holdings SOC Ltd',
+    category: 'job',
+    opportunityType: 'Full-time',
+    workplaceType: 'On-site',
+    isDirectOrbitApply: false,
+    isPublicDirectory: true,
+    verified: true,
+    officialApplicationUrl: 'https://secapps.eskom.co.za/sites/Recruitment',
+    sourceDisclaimer: 'Official vacancy record from Eskom e-Recruitment portal. Applications are processed through Eskom’s SAP recruitment system. Orbit AI provides resume analysis and requirements matching.',
+    location: 'Brackenfell, Cape Town',
+    address: 'Eskom Brackenfell Complex, Eskom Road',
+    city: 'Cape Town',
+    province: 'Western Cape',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -33.8821, lng: 18.6830 },
+    posterImage: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=800&auto=format&fit=crop&q=80',
+    description: 'Assist Senior Field Technicians in maintenance of high-voltage and medium-voltage substation equipment, fault finding on distribution cables, electrical meter audits, and emergency power restoration.',
+    requirements: [
+      'National Senior Certificate with Mathematics and Physical Science (50%+), OR N3 Engineering Studies Certificate',
+      'Valid Code B or Code EB South African Driver’s License',
+      'Safety-first mindset and compliance with Eskom High Voltage Operating Regulations',
+      'Strong mechanical and electrical aptitude'
+    ],
+    compensationOrGrant: 'R19,500 - R25,000 / month',
+    deadline: '2026-10-28',
+    requiredDocuments: ['Detailed CV', 'Certified ID Copy', 'Certified Matric / N3 Certificate', 'Driver’s License Copy'],
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 63
   },
 
   // --- INTERNSHIPS ---
@@ -2237,6 +2567,199 @@ export const DEFAULT_OPPORTUNITIES: Opportunity[] = [
     createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'Open',
     applicantCount: 62
+  },
+
+  // --- APPRENTICESHIPS ---
+  {
+    id: 'opp-appr-1',
+    creatorId: 'emp-sasol-appr',
+    creatorName: 'Sasol Mining & Energy Operations',
+    creatorEmail: 'artisans@sasol.com',
+    creatorPhone: '+27 17 610 1111',
+    title: 'Mechanical Fitter & Turner Artisan Apprenticeship (MerSETA)',
+    companyOrInstitution: 'Sasol Mining & Energy Operations',
+    category: 'apprenticeship',
+    opportunityType: 'Apprenticeship',
+    workplaceType: 'On-site',
+    location: 'Secunda Operations, Mpumalanga',
+    address: 'Sasol Synfuels Complex, PDP Kruger Street, Secunda',
+    city: 'Secunda',
+    province: 'Mpumalanga',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.5503, lng: 29.1764 },
+    posterImage: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+    description: '4-year structured trade apprenticeship leading to a Red Seal Artisan qualification accredited by MerSETA and NAMB. Full practical workshop training, high-voltage equipment safety, lathe operations, and rotational plant mechanical maintenance.',
+    requirements: [
+      'N2 Certificate or Technical Matric (Grade 12) with Pure Mathematics (50%+) and Engineering Science (50%+)',
+      'Passed relevant trade theory subjects (Fitting & Machining, Engineering Drawing)',
+      'South African Citizen aged 18 to 35',
+      'Medically fit for plant and heavy industrial operational environments'
+    ],
+    compensationOrGrant: 'R9,200 monthly apprentice stipend + Full Trade Test & Tool Allowance',
+    deadline: '2026-11-28',
+    requiredDocuments: ['Certified ID Copy', 'Matric / N2 Certificate', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 41,
+    industry: 'Engineering & Manufacturing',
+    educationLevel: 'N2 / Technical Matric',
+    nqfLevel: 4,
+    verified: true
+  },
+
+  // --- GOVERNMENT OPPORTUNITIES ---
+  {
+    id: 'opp-gov-1',
+    creatorId: 'gov-dpsa',
+    creatorName: 'Department of Public Service & Administration (DPSA)',
+    creatorEmail: 'vacancies@dpsa.gov.za',
+    creatorPhone: '+27 12 336 1000',
+    title: 'Public Administration & Registry Officer (Public Service Circular 14)',
+    companyOrInstitution: 'Department of Public Service & Administration (DPSA)',
+    category: 'government',
+    opportunityType: 'Government',
+    workplaceType: 'On-site',
+    location: 'Pretoria Central, Tshwane',
+    address: 'Batho Pele House, 546 Edmond Street, Arcadia, Pretoria',
+    city: 'Pretoria',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -25.7461, lng: 28.1881 },
+    posterImage: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop&q=80',
+    description: 'Permanent public service entry appointment under the Public Service Act. Manage departmental records classification, electronic correspondence archiving, citizen query resolution, and parliamentary committee documentation.',
+    requirements: [
+      'Grade 12 / Senior Certificate with recognized post-matric administrative qualification or 3-year National Diploma',
+      'Knowledge of the National Archives and Records Service Act & PAIA guidelines',
+      'Computer literacy in MS Office and electronic records databases',
+      'Completed New Z83 application form and valid SA Citizenship'
+    ],
+    compensationOrGrant: 'R216,840 - R255,450 per annum (Salary Level 5) + 13th Cheque & GEMS Medical Aid',
+    deadline: '2026-11-14',
+    requiredDocuments: ['Z83 Form', 'Comprehensive CV', 'Certified ID Copy', 'Matric & Qualification Certificates', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 88,
+    industry: 'Public Service & Governance',
+    educationLevel: 'Matric / Diploma',
+    nqfLevel: 5,
+    verified: true
+  },
+  {
+    id: 'opp-gov-2',
+    creatorId: 'gov-dbe-pyei',
+    creatorName: 'Department of Basic Education (DBE)',
+    creatorEmail: 'pyei-support@dbe.gov.za',
+    creatorPhone: '+27 80 020 2933',
+    title: 'Presidential Youth Employment Initiative (PYEI) - Digital & Reading Assistant',
+    companyOrInstitution: 'Department of Basic Education (DBE)',
+    category: 'government',
+    opportunityType: 'Government',
+    workplaceType: 'On-site',
+    location: 'Soweto / Johannesburg South Districts',
+    address: 'Orlando East & Diepkloof Circuit Educational Hubs',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.2678, lng: 27.8585 },
+    posterImage: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&auto=format&fit=crop&q=80',
+    description: 'National youth employment stimulus initiative providing structured workplace experience in local public schools. Support classroom educators with foundational literacy, digital library administration, and learner numeracy exercises.',
+    requirements: [
+      'Unemployed South African youth aged 18 to 35',
+      'Matric (Grade 12) Certificate passed with standard endorsements',
+      'Must reside within 5 km of the beneficiary community school (Proof of residence mandatory)',
+      'Clean criminal background check and child protection clearance'
+    ],
+    compensationOrGrant: 'R4,450 monthly national stimulus stipend',
+    deadline: '2026-10-31',
+    requiredDocuments: ['Certified ID Copy', 'Matric Certificate', 'Proof of Address / Ward Councillor Letter'],
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 142,
+    industry: 'Education & Community Development',
+    educationLevel: 'Matric',
+    nqfLevel: 4,
+    verified: true
+  },
+
+  // --- TRAINING & BOOTCAMPS ---
+  {
+    id: 'opp-train-1',
+    creatorId: 'org-harambee-aws',
+    creatorName: 'Harambee Youth Employment Accelerator & AWS',
+    creatorEmail: 'cloudskills@harambee.co.za',
+    creatorPhone: '+27 11 593 0500',
+    title: 'AWS re/Start Cloud Practitioner Fast-Track Bootcamp',
+    companyOrInstitution: 'Harambee Youth Employment Accelerator & AWS',
+    category: 'training',
+    opportunityType: 'Contract',
+    workplaceType: 'Hybrid',
+    location: 'Braamfontein Tech Hub, Johannesburg',
+    address: '19 Ameshoff Street, Braamfontein',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.1919, lng: 28.0336 },
+    posterImage: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&auto=format&fit=crop&q=80',
+    description: '12-week full-time intensive bootcamp covering cloud computing foundations, Linux terminal commands, Python scripting, networking fundamentals, and AWS Core Services. Fully sponsored program including official AWS Certified Cloud Practitioner examination voucher and direct employer recruitment days.',
+    requirements: [
+      'Unemployed South African citizen aged 18 to 29',
+      'Grade 12 / Matric with foundational numeracy and logical problem-solving aptitude',
+      'Pass Harambee online analytical assessment',
+      'Full-time availability (Monday to Friday, 08:30 - 16:30)'
+    ],
+    compensationOrGrant: '100% Funded Scholarship + Transport Allowance + AWS Exam Voucher',
+    deadline: '2026-11-25',
+    requiredDocuments: ['ID Copy', 'Matric Statement of Results', 'Proof of Residence'],
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 79,
+    industry: 'Information Technology & Cloud',
+    educationLevel: 'Matric',
+    nqfLevel: 5,
+    verified: true
+  },
+
+  // --- GRADUATE PROGRAMMES ---
+  {
+    id: 'opp-grad-1',
+    creatorId: 'emp-standardbank-grad',
+    creatorName: 'Standard Bank South Africa',
+    creatorEmail: 'graduates@standardbank.co.za',
+    creatorPhone: '+27 11 636 9111',
+    title: 'Standard Bank Group Tech & Cloud Architecture Graduate Programme 2027',
+    companyOrInstitution: 'Standard Bank South Africa',
+    category: 'internship',
+    opportunityType: 'Internship',
+    workplaceType: 'Hybrid',
+    location: 'Rosebank / Simmonds Street, Johannesburg',
+    address: '30 Baker Street, Rosebank, Johannesburg',
+    city: 'Johannesburg',
+    province: 'Gauteng',
+    country: 'South Africa',
+    locationPrecision: 'exact',
+    coordinates: { lat: -26.1472, lng: 28.0416 },
+    posterImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&auto=format&fit=crop&q=80',
+    description: '18-month rotational graduate leadership journey within Africa\'s largest financial institution. Accelerate in DevOps, distributed microservices, fintech API integration, and enterprise banking security alongside chief enterprise architects.',
+    requirements: [
+      'Final-year student or recent graduate (BSc, BEng, BCom) in Computer Science, Information Systems, Software Engineering, or Applied Maths',
+      'Minimum 65% cumulative academic average',
+      'Passion for scalable cloud banking and financial inclusion',
+      'South African citizenship or permanent residency'
+    ],
+    compensationOrGrant: 'R380,000 - R430,000 annual graduate package + Corporate Benefits',
+    deadline: '2026-10-31',
+    requiredDocuments: ['CV / Resume', 'Full Academic Transcript', 'Certified ID Copy'],
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Open',
+    applicantCount: 114,
+    industry: 'Banking & Financial Services',
+    educationLevel: 'Bachelor Degree',
+    nqfLevel: 7,
+    verified: true
   }
 ];
 
@@ -2613,6 +3136,350 @@ export function dbDeleteUserStoredDocument(userId: string, docId: string): void 
     const filtered = existing.filter(d => d.id !== docId);
     localStorage.setItem(key, JSON.stringify(filtered));
   } catch (e) {}
+}
+
+export async function dbFetchOpportunityMessages(
+  opportunityId?: string, 
+  applicantIdentifier?: string, 
+  applicationId?: string
+): Promise<OpportunityMessage[]> {
+  try {
+    const local = localStorage.getItem('orbit_opportunity_messages');
+    let messages: OpportunityMessage[] = local ? JSON.parse(local) : [];
+
+    // Filter by opportunity, applicant, or application
+    if (applicationId) {
+      messages = messages.filter(m => 
+        m.applicationId === applicationId || 
+        (opportunityId && m.opportunityId === opportunityId && (!applicantIdentifier || m.applicantId === applicantIdentifier || m.applicantEmail === applicantIdentifier || m.senderId === applicantIdentifier || m.recipientId === applicantIdentifier))
+      );
+    } else if (opportunityId && applicantIdentifier) {
+      messages = messages.filter(m => 
+        m.opportunityId === opportunityId && 
+        (m.applicantId === applicantIdentifier || m.applicantEmail === applicantIdentifier || m.senderId === applicantIdentifier || m.recipientId === applicantIdentifier)
+      );
+    } else if (opportunityId) {
+      messages = messages.filter(m => m.opportunityId === opportunityId);
+    } else if (applicantIdentifier) {
+      messages = messages.filter(m => 
+        m.applicantId === applicantIdentifier || m.applicantEmail === applicantIdentifier || m.senderId === applicantIdentifier || m.recipientId === applicantIdentifier
+      );
+    }
+
+    // Attempt Supabase fetch
+    try {
+      let query = supabase.from('opportunity_messages').select('*');
+      if (applicationId) {
+        query = query.eq('application_id', applicationId);
+      } else if (opportunityId) {
+        query = query.eq('opportunity_id', opportunityId);
+      }
+      query = query.order('created_at', { ascending: true });
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        let remoteMessages: OpportunityMessage[] = data.map((d: any) => ({
+          id: d.id,
+          conversationId: d.conversation_id,
+          opportunityId: d.opportunity_id,
+          opportunityTitle: d.opportunity_title,
+          companyName: d.company_name,
+          applicationId: d.application_id,
+          applicantId: d.applicant_id,
+          applicantName: d.applicant_name,
+          applicantEmail: d.applicant_email,
+          senderId: d.sender_id,
+          senderName: d.sender_name,
+          senderRole: d.sender_role,
+          recipientId: d.recipient_id,
+          recipientName: d.recipient_name,
+          text: d.text,
+          timestamp: d.timestamp || d.created_at,
+          createdAt: d.created_at || d.timestamp,
+          read: d.read,
+          status: d.read ? 'read' : 'delivered'
+        }));
+
+        if (applicantIdentifier) {
+          remoteMessages = remoteMessages.filter(m => 
+            m.applicantId === applicantIdentifier || 
+            m.applicantEmail === applicantIdentifier || 
+            m.senderId === applicantIdentifier || 
+            m.recipientId === applicantIdentifier
+          );
+        }
+
+        // Merge without duplicates
+        const map = new Map<string, OpportunityMessage>();
+        messages.forEach(m => map.set(m.id, m));
+        remoteMessages.forEach(m => map.set(m.id, m));
+        return Array.from(map.values()).sort((a, b) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeA - timeB;
+        });
+      }
+    } catch (err) {}
+
+    return messages.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeA - timeB;
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function dbSendOpportunityMessage(msg: OpportunityMessage): Promise<boolean> {
+  try {
+    const enrichedMsg: OpportunityMessage = {
+      ...msg,
+      createdAt: msg.createdAt || new Date().toISOString(),
+      status: msg.status || 'sent',
+      read: msg.read ?? false
+    };
+
+    // 1. Store in local storage immediately for 100% reliable offline/reload persistence
+    try {
+      const local = localStorage.getItem('orbit_opportunity_messages');
+      const list: OpportunityMessage[] = local ? JSON.parse(local) : [];
+      const existingIdx = list.findIndex(m => m.id === enrichedMsg.id);
+      if (existingIdx >= 0) {
+        list[existingIdx] = enrichedMsg;
+      } else {
+        list.push(enrichedMsg);
+      }
+      localStorage.setItem('orbit_opportunity_messages', JSON.stringify(list));
+    } catch (e) {}
+
+    // 2. Sync to Supabase table
+    try {
+      await supabase.from('opportunity_messages').upsert({
+        id: enrichedMsg.id,
+        conversation_id: enrichedMsg.conversationId || `${enrichedMsg.opportunityId}_${enrichedMsg.applicantId || enrichedMsg.senderId}`,
+        opportunity_id: enrichedMsg.opportunityId,
+        opportunity_title: enrichedMsg.opportunityTitle,
+        company_name: enrichedMsg.companyName,
+        application_id: enrichedMsg.applicationId || null,
+        applicant_id: enrichedMsg.applicantId || null,
+        applicant_name: enrichedMsg.applicantName || null,
+        applicant_email: enrichedMsg.applicantEmail || null,
+        sender_id: enrichedMsg.senderId,
+        sender_name: enrichedMsg.senderName,
+        sender_role: enrichedMsg.senderRole,
+        recipient_id: enrichedMsg.recipientId,
+        recipient_name: enrichedMsg.recipientName,
+        text: enrichedMsg.text,
+        timestamp: enrichedMsg.timestamp,
+        created_at: enrichedMsg.createdAt,
+        read: enrichedMsg.read ?? false
+      });
+    } catch (err) {}
+
+    return true;
+  } catch (e) {
+    return true;
+  }
+}
+
+export async function dbMarkOpportunityMessagesAsRead(
+  opportunityId: string, 
+  applicantIdentifier: string, 
+  readerRole: 'applicant' | 'employer'
+): Promise<void> {
+  try {
+    // 1. Update localStorage
+    const local = localStorage.getItem('orbit_opportunity_messages');
+    if (local) {
+      const list: OpportunityMessage[] = JSON.parse(local);
+      let updated = false;
+      list.forEach(m => {
+        const matchesOpp = m.opportunityId === opportunityId;
+        const matchesApplicant = !applicantIdentifier || 
+          m.applicantId === applicantIdentifier || 
+          m.applicantEmail === applicantIdentifier || 
+          m.senderId === applicantIdentifier || 
+          m.recipientId === applicantIdentifier;
+
+        if (matchesOpp && matchesApplicant && m.senderRole !== readerRole && !m.read) {
+          m.read = true;
+          m.status = 'read';
+          updated = true;
+        }
+      });
+      if (updated) {
+        localStorage.setItem('orbit_opportunity_messages', JSON.stringify(list));
+      }
+    }
+
+    // 2. Update Supabase
+    try {
+      await supabase
+        .from('opportunity_messages')
+        .update({ read: true })
+        .eq('opportunity_id', opportunityId)
+        .neq('sender_role', readerRole);
+    } catch (e) {}
+  } catch (e) {}
+}
+
+export interface EmployerConversationSummary {
+  conversationId: string;
+  opportunityId: string;
+  opportunityTitle: string;
+  applicantId: string;
+  applicantName: string;
+  applicantEmail?: string;
+  applicationId?: string;
+  lastMessageText: string;
+  lastMessageTime: string;
+  lastMessageSenderRole?: 'employer' | 'applicant';
+  unreadCount: number;
+}
+
+export async function dbFetchEmployerConversations(employerOppIds: string[]): Promise<EmployerConversationSummary[]> {
+  try {
+    const oppIdSet = new Set(employerOppIds);
+    let allMessages: OpportunityMessage[] = [];
+
+    // Local
+    const local = localStorage.getItem('orbit_opportunity_messages');
+    if (local) {
+      allMessages = JSON.parse(local);
+    }
+
+    // Supabase
+    try {
+      const { data } = await supabase
+        .from('opportunity_messages')
+        .select('*')
+        .in('opportunity_id', employerOppIds)
+        .order('created_at', { ascending: true });
+
+      if (data && data.length > 0) {
+        const map = new Map<string, OpportunityMessage>();
+        allMessages.forEach(m => map.set(m.id, m));
+        data.forEach((d: any) => {
+          map.set(d.id, {
+            id: d.id,
+            conversationId: d.conversation_id,
+            opportunityId: d.opportunity_id,
+            opportunityTitle: d.opportunity_title,
+            companyName: d.company_name,
+            applicationId: d.application_id,
+            applicantId: d.applicant_id,
+            applicantName: d.applicant_name,
+            applicantEmail: d.applicant_email,
+            senderId: d.sender_id,
+            senderName: d.sender_name,
+            senderRole: d.sender_role,
+            recipientId: d.recipient_id,
+            recipientName: d.recipient_name,
+            text: d.text,
+            timestamp: d.timestamp || d.created_at,
+            createdAt: d.created_at || d.timestamp,
+            read: d.read,
+            status: d.read ? 'read' : 'delivered'
+          });
+        });
+        allMessages = Array.from(map.values());
+      }
+    } catch (e) {}
+
+    // Group by conversation
+    const convMap = new Map<string, {
+      conversationId: string;
+      opportunityId: string;
+      opportunityTitle: string;
+      applicantId: string;
+      applicantName: string;
+      applicantEmail?: string;
+      applicationId?: string;
+      lastMessageText: string;
+      lastMessageTime: string;
+      lastMessageTimestampNumber: number;
+      lastMessageSenderRole?: 'employer' | 'applicant';
+      unreadCount: number;
+    }>();
+
+    for (const msg of allMessages) {
+      if (!oppIdSet.has(msg.opportunityId)) continue;
+
+      const applicantId = msg.applicantId || (msg.senderRole === 'applicant' ? msg.senderId : msg.recipientId);
+      const applicantName = msg.applicantName || (msg.senderRole === 'applicant' ? msg.senderName : msg.recipientName);
+      const key = `${msg.opportunityId}__${applicantId}`;
+
+      const existing = convMap.get(key);
+      const msgTime = msg.createdAt ? new Date(msg.createdAt).getTime() : 0;
+      const isUnreadForEmployer = msg.senderRole === 'applicant' && !msg.read;
+
+      if (!existing) {
+        convMap.set(key, {
+          conversationId: key,
+          opportunityId: msg.opportunityId,
+          opportunityTitle: msg.opportunityTitle,
+          applicantId: applicantId,
+          applicantName: applicantName || 'Candidate',
+          applicantEmail: msg.applicantEmail,
+          applicationId: msg.applicationId,
+          lastMessageText: msg.text,
+          lastMessageTime: msg.timestamp,
+          lastMessageTimestampNumber: msgTime,
+          lastMessageSenderRole: msg.senderRole,
+          unreadCount: isUnreadForEmployer ? 1 : 0
+        });
+      } else {
+        if (msgTime >= existing.lastMessageTimestampNumber) {
+          existing.lastMessageText = msg.text;
+          existing.lastMessageTime = msg.timestamp;
+          existing.lastMessageTimestampNumber = msgTime;
+          existing.lastMessageSenderRole = msg.senderRole;
+        }
+        if (isUnreadForEmployer) {
+          existing.unreadCount += 1;
+        }
+        if (!existing.applicationId && msg.applicationId) {
+          existing.applicationId = msg.applicationId;
+        }
+      }
+    }
+
+    return Array.from(convMap.values())
+      .sort((a, b) => b.lastMessageTimestampNumber - a.lastMessageTimestampNumber)
+      .map(({ lastMessageTimestampNumber, ...rest }) => rest);
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function dbFetchApplicantUnreadCount(applicantIdentifier: string): Promise<number> {
+  try {
+    const local = localStorage.getItem('orbit_opportunity_messages');
+    const messages: OpportunityMessage[] = local ? JSON.parse(local) : [];
+    return messages.filter(m => 
+      (m.applicantId === applicantIdentifier || m.applicantEmail === applicantIdentifier || m.recipientId === applicantIdentifier) &&
+      m.senderRole === 'employer' &&
+      !m.read
+    ).length;
+  } catch (e) {
+    return 0;
+  }
+}
+
+export async function dbFetchEmployerUnreadCount(employerOppIds: string[]): Promise<number> {
+  try {
+    const local = localStorage.getItem('orbit_opportunity_messages');
+    const messages: OpportunityMessage[] = local ? JSON.parse(local) : [];
+    const oppSet = new Set(employerOppIds);
+    return messages.filter(m => 
+      oppSet.has(m.opportunityId) &&
+      m.senderRole === 'applicant' &&
+      !m.read
+    ).length;
+  } catch (e) {
+    return 0;
+  }
 }
 
 

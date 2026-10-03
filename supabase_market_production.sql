@@ -135,7 +135,8 @@ ON CONFLICT (id) DO NOTHING;
 
 -- 11. PERFORMANCE INDEXES
 CREATE INDEX IF NOT EXISTS idx_market_brands_user_id ON public.market_brands(user_id);
-CREATE INDEX IF NOT EXISTS idx_market_brands_slug ON public.market_brands(slug);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_brands_normalized_name ON public.market_brands(LOWER(TRIM(name)));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_brands_slug ON public.market_brands(slug);
 CREATE INDEX IF NOT EXISTS idx_market_products_brand_id ON public.market_products(brand_id);
 CREATE INDEX IF NOT EXISTS idx_market_orders_user_id ON public.market_orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_market_orders_order_number ON public.market_orders(order_number);

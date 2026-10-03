@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, TextInput, SafeAreaView, ScrollView } from '../components/ReactNativeShim';
 import { 
   ArrowLeft, Search, Briefcase, GraduationCap, Award, Building2, 
   FileText, CheckCircle2, Clock, MapPin, DollarSign, Calendar, 
   Upload, Eye, Plus, ChevronRight, X, ExternalLink, Filter, 
-  UserCheck, AlertCircle, Share2, Sparkles, Send, Download,
+  UserCheck, AlertCircle, Share2, Send, Download,
   Phone, Mail, Check, MessageSquare, Navigation, Locate, LocateFixed,
-  Target, Info, Image as ImageIcon, ShieldCheck, Compass
+  Target, Info, Image as ImageIcon, ShieldCheck, Compass, HelpCircle, Users,
+  Sparkles
 } from '../components/Icons';
 import { generateProfessionalVacancyPoster } from '../utils/posterGenerator';
 import { useAppState } from '../services/state';
@@ -19,8 +20,12 @@ import {
   dbFetchOpportunityApplications, dbUpsertOpportunityApplication,
   dbUpdateApplicationStatus, dbUploadOpportunityDocument,
   dbFetchUserStoredDocuments, dbSaveUserStoredDocument,
-  calculateDistanceKm, DEFAULT_OPPORTUNITIES
+  calculateDistanceKm, DEFAULT_OPPORTUNITIES, isDirectOrbitOpportunity,
+  dbFetchEmployerConversations, dbFetchEmployerUnreadCount, dbFetchApplicantUnreadCount,
+  EmployerConversationSummary
 } from '../services/supabase';
+import { OpportunityProfileView } from '../components/OpportunityProfileView';
+import { OpportunityChatModal } from '../components/OpportunityChatModal';
 
 interface OpportunitiesScreenProps {
   onBack?: () => void;
@@ -29,11 +34,25 @@ interface OpportunitiesScreenProps {
 export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack }) => {
   const { setMobileScreen, currentUser } = useAppState();
 
-  // Navigation / View Tabs
-  const [activeTab, setActiveTab] = useState<'all' | 'jobs' | 'internships' | 'learnerships' | 'scholarships' | 'university' | 'applications' | 'employer'>('all');
+  // Navigation / View Tabs - Vision 1: Focused exclusively on JOBS and COLLEGES & UNIVERSITIES
+  const [activeTab, setActiveTab] = useState<'jobs' | 'colleges_universities' | 'applications' | 'employer'>('jobs');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState<string>('All');
-  const [selectedWorkplace, setSelectedWorkplace] = useState<string>('All');
+
+  // Business-Mode Style Profile View
+  const [isProfileView, setIsProfileView] = useState(false);
+
+  // In-App Chat State between Applicants and Employers
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatTargetOpp, setChatTargetOpp] = useState<Opportunity | null>(null);
+  const [chatTargetApp, setChatTargetApp] = useState<OpportunityApplication | null>(null);
+  const [chatUserRole, setChatUserRole] = useState<'applicant' | 'employer'>('applicant');
+
+  const openInAppChat = (opp: Opportunity, app?: OpportunityApplication | null, role: 'applicant' | 'employer' = 'applicant') => {
+    setChatTargetOpp(opp);
+    setChatTargetApp(app || null);
+    setChatUserRole(role);
+    setShowChatModal(true);
+  };
 
   // Near Me / Geolocation State
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -66,7 +85,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
   const [newCompany, setNewCompany] = useState('');
   const [newCategory, setNewCategory] = useState<OpportunityCategory>('job');
   const [newType, setNewType] = useState<OpportunityType>('Full-time');
-  const [newWorkplace, setNewWorkplace] = useState<OpportunityWorkplace>('Hybrid');
+  const [newWorkplace, setNewWorkplace] = useState<OpportunityWorkplace>('On-site');
   const [newLocation, setNewLocation] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newCity, setNewCity] = useState('');
@@ -75,6 +94,20 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
   const [newCoordinates, setNewCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [isCapturingEmployerGps, setIsCapturingEmployerGps] = useState(false);
   const [employerGpsStatus, setEmployerGpsStatus] = useState<string | null>(null);
+  const [newEmployerEmail, setNewEmployerEmail] = useState(currentUser?.email || '');
+  const [newEmployerPhone, setNewEmployerPhone] = useState('');
+
+  // Automatically request GPS location permission when opening the vacancy posting form
+  useEffect(() => {
+    if (showPostVacancyModal) {
+      if (!newEmployerEmail && currentUser?.email) {
+        setNewEmployerEmail(currentUser.email);
+      }
+      if (!newCoordinates && !isCapturingEmployerGps) {
+        handleCaptureEmployerGps();
+      }
+    }
+  }, [showPostVacancyModal]);
 
   // Vacancy Images (3 Options: Upload poster, Upload logo, Generate with Orbit AI)
   const [vacancyImageMode, setVacancyImageMode] = useState<'poster' | 'logo' | 'ai_generate'>('poster');
@@ -112,6 +145,15 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
   const [attachedDocs, setAttachedDocs] = useState<ApplicationDocument[]>([]);
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
   const [submissionSuccessNotice, setSubmissionSuccessNotice] = useState(false);
+  const [showApplicationReceivedModal, setShowApplicationReceivedModal] = useState(false);
+  const [submittedAppInfo, setSubmittedAppInfo] = useState<{
+    id: string;
+    title: string;
+    company: string;
+    submittedAt: string;
+    docsCount: number;
+    hasGps: boolean;
+  } | null>(null);
 
   // Employer Candidate Review Dossier Modal
   const [showDossierModal, setShowDossierModal] = useState(false);
@@ -185,6 +227,24 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
     return calculateDistanceKm(userLocation.lat, userLocation.lng, opp.coordinates.lat, opp.coordinates.lng);
   };
 
+  // Helper: fallback image for categories
+  const getCategoryFallbackImage = (category: OpportunityCategory): string => {
+    switch (category) {
+      case 'job':
+        return 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1200&q=80';
+      case 'internship':
+        return 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80';
+      case 'learnership':
+        return 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=1200&q=80';
+      case 'scholarship':
+        return 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=80';
+      case 'university':
+        return 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1200&q=80';
+      default:
+        return 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80';
+    }
+  };
+
   // Toggle Near Me
   const handleToggleNearMe = () => {
     if (nearMeActive) {
@@ -222,33 +282,36 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
     );
   };
 
-  // Filtered Opportunities List
+  // Category counts for Vision 1 main tabs
+  const jobCount = useMemo(() => {
+    return opportunities.filter(opp => 
+      opp.category === 'job' || opp.category === 'government' || opp.category === 'training' || opp.category === 'learnership' || opp.category === 'internship'
+    ).length;
+  }, [opportunities]);
+
+  const uniCount = useMemo(() => {
+    return opportunities.filter(opp => opp.category === 'university' || opp.category === 'tvet').length;
+  }, [opportunities]);
+
+  // Filtered Opportunities List - Vision 1
   const filteredOpportunities = useMemo(() => {
     let list = opportunities.filter(opp => {
-      // Category Tab Filter
-      if (activeTab === 'jobs' && opp.category !== 'job') return false;
-      if (activeTab === 'internships' && opp.category !== 'internship') return false;
-      if (activeTab === 'learnerships' && opp.category !== 'learnership') return false;
-      if (activeTab === 'scholarships' && opp.category !== 'scholarship') return false;
-      if (activeTab === 'university' && opp.category !== 'university') return false;
+      // Vision 1: Only JOBS and COLLEGES & UNIVERSITIES
+      if (activeTab === 'jobs') {
+        const isJobCategory = 
+          opp.category === 'job' || 
+          opp.category === 'government' || 
+          opp.category === 'training' ||
+          opp.category === 'learnership' ||
+          opp.category === 'internship';
 
-      // Location Filter
-      if (selectedLocation !== 'All') {
-        const qLoc = selectedLocation.toLowerCase();
-        const matchesLoc = 
-          opp.location.toLowerCase().includes(qLoc) ||
-          (opp.city && opp.city.toLowerCase().includes(qLoc)) ||
-          (opp.province && opp.province.toLowerCase().includes(qLoc)) ||
-          (opp.address && opp.address.toLowerCase().includes(qLoc));
-        if (!matchesLoc) return false;
+        if (!isJobCategory) return false;
+      } else if (activeTab === 'colleges_universities') {
+        const isUniOrCollege = opp.category === 'university' || opp.category === 'tvet';
+        if (!isUniOrCollege) return false;
       }
 
-      // Workplace Filter
-      if (selectedWorkplace !== 'All' && opp.workplaceType !== selectedWorkplace) {
-        return false;
-      }
-
-      // Search Query
+      // Search Query across title, company, department, course, institution, skills, etc.
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const inTitle = opp.title.toLowerCase().includes(q);
@@ -260,7 +323,10 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
         const inDesc = opp.description.toLowerCase().includes(q);
         const inReqs = opp.requirements.some(r => r.toLowerCase().includes(q));
         const inCourse = opp.institutionCourse ? opp.institutionCourse.toLowerCase().includes(q) : false;
-        if (!inTitle && !inCompany && !inLoc && !inAddress && !inCity && !inProvince && !inDesc && !inReqs && !inCourse) return false;
+        const inFaculty = opp.institutionFaculty ? opp.institutionFaculty.toLowerCase().includes(q) : false;
+        const inWorkplace = opp.workplaceType ? opp.workplaceType.toLowerCase().includes(q) : false;
+        const inType = opp.opportunityType ? opp.opportunityType.toLowerCase().includes(q) : false;
+        if (!inTitle && !inCompany && !inLoc && !inAddress && !inCity && !inProvince && !inDesc && !inReqs && !inCourse && !inFaculty && !inWorkplace && !inType) return false;
       }
 
       return true;
@@ -280,7 +346,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
     }
 
     return list;
-  }, [opportunities, activeTab, searchQuery, selectedLocation, selectedWorkplace, nearMeActive, userLocation]);
+  }, [opportunities, activeTab, searchQuery, nearMeActive, userLocation]);
 
   // Employer Posted Opportunities
   const employerOpportunities = useMemo(() => {
@@ -334,6 +400,46 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
     });
   }, [currentOppApplicants, applicantStatusFilter, applicantSearchQuery]);
 
+  // Employer Conversations & Unread Message State
+  const [employerPortalSubTab, setEmployerPortalSubTab] = useState<'candidates' | 'conversations'>('candidates');
+  const [employerConversations, setEmployerConversations] = useState<EmployerConversationSummary[]>([]);
+  const [unreadEmployerCount, setUnreadEmployerCount] = useState<number>(0);
+  const [unreadApplicantCount, setUnreadApplicantCount] = useState<number>(0);
+  const [applicantUnreadOppIds, setApplicantUnreadOppIds] = useState<string[]>([]);
+
+  const refreshChatCountsAndThreads = useCallback(async () => {
+    try {
+      const oppIds = employerOpportunities.map(o => o.id);
+      if (oppIds.length > 0) {
+        const convs = await dbFetchEmployerConversations(oppIds);
+        setEmployerConversations(convs);
+        const empUnread = await dbFetchEmployerUnreadCount(oppIds);
+        setUnreadEmployerCount(empUnread);
+      }
+
+      const applicantId = currentUser?.uid || currentUser?.email || localStorage.getItem('orbit_applicant_id') || 'applicant';
+      const local = localStorage.getItem('orbit_opportunity_messages');
+      const list = local ? JSON.parse(local) : [];
+      const unreadForApplicant = list.filter((m: any) => 
+        (m.applicantId === applicantId || m.applicantEmail === applicantId || m.recipientId === applicantId) &&
+        m.senderRole === 'employer' &&
+        !m.read
+      );
+      setUnreadApplicantCount(unreadForApplicant.length);
+      setApplicantUnreadOppIds(Array.from(new Set(unreadForApplicant.map((m: any) => m.opportunityId))));
+    } catch (e) {
+      console.warn("Failed refreshing chat counts", e);
+    }
+  }, [employerOpportunities, currentUser]);
+
+  useEffect(() => {
+    refreshChatCountsAndThreads();
+    const timer = setInterval(() => {
+      refreshChatCountsAndThreads();
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [refreshChatCountsAndThreads]);
+
   // APS Calculator Logic (South African NSC standard)
   const calculateTotalAps = () => {
     let total = 0;
@@ -368,28 +474,54 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
     setAttachedDocs(prev => [...prev.filter(d => !(d.type === docType && !customLabel)), newDoc]);
   };
 
-  // Employer GPS Capture
+  // Employer GPS Capture - requests real device GPS permission and coordinates
   const handleCaptureEmployerGps = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setEmployerGpsStatus("Location services are not available on this device. Please enter physical address or city below.");
       return;
     }
     setIsCapturingEmployerGps(true);
-    setEmployerGpsStatus("Detecting exact coordinates...");
+    setEmployerGpsStatus("Requesting device GPS permission...");
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const coords = { lat: Number(pos.coords.latitude.toFixed(5)), lng: Number(pos.coords.longitude.toFixed(5)) };
         setNewCoordinates(coords);
         setIsCapturingEmployerGps(false);
         setEmployerGpsStatus(`GPS Captured: ${coords.lat}, ${coords.lng}`);
         setNewLocationPrecision('exact');
+
+        // Optional reverse geocode to automatically fill city or address if empty
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&zoom=14`, {
+            headers: { 'Accept': 'application/json' }
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            const addr = data.address || {};
+            const detectedCity = addr.city || addr.town || addr.suburb || addr.municipality || '';
+            const detectedRoad = addr.road ? `${addr.road}${addr.house_number ? ' ' + addr.house_number : ''}` : '';
+            if (detectedRoad && !newAddress) setNewAddress(detectedRoad);
+            if (detectedCity && !newCity) setNewCity(detectedCity);
+            if (!newLocation && (detectedRoad || detectedCity)) {
+              setNewLocation([detectedRoad, detectedCity].filter(Boolean).join(', '));
+            }
+          }
+        } catch (_) {}
       },
       (err) => {
         setIsCapturingEmployerGps(false);
-        setEmployerGpsStatus(null);
-        alert("Could not automatically retrieve GPS. You can select a business hub preset below or enter address manually.");
+        setNewCoordinates(null);
+        if (err.code === 1) {
+          setEmployerGpsStatus("Location permission was denied. Please enter the physical address or city below.");
+        } else if (err.code === 2) {
+          setEmployerGpsStatus("Device location is unavailable. Please enter the physical address or city below.");
+        } else if (err.code === 3) {
+          setEmployerGpsStatus("Location request timed out. Please enter the physical address or city below.");
+        } else {
+          setEmployerGpsStatus("GPS location unavailable. Please enter the physical address or city below.");
+        }
       },
-      { timeout: 8000, enableHighAccuracy: true }
+      { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
@@ -455,7 +587,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
           const dist = calculateDistanceKm(coords.lat, coords.lng, selectedOpp.coordinates.lat, selectedOpp.coordinates.lng);
           distNotice = ` (${dist} km from vacancy location)`;
         }
-        setApplicantLocationStatus(`📍 Location Verified: ${coords.lat}, ${coords.lng}${distNotice}`);
+        setApplicantLocationStatus(`Location Verified: ${coords.lat}, ${coords.lng}${distNotice}`);
       },
       (err) => {
         setIsCapturingApplicantGps(false);
@@ -799,9 +931,17 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
       setOpportunities(prev => prev.map(o => o.id === selectedOpp.id ? { ...o, applicantCount: (o.applicantCount || 0) + 1 } : o));
 
       setShowApplyModal(false);
+      setSubmittedAppInfo({
+        id: newApp.id,
+        title: selectedOpp.title,
+        company: selectedOpp.companyOrInstitution,
+        submittedAt: new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        docsCount: attachedDocs.length + (cvSource === 'task_mode' && taskModeCv ? 1 : 0),
+        hasGps: !!applicantCoordinates
+      });
+      setShowApplicationReceivedModal(true);
       setSubmissionSuccessNotice(true);
-      setTimeout(() => setSubmissionSuccessNotice(false), 5000);
-      setActiveTab('applications');
+      setTimeout(() => setSubmissionSuccessNotice(false), 6000);
     } catch (err) {
       console.error("Submission failed:", err);
       alert("Could not complete submission. Please try again.");
@@ -813,53 +953,48 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
   // Employer Vacancy Creation
   const handleCreateVacancy = async () => {
     if (!newTitle.trim() || !newCompany.trim() || !newDescription.trim()) {
-      alert("Please fill in Title, Company/Institution, and Description.");
+      alert("Please fill in Job Title, Company or Business Name, and Job Description.");
       return;
     }
 
-    const reqArray = newRequirements
-      .split('\n')
-      .map(r => r.trim())
-      .filter(r => r.length > 0);
+    const reqArray = newRequirements.trim()
+      ? newRequirements
+          .split('\n')
+          .map(r => r.trim())
+          .filter(r => r.length > 0)
+      : [];
 
-    const docArray = newRequiredDocs
-      .split(',')
-      .map(d => d.trim())
-      .filter(d => d.length > 0);
-
-    const finalLocation = newAddress.trim() 
-      ? `${newAddress.trim()}, ${newCity.trim() || 'South Africa'}`
-      : newLocation.trim() || `${newCity ? newCity.trim() + ', ' : ''}${newProvince || 'South Africa'}`;
+    const finalLocation = newAddress.trim() && newCity.trim()
+      ? `${newAddress.trim()}, ${newCity.trim()}`
+      : newAddress.trim() || newCity.trim() || newLocation.trim() || 'South Africa';
 
     const newOpp: Opportunity = {
       id: `opp-custom-${Date.now()}`,
       creatorId: currentUser?.uid || 'recruiter',
       creatorName: newCompany.trim(),
-      creatorEmail: currentUser?.email || 'recruiter@orbitai.co.za',
+      creatorEmail: newEmployerEmail.trim() || currentUser?.email || 'recruiter@orbitai.co.za',
+      creatorPhone: newEmployerPhone.trim() || undefined,
       title: newTitle.trim(),
       companyOrInstitution: newCompany.trim(),
-      category: newCategory,
-      opportunityType: newType,
-      workplaceType: newWorkplace,
+      category: newCategory || 'job',
+      opportunityType: newType || 'Full-time',
+      workplaceType: newWorkplace || 'On-site',
       location: finalLocation,
       address: newAddress.trim() || undefined,
       city: newCity.trim() || undefined,
       province: newProvince.trim() || undefined,
       country: 'South Africa',
-      locationPrecision: newLocationPrecision || 'exact',
+      locationPrecision: newCoordinates ? 'exact' : 'approximate',
       coordinates: newCoordinates || undefined,
-      posterImage: newPosterImage.trim() || undefined,
-      logoUrl: newLogoUrl.trim() || undefined,
-      proofOfResidenceRequired: newProofOfResRequired,
-      qualificationRequired: newQualificationRequired,
+      posterImage: undefined,
+      logoUrl: undefined,
+      proofOfResidenceRequired: false,
+      qualificationRequired: 'matric',
       description: newDescription.trim(),
-      requirements: reqArray.length > 0 ? reqArray : ['Relevant Qualification', 'Reliable Work Ethic'],
+      requirements: reqArray.length > 0 ? reqArray : ['Relevant experience or qualification', 'Reliable work ethic'],
       compensationOrGrant: newCompensation.trim() || 'Market Related',
       deadline: newDeadline || '2026-12-31',
-      institutionFaculty: newCategory === 'university' ? newFaculty.trim() : undefined,
-      institutionCourse: newCategory === 'university' ? newCourse.trim() : undefined,
-      minApsScore: newMinAps ? Number(newMinAps) : undefined,
-      requiredDocuments: docArray.length > 0 ? docArray : ['CV / Resume'],
+      requiredDocuments: ['CV / Resume'],
       createdAt: new Date().toISOString(),
       status: 'Open',
       applicantCount: 0
@@ -881,10 +1016,8 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
     setNewProvince('');
     setNewCoordinates(null);
     setEmployerGpsStatus(null);
-    setNewPosterImage('');
-    setNewLogoUrl('');
-    setAiGeneratedPosterPreview('');
-    alert("Vacancy published successfully with exact location and media configuration!");
+    setNewEmployerPhone('');
+    alert("Vacancy published successfully!");
   };
 
   // Orbit AI Motivation / Statement of Purpose Generator for Universities
@@ -924,45 +1057,30 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
     }
   };
 
-  // Category Badge Helper
-  const renderCategoryBadge = (category: OpportunityCategory) => {
-    switch (category) {
-      case 'job':
-        return (
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1">
-            <Briefcase className="w-3 h-3 text-blue-600" />
-            Job
-          </span>
-        );
-      case 'internship':
-        return (
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100 flex items-center gap-1">
-            <Award className="w-3 h-3 text-purple-600" />
-            Internship
-          </span>
-        );
-      case 'learnership':
-        return (
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
-            <Target className="w-3 h-3 text-indigo-600" />
-            Learnership
-          </span>
-        );
-      case 'scholarship':
-        return (
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
-            <DollarSign className="w-3 h-3 text-emerald-600" />
-            Scholarship
-          </span>
-        );
-      case 'university':
-        return (
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-100 flex items-center gap-1">
-            <GraduationCap className="w-3 h-3 text-amber-700" />
-            Admissions
-          </span>
-        );
+  // Badge Helper distinguishing Orbit Direct Apply vs Official Portals vs Higher Ed
+  const renderCategoryBadge = (opp: Opportunity) => {
+    if (isDirectOrbitOpportunity(opp)) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white shadow-2xs flex items-center gap-1">
+          <Sparkles className="w-3 h-3" />
+          Orbit Direct Apply
+        </span>
+      );
     }
+    if (opp.category === 'university' || opp.category === 'tvet') {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/95 text-amber-900 border border-amber-200/80 backdrop-blur-xs flex items-center gap-1 shadow-2xs">
+          <GraduationCap className="w-3 h-3 text-amber-700" />
+          {opp.category === 'tvet' ? 'TVET College' : 'University Admissions'}
+        </span>
+      );
+    }
+    return (
+      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/95 text-slate-800 border border-slate-200/80 backdrop-blur-xs flex items-center gap-1 shadow-2xs">
+        <Building2 className="w-3 h-3 text-slate-600" />
+        Official Portal
+      </span>
+    );
   };
 
   // Status Badge Helper for Application Tracking
@@ -985,34 +1103,65 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
 
   return (
     <SafeAreaView className="bg-white flex flex-col h-full overflow-hidden justify-between relative">
-      {/* 1. TOP BAR */}
-      <View className="h-[56px] px-4 bg-white border-b border-slate-100 flex flex-row items-center justify-between select-none relative z-20">
-        <View className="flex flex-row items-center gap-2.5">
+      {/* 1. TOP HEADER (Simple, Premium, Vision 1 - Top Left: Title + Tagline | Top Right: Employer Portal) */}
+      <View className="h-[62px] px-4 sm:px-6 bg-white border-b border-slate-100 flex flex-row items-center justify-between select-none relative z-20">
+        <View className="flex flex-row items-center gap-3">
           <TouchableOpacity
             onClick={() => onBack ? onBack() : setMobileScreen('chat')}
-            className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-full transition cursor-pointer"
-            title="Back to Chat"
+            className="p-1.5 text-neutral-600 hover:bg-neutral-100 rounded-full transition cursor-pointer"
+            title="Back to Orbit AI"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
+            <ArrowLeft className="w-5 h-5 text-black" />
           </TouchableOpacity>
-          <View className="flex flex-col">
-            <Text className="font-bold text-[17px] text-[#1F1F1F] font-sans tracking-tight">Opportunities</Text>
-            <Text className="text-[11px] text-slate-500 font-sans">Jobs, Internships, Scholarships & Higher Ed</Text>
+          <View className="flex flex-col text-left">
+            <Text className="font-extrabold text-lg sm:text-xl text-black font-sans tracking-tight">
+              OPPORTUNITIES
+            </Text>
           </View>
         </View>
 
-        {/* Quick Mode Toggle: Explorer vs Employer */}
-        <View className="flex flex-row items-center gap-1.5">
+        {/* Top Right: Employer Portal Entry & Applications */}
+        <View className="flex flex-row items-center gap-2">
+          {applications.length > 0 && (
+            <TouchableOpacity
+              onClick={() => {
+                setActiveTab('applications');
+                setIsProfileView(false);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 ${
+                activeTab === 'applications'
+                  ? 'bg-black text-white'
+                  : 'bg-neutral-50 hover:bg-neutral-100 text-black border border-neutral-200'
+              }`}
+            >
+              <span>My Applications</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-blue-600 text-white">
+                {applications.length}
+              </span>
+              {unreadApplicantCount > 0 && (
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+              )}
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
-            onClick={() => setActiveTab(activeTab === 'employer' ? 'all' : 'employer')}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 ${
+            onClick={() => {
+              setActiveTab(activeTab === 'employer' ? 'jobs' : 'employer');
+              setIsProfileView(false);
+            }}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 shadow-2xs ${
               activeTab === 'employer'
                 ? 'bg-black text-white'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                : 'bg-black hover:bg-neutral-800 text-white'
             }`}
           >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>{activeTab === 'employer' ? 'Back to Opportunities' : 'Employer Portal'}</span>
+            <Building2 className="w-3.5 h-3.5 text-white" />
+            <span>{activeTab === 'employer' ? 'Exit Employer Portal' : 'Employer Portal'}</span>
+            {unreadEmployerCount > 0 && activeTab !== 'employer' && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-blue-500 text-white">
+                {unreadEmployerCount}
+              </span>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -1030,434 +1179,368 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
         </div>
       )}
 
-      {/* 2. PRIMARY CATEGORY NAV BAR */}
-      {activeTab !== 'employer' && (
-        <View className="bg-white border-b border-slate-100 px-4 py-2 flex flex-row items-center gap-1.5 select-none overflow-x-auto no-scrollbar">
-          {[
-            { id: 'all', label: 'All' },
-            { id: 'jobs', label: 'Jobs' },
-            { id: 'internships', label: 'Internships' },
-            { id: 'learnerships', label: 'Learnerships' },
-            { id: 'scholarships', label: 'Scholarships' },
-            { id: 'university', label: 'University & TVET' },
-            { id: 'applications', label: `My Applications (${applications.length})` }
-          ].map(tab => (
-            <TouchableOpacity
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
-                activeTab === tab.id
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <span>{tab.label}</span>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* 3. MAIN SCROLLABLE CONTENT */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 bg-white">
+      {/* MAIN SCROLLABLE CONTENT */}
+      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 bg-white">
         {/* ========================================================================= */}
         {/* EXPLORER / CANDIDATE VIEW */}
         {/* ========================================================================= */}
         {activeTab !== 'employer' && activeTab !== 'applications' && (
-          <div className="max-w-3xl mx-auto flex flex-col gap-4">
-            {/* Search & Location Filter Bar (Flat, Clean, Minimalist) */}
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                {/* Search Input */}
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          isProfileView && selectedOpp ? (
+            <OpportunityProfileView
+              opportunity={selectedOpp}
+              onBack={() => setIsProfileView(false)}
+              onApply={() => {
+                setApplicantName(currentUser?.name || '');
+                setApplicantEmail(currentUser?.email || '');
+                setShowApplyModal(true);
+              }}
+              onChat={() => openInAppChat(selectedOpp, undefined, 'applicant')}
+              onOpenApsCalc={() => setShowApsCalc(true)}
+              distanceKm={getOppDistance(selectedOpp)}
+            />
+          ) : (
+            <div className="max-w-4xl mx-auto flex flex-col gap-6">
+              {/* 1. Main Search Experience: Simple & Prominent */}
+              <div className="flex flex-col gap-3">
+                <div className="relative w-full">
+                  <Search className="w-5 h-5 text-neutral-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search jobs, internships, scholarships, courses, skills..."
-                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition"
+                    placeholder="Search opportunities by title, company, department, course, institution, skills, etc."
+                    className="w-full pl-12 pr-10 py-3.5 bg-neutral-50 border border-neutral-300 rounded-2xl text-sm text-black placeholder:text-neutral-500 outline-none focus:border-black focus:bg-white transition shadow-2xs"
                   />
                   {searchQuery && (
                     <button
+                      type="button"
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-black cursor-pointer"
                       title="Clear search"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-4 h-4" />
                     </button>
                   )}
                 </div>
 
-                {/* Prominent Near Me Button */}
-                <button
-                  type="button"
-                  onClick={handleToggleNearMe}
-                  disabled={isLocating}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 ${
-                    nearMeActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : isLocating
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80'
-                  }`}
-                  title="Discover opportunities closest to your physical location"
-                >
-                  {isLocating ? (
-                    <>
-                      <Locate className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                      <span>Locating...</span>
-                    </>
-                  ) : nearMeActive ? (
-                    <>
-                      <LocateFixed className="w-3.5 h-3.5" />
-                      <span>Near Me (Active)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Near Me</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Location and Workplace Dropdowns */}
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-700 outline-none cursor-pointer flex-1 sm:flex-initial"
-                  >
-                    <option value="All">All Locations</option>
-                    <option value="Johannesburg">Johannesburg</option>
-                    <option value="Pretoria">Pretoria</option>
-                    <option value="Cape Town">Cape Town</option>
-                    <option value="Durban">Durban</option>
-                    <option value="Midrand">Midrand</option>
-                    <option value="Sandton">Sandton</option>
-                    <option value="Gauteng">Gauteng</option>
-                    <option value="Western Cape">Western Cape</option>
-                    <option value="Remote">Remote</option>
-                  </select>
-
-                  <select
-                    value={selectedWorkplace}
-                    onChange={(e) => setSelectedWorkplace(e.target.value)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-700 outline-none cursor-pointer flex-1 sm:flex-initial"
-                  >
-                    <option value="All">All Modes</option>
-                    <option value="Hybrid">Hybrid</option>
-                    <option value="Remote">Remote</option>
-                    <option value="On-site">On-site</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Near Me Active Notice */}
-              {nearMeActive && (
-                <div className="px-3 py-1.5 bg-blue-50/90 border border-blue-100 rounded-lg flex items-center justify-between text-xs text-blue-900">
-                  <span className="flex items-center gap-1.5 text-[11px] font-medium">
-                    <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
-                    Showing opportunities closest to your current location
-                  </span>
+                {/* Directly underneath the search: Near Me */}
+                <div className="flex items-center justify-between px-1">
                   <button
-                    onClick={() => setNearMeActive(false)}
-                    className="text-[11px] text-blue-600 hover:text-blue-900 font-bold underline cursor-pointer"
+                    type="button"
+                    onClick={handleToggleNearMe}
+                    disabled={isLocating}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      nearMeActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : isLocating
+                        ? 'bg-neutral-100 text-black border border-neutral-300'
+                        : 'bg-neutral-100 hover:bg-neutral-200 text-black border border-neutral-200'
+                    }`}
+                    title="Use Near Me for location-based discovery/GPS functionality"
                   >
-                    Turn off
+                    {isLocating ? (
+                      <>
+                        <Locate className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                        <span className="text-black">Locating...</span>
+                      </>
+                    ) : nearMeActive ? (
+                      <>
+                        <LocateFixed className="w-3.5 h-3.5 text-white" />
+                        <span>Near Me (Active)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="text-black">Near Me</span>
+                      </>
+                    )}
                   </button>
-                </div>
-              )}
 
-              {/* Geolocation Feedback / Error Message */}
-              {locationError && (
-                <div className="px-3 py-1.5 bg-amber-50 border border-amber-200/80 rounded-lg flex items-center justify-between text-xs text-amber-900">
-                  <span className="text-[11px]">{locationError}</span>
-                  <button onClick={() => setLocationError(null)} className="text-amber-800 hover:text-amber-950 font-bold cursor-pointer">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Task Mode CV Connection Bar (Flat, Clean, Minimalist) */}
-            <div className="py-2.5 px-3.5 bg-slate-50 border border-slate-200/70 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-left">
-              <div className="flex items-center gap-2.5">
-                <Briefcase className="w-4 h-4 text-blue-600 shrink-0" />
-                <div className="text-xs text-slate-700">
-                  <span className="font-semibold text-slate-900">Task Mode CV:</span>{' '}
-                  {taskModeCv ? (
-                    <span className="text-slate-600">
-                      Connected to <strong>{taskModeCv.name}</strong> ({taskModeCv.position || 'Ready to apply'})
-                    </span>
-                  ) : (
-                    <span className="text-slate-500">
-                      Create your CV in Task Mode to auto-fill applications
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                {taskModeCv && (
-                  <button
-                    onClick={() => setShowCvViewerModal({ title: `${taskModeCv.name} - CV`, text: taskModeCv.text })}
-                    className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer flex items-center gap-1"
-                  >
-                    <Eye className="w-3 h-3" />
-                    Preview
-                  </button>
-                )}
-                <button
-                  onClick={() => setMobileScreen('task-mode')}
-                  className="px-3 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-blue-600 cursor-pointer flex items-center gap-1 transition"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  {taskModeCv ? 'Edit CV' : 'Create CV in Task Mode'}
-                </button>
-              </div>
-            </div>
-
-            {/* Opportunities List Header */}
-            <div className="flex items-center justify-between pt-1 border-b border-slate-100 pb-2">
-              <Text className="text-xs font-bold text-slate-700 font-sans">
-                {filteredOpportunities.length} {filteredOpportunities.length === 1 ? 'Opportunity' : 'Opportunities'} Available
-              </Text>
-              <div className="flex items-center gap-2">
-                {activeTab === 'university' && (
-                  <button
-                    onClick={() => setShowApsCalc(true)}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer flex items-center gap-1"
-                  >
-                    <GraduationCap className="w-3.5 h-3.5" />
-                    APS Calculator
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Opportunities List (Spacious, Flat, Clean - Similar to ChatGPT/Claude/WhatsApp) */}
-            {filteredOpportunities.length === 0 ? (
-              <div className="p-10 text-center flex flex-col items-center justify-center gap-2">
-                <Search className="w-8 h-8 text-slate-300" />
-                <Text className="font-bold text-sm text-slate-800 font-sans">No opportunities found</Text>
-                <Text className="text-xs text-slate-500 font-sans">Try modifying your search keywords or location filters.</Text>
-                <button
-                  onClick={() => { setSearchQuery(''); setSelectedLocation('All'); setSelectedWorkplace('All'); setNearMeActive(false); }}
-                  className="mt-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium cursor-pointer"
-                >
-                  Reset Filters
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col divide-y divide-slate-100">
-                {filteredOpportunities.map(opp => {
-                  const dist = getOppDistance(opp);
-                  return (
-                    <div
-                      key={opp.id}
-                      className="py-5 sm:py-6 first:pt-1 text-left flex flex-col gap-3 group transition-colors"
+                  {nearMeActive && (
+                    <button
+                      type="button"
+                      onClick={() => setNearMeActive(false)}
+                      className="text-xs text-neutral-500 hover:text-black underline cursor-pointer"
                     >
-                      {/* Optional Poster/Banner Image */}
-                      {opp.posterImage && (
-                        <div className="w-full h-44 sm:h-52 rounded-xl overflow-hidden bg-slate-100 relative">
+                      Reset location
+                    </button>
+                  )}
+                </div>
+
+                {/* Geolocation Feedback / Error Message */}
+                {locationError && (
+                  <div className="px-3.5 py-2 bg-neutral-100 border border-neutral-300 rounded-xl flex items-center justify-between text-xs text-black">
+                    <span>{locationError}</span>
+                    <button onClick={() => setLocationError(null)} className="text-black hover:text-neutral-700 font-bold cursor-pointer">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ONLY AFTER THE SEARCH + NEAR ME AREA:
+                  Place the two main sections:
+                  EMPLOYMENT          EDUCATION
+                  These must NOT be cards or large boxes.
+                  They should look like clean navigation tabs/sections using typography and subtle spacing/dividers.
+                  The user should immediately understand:
+                  Employment = Jobs
+                  Education = Colleges & Universities
+              */}
+              <div className="flex items-center justify-between border-b border-neutral-200 pt-2">
+                <div className="flex items-center gap-8 sm:gap-12">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('jobs');
+                      setIsProfileView(false);
+                    }}
+                    className={`pb-3 text-sm font-extrabold tracking-wider transition cursor-pointer flex items-center gap-2 relative ${
+                      activeTab === 'jobs'
+                        ? 'text-black'
+                        : 'text-neutral-400 hover:text-black font-bold'
+                    }`}
+                    id="tab-employment"
+                  >
+                    <span className="text-black">EMPLOYMENT</span>
+                    {activeTab === 'jobs' && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('colleges_universities');
+                      setIsProfileView(false);
+                    }}
+                    className={`pb-3 text-sm font-extrabold tracking-wider transition cursor-pointer flex items-center gap-2 relative ${
+                      activeTab === 'colleges_universities'
+                        ? 'text-black'
+                        : 'text-neutral-400 hover:text-black font-bold'
+                    }`}
+                    id="tab-education"
+                  >
+                    <span className="text-black">EDUCATION</span>
+                    {activeTab === 'colleges_universities' && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+                    )}
+                  </button>
+                </div>
+
+                {activeTab === 'colleges_universities' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowApsCalc(true)}
+                    className="pb-3 text-xs font-bold text-black hover:text-neutral-700 transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <GraduationCap className="w-4 h-4 text-black" />
+                    <span>APS Calculator</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Opportunities Count Header */}
+              <div className="flex items-center justify-between text-xs pt-1">
+                <span className="font-semibold text-black">
+                  {filteredOpportunities.length} {filteredOpportunities.length === 1 ? 'Opportunity' : 'Opportunities'} Available
+                </span>
+              </div>
+
+              {/* Opportunities List: Spacious, Editorial & Unboxed (Vision 1) */}
+              {filteredOpportunities.length === 0 ? (
+                <div className="py-16 text-center flex flex-col items-center justify-center gap-2">
+                  <Search className="w-8 h-8 text-neutral-300" />
+                  <p className="font-bold text-sm text-black">No opportunities found</p>
+                  <p className="text-xs text-neutral-500">Try modifying your search keywords or resetting your location.</p>
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); setNearMeActive(false); }}
+                    className="mt-3 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-black rounded-xl text-xs font-semibold cursor-pointer transition"
+                  >
+                    Reset Search
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredOpportunities.map(opp => {
+                    const dist = getOppDistance(opp);
+                    const isDirect = isDirectOrbitOpportunity(opp);
+                    const isUni = opp.category === 'university' || opp.category === 'tvet';
+                    const coverImage = opp.posterImage || opp.logoUrl || getCategoryFallbackImage(opp.category);
+                    const officialUrl = opp.officialApplicationUrl || opp.websiteUrl || 'https://www.google.com';
+
+                    return (
+                      <div
+                        key={opp.id}
+                        onClick={() => {
+                          setSelectedOpp(opp);
+                          setIsProfileView(true);
+                        }}
+                        className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 py-6 sm:py-7 border-b border-neutral-100 last:border-b-0 hover:bg-neutral-50/70 rounded-2xl p-3 sm:p-4 -mx-3 sm:-mx-4 transition cursor-pointer group text-left"
+                      >
+                        {/* Image / Visual Media */}
+                        <div className="w-full sm:w-44 h-40 sm:h-32 rounded-xl overflow-hidden bg-neutral-100 shrink-0 relative border border-neutral-200/60">
                           <img
-                            src={opp.posterImage}
+                            src={coverImage}
                             alt={opp.title}
-                            className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
+                            className="w-full h-full object-cover group-hover:scale-103 transition duration-500"
                             referrerPolicy="no-referrer"
                             loading="lazy"
                           />
-                          <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                            {renderCategoryBadge(opp.category)}
+                          
+                          {/* Status Label on image */}
+                          <div className="absolute top-2.5 left-2.5 flex items-center gap-1">
+                            {isDirect ? (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-600 text-white shadow-xs">
+                                Orbit Partner
+                              </span>
+                            ) : isUni ? (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/95 text-black shadow-xs backdrop-blur-xs">
+                                {opp.category === 'tvet' ? 'TVET College' : 'Public University'}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/95 text-black shadow-xs backdrop-blur-xs">
+                                Official Notice
+                              </span>
+                            )}
+                          </div>
+
+                          {dist !== null && (
+                            <div className="absolute bottom-2.5 right-2.5">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-black bg-white/95 px-2 py-0.5 rounded-md shadow-xs backdrop-blur-xs">
+                                <LocateFixed className="w-2.5 h-2.5 text-blue-600" />
+                                {dist} km
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Content & Details Column - ALL TEXT MUST BE BLACK */}
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-bold text-black uppercase tracking-wider">
+                            <span className="truncate">{opp.companyOrInstitution}</span>
                             {opp.workplaceType && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/60 text-white backdrop-blur-xs">
-                                {opp.workplaceType}
-                              </span>
+                              <>
+                                <span className="text-neutral-300">•</span>
+                                <span className="text-neutral-700 font-normal normal-case">{opp.workplaceType}</span>
+                              </>
+                            )}
+                            {opp.opportunityType && (
+                              <>
+                                <span className="text-neutral-300">•</span>
+                                <span className="text-neutral-700 font-normal normal-case">{opp.opportunityType}</span>
+                              </>
                             )}
                           </div>
-                          {opp.isPublicDirectory && (
-                            <div className="absolute top-3 right-3">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/90 text-slate-800 backdrop-blur-xs border border-slate-200/60 shadow-xs">
-                                Public Directory
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
 
-                      {/* Header with Logo (if no poster) & Title */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          {!opp.posterImage && opp.logoUrl && (
-                            <img
-                              src={opp.logoUrl}
-                              alt={opp.companyOrInstitution}
-                              className="w-11 h-11 rounded-xl object-contain p-1 bg-slate-50 border border-slate-200/80 shrink-0 mt-0.5"
-                              referrerPolicy="no-referrer"
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              {!opp.posterImage && renderCategoryBadge(opp.category)}
-                              {!opp.posterImage && opp.workplaceType && (
-                                <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                                  {opp.workplaceType}
-                                </span>
-                              )}
-                              {opp.isPublicDirectory && !opp.posterImage && (
-                                <span className="text-[10px] font-medium text-amber-800 bg-amber-50 border border-amber-200/70 px-2 py-0.5 rounded-full">
-                                  Public Directory
-                                </span>
-                              )}
-                            </div>
-                            <h3 className="font-bold text-base sm:text-[17px] text-slate-900 tracking-tight leading-snug group-hover:text-blue-600 transition-colors">
-                              {opp.title}
-                            </h3>
-                            <p className="text-xs sm:text-[13px] text-slate-600 font-medium mt-0.5">
-                              {opp.companyOrInstitution}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                          <h3 className="text-base sm:text-lg font-bold text-black group-hover:text-neutral-700 transition-colors leading-snug">
+                            {opp.title}
+                          </h3>
 
-                      {/* Detailed Location & Distance Row */}
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-600">
-                        {dist !== null && (
-                          <span className="inline-flex items-center gap-1 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100">
-                            <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
-                            {dist} km away
-                          </span>
-                        )}
-
-                        <span className="inline-flex items-center gap-1 text-slate-800 font-medium">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          {opp.address ? `${opp.address}, ` : ''}{opp.city ? `${opp.city}, ` : ''}{opp.province ? `${opp.province}` : opp.location}
-                        </span>
-
-                        {opp.locationPrecision && (
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                            opp.locationPrecision === 'exact' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                            opp.locationPrecision === 'approximate' ? 'bg-slate-100 text-slate-600' :
-                            'bg-purple-50 text-purple-700 border border-purple-100'
-                          }`}>
-                            {opp.locationPrecision === 'exact' ? 'Exact Address' :
-                             opp.locationPrecision === 'approximate' ? 'Approximate Area' : 'Remote'}
-                          </span>
-                        )}
-
-                        {opp.compensationOrGrant && (
-                          <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                            <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                            {opp.compensationOrGrant}
-                          </span>
-                        )}
-
-                        {opp.minApsScore && (
-                          <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                            Min APS: {opp.minApsScore}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Description */}
-                      <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed line-clamp-2">
-                        {opp.description}
-                      </p>
-
-                      {/* Institution Program (if university) */}
-                      {opp.institutionCourse && (
-                        <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <GraduationCap className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span><strong>Course / Programme:</strong> {opp.institutionCourse}</span>
-                        </div>
-                      )}
-
-                      {/* Public Directory Disclaimer Notice (for university / TVET public listings) */}
-                      {opp.isPublicDirectory && (
-                        <div className="p-3 bg-amber-50/60 border border-amber-200/70 rounded-xl text-xs flex flex-col gap-1.5">
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <span className="font-semibold text-amber-900 flex items-center gap-1.5 text-[11px]">
-                              <Info className="w-3.5 h-3.5 text-amber-700" />
-                              Public Institution Directory Listing
+                          {/* Location */}
+                          <div className="flex items-center gap-1 text-xs text-black">
+                            <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                            <span className="truncate font-medium text-black">
+                              {opp.city ? `${opp.city}, ${opp.province || 'South Africa'}` : opp.location}
                             </span>
-                            {opp.openingDate && (
-                              <span className="text-[11px] text-slate-600 font-medium">
-                                Applications Open: <strong>{opp.openingDate}</strong>
-                              </span>
-                            )}
                           </div>
-                          <p className="text-[11px] text-slate-600 italic leading-relaxed">
-                            {opp.sourceDisclaimer || "Public admissions directory record. Orbit AI is an independent platform and is not partnered with, affiliated with, or endorsed by this institution."}
+
+                          {/* Education: Faculty/Course & Min APS */}
+                          {isUni && (opp.institutionCourse || opp.minApsScore) && (
+                            <div className="text-xs text-black pt-0.5 flex items-center gap-2 flex-wrap">
+                              {opp.institutionCourse && (
+                                <span className="font-semibold text-black">
+                                  {opp.institutionCourse}
+                                </span>
+                              )}
+                              {opp.minApsScore && (
+                                <span className="text-black bg-neutral-100 px-2 py-0.5 rounded text-[11px] font-bold border border-neutral-300">
+                                  Min APS: {opp.minApsScore}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Description excerpt */}
+                          <p className="text-xs sm:text-sm text-neutral-700 line-clamp-2 leading-relaxed pt-0.5">
+                            {opp.description}
                           </p>
-                        </div>
-                      )}
 
-                      {/* Key Requirements Tags */}
-                      {opp.requirements && opp.requirements.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {opp.requirements.slice(0, 3).map((req, idx) => (
-                            <span key={idx} className="px-2.5 py-1 bg-slate-50 border border-slate-200/70 rounded-lg text-[11px] text-slate-600 font-sans">
-                              {req}
+                          {/* Bottom Row: Remuneration / Deadline + Action Button */}
+                          <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 text-xs text-black">
+                              {opp.compensationOrGrant ? (
+                                <span className="font-bold text-black">
+                                  {opp.compensationOrGrant}
+                                </span>
+                              ) : opp.deadline ? (
+                                <span className="text-black font-medium">
+                                  Closes: {opp.deadline}
+                                </span>
+                              ) : (
+                                <span className="text-black font-semibold">
+                                  Actively Recruiting
+                                </span>
+                              )}
+
+                              {opp.openingDate && (
+                                <span className="text-neutral-500 hidden sm:inline">
+                                  • Opened {opp.openingDate}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+                              {isDirect ? (
+                                /* DIRECT ORBIT VACANCY -> SHOW APPLY BUTTON */
+                                <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedOpp(opp);
+                                  setApplicantName(currentUser?.name || '');
+                                  setApplicantEmail(currentUser?.email || '');
+                                  setShowApplyModal(true);
+                                }}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                              >
+                                <span>Apply</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            ) : isUni ? (
+                              /* EDUCATION -> SHOW OFFICIAL ADMISSIONS PORTAL */
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(officialUrl, '_blank', 'noopener,noreferrer');
+                                }}
+                                className="px-4 py-2 bg-black hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                              >
+                                <span>Admissions Portal</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </button>
+                            ) : (
+                              /* EXTERNAL / GOVERNMENT VACANCY -> SHOW OFFICIAL PORTAL (NO ORBIT APPLY BUTTON) */
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(officialUrl, '_blank', 'noopener,noreferrer');
+                                }}
+                                className="px-4 py-2 bg-black hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                              >
+                                <span>Official Portal</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </button>
+                            )}
+
+                            <span className="text-xs font-bold text-black group-hover:text-neutral-700 transition-colors hidden sm:inline-flex items-center gap-0.5">
+                              <span>Details</span>
+                              <ChevronRight className="w-3.5 h-3.5" />
                             </span>
-                          ))}
-                          {opp.requirements.length > 3 && (
-                            <span className="px-2 py-1 text-[11px] text-slate-400 font-sans">
-                              +{opp.requirements.length - 3} more criteria
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Footer: Deadlines & Action Buttons */}
-                      <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Deadline: <strong>{opp.deadline || 'Ongoing'}</strong></span>
-                          {opp.applicantCount !== undefined && opp.applicantCount > 0 && (
-                            <>
-                              <span className="text-slate-300">•</span>
-                              <span>{opp.applicantCount} applied</span>
-                            </>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedOpp(opp);
-                              setShowDetailsModal(true);
-                            }}
-                            className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition"
-                          >
-                            Details
-                          </button>
-
-                          {/* If Public Directory with official application URL, show direct portal button */}
-                          {opp.officialApplicationUrl && (
-                            <a
-                              href={opp.officialApplicationUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3.5 py-1.5 bg-slate-800 hover:bg-black text-white rounded-xl text-xs font-semibold cursor-pointer transition inline-flex items-center gap-1"
-                            >
-                              <span>Official Portal</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-
-                          {/* Orbit Application / Document Assistance Button */}
-                          <button
-                            onClick={() => {
-                              setSelectedOpp(opp);
-                              setApplicantName(currentUser?.name || '');
-                              setApplicantEmail(currentUser?.email || '');
-                              setShowApplyModal(true);
-                            }}
-                            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold cursor-pointer transition flex items-center gap-1 shadow-xs"
-                          >
-                            <span>{opp.category === 'university' ? 'Apply with Orbit' : 'Apply'}</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1466,7 +1549,8 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
               </div>
             )}
           </div>
-        )}
+        )
+      )}
 
         {/* ========================================================================= */}
         {/* APPLICATION TRACKING TAB ("MY APPLICATIONS") */}
@@ -1479,7 +1563,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
                 <Text className="text-xs text-slate-500 font-sans">Track review progress, status updates, and employer responses</Text>
               </div>
               <button
-                onClick={() => setActiveTab('all')}
+                onClick={() => setActiveTab('jobs')}
                 className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl text-xs font-semibold cursor-pointer"
               >
                 + Browse More
@@ -1496,7 +1580,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
                   Discover jobs, internships, bursaries, and university admissions. When you apply, you can track your status right here.
                 </Text>
                 <button
-                  onClick={() => setActiveTab('all')}
+                  onClick={() => setActiveTab('jobs')}
                   className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold cursor-pointer"
                 >
                   Explore Opportunities
@@ -1556,21 +1640,71 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
                       </div>
                     )}
 
-                    {/* Details row */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    {/* Actions & Details row */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                       <span>Submitted: {new Date(app.submittedAt).toLocaleDateString()}</span>
-                      <div className="flex items-center gap-2">
+                      
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* In-App Chat Action */}
+                        {(() => {
+                          const hasUnreadReply = applicantUnreadOppIds.includes(app.opportunityId) || applicantUnreadOppIds.includes(app.id);
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const linkedOpp = opportunities.find(o => o.id === app.opportunityId) || {
+                                  id: app.opportunityId,
+                                  title: app.opportunityTitle,
+                                  companyOrInstitution: app.opportunityCompany,
+                                  category: app.opportunityCategory
+                                } as Opportunity;
+                                openInAppChat(linkedOpp, app, 'applicant');
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 ${
+                                hasUnreadReply
+                                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs animate-pulse'
+                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
+                              }`}
+                            >
+                              <MessageSquare className={`w-3.5 h-3.5 ${hasUnreadReply ? 'text-white' : 'text-blue-600'}`} />
+                              <span>{hasUnreadReply ? 'New Message from Employer' : 'Chat with Employer'}</span>
+                              {hasUnreadReply && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                              )}
+                            </button>
+                          );
+                        })()}
+
+                        {/* View Vacancy Details Action */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const linkedOpp = opportunities.find(o => o.id === app.opportunityId);
+                            if (linkedOpp) {
+                              setSelectedOpp(linkedOpp);
+                              setIsProfileView(true);
+                              setActiveTab(
+                                linkedOpp.category === 'university' || linkedOpp.category === 'tvet'
+                                  ? 'colleges_universities'
+                                  : 'jobs'
+                              );
+                            }
+                          }}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium cursor-pointer transition flex items-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View Vacancy</span>
+                        </button>
+
                         {app.cvText && (
                           <button
+                            type="button"
                             onClick={() => setShowCvViewerModal({ title: `${app.applicantName} - Submitted CV`, text: app.cvText || '' })}
-                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer flex items-center gap-1"
+                            className="text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer flex items-center gap-1"
                           >
-                            <Eye className="w-3 h-3" />
-                            View CV
+                            <span>CV</span>
                           </button>
                         )}
-                        <span className="text-slate-300">•</span>
-                        <span className="text-[11px] text-slate-400">ID: {app.id.substring(0, 10)}</span>
                       </div>
                     </div>
                   </div>
@@ -1608,6 +1742,140 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
               </button>
             </div>
 
+            {/* Employer Portal Sub-Tabs: Candidates vs In-App Conversations */}
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <button
+                type="button"
+                onClick={() => setEmployerPortalSubTab('candidates')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1.5 ${
+                  employerPortalSubTab === 'candidates'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Candidate Pool ({filteredApplicants.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setEmployerPortalSubTab('conversations')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1.5 ${
+                  employerPortalSubTab === 'conversations'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Conversations ({employerConversations.length})</span>
+                {unreadEmployerCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-blue-600 text-white animate-pulse">
+                    {unreadEmployerCount} new
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* In-App Direct Conversations View */}
+            {employerPortalSubTab === 'conversations' && (
+              <div className="flex flex-col gap-3">
+                {employerConversations.length === 0 ? (
+                  <div className="py-16 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
+                    <MessageSquare className="w-8 h-8 text-slate-300" />
+                    <p className="font-bold text-xs text-slate-800 font-sans">No messages yet</p>
+                    <p className="text-[11px] text-slate-400 font-sans max-w-sm">
+                      When candidates message you from their application or vacancy page, direct threads will appear here with instant reply capabilities.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col divide-y divide-slate-100 border border-slate-200/80 rounded-2xl bg-white overflow-hidden shadow-2xs">
+                    {employerConversations.map(conv => {
+                      const hasUnread = conv.unreadCount > 0;
+                      return (
+                        <div
+                          key={`${conv.opportunityId}-${conv.applicantId}-${conv.applicationId || ''}`}
+                          className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
+                            hasUnread ? 'bg-blue-50/40' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                              hasUnread ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {conv.applicantName ? conv.applicantName.charAt(0).toUpperCase() : 'A'}
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-xs text-slate-900 font-sans">{conv.applicantName}</span>
+                                {hasUnread && (
+                                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-blue-600 text-white">
+                                    {conv.unreadCount} new
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {new Date(conv.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+
+                              <span className="text-[11px] font-medium text-slate-500 block truncate">
+                                {conv.opportunityTitle} • {conv.applicantEmail}
+                              </span>
+
+                              <p className="text-xs text-slate-700 mt-1 line-clamp-1">
+                                <span className="font-semibold text-slate-500">
+                                  {conv.lastMessageSenderRole === 'employer' ? 'You: ' : `${conv.applicantName.split(' ')[0]}: `}
+                                </span>
+                                {conv.lastMessageText}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const linkedOpp = opportunities.find(o => o.id === conv.opportunityId) || {
+                                  id: conv.opportunityId,
+                                  title: conv.opportunityTitle,
+                                  companyOrInstitution: 'Employer'
+                                } as Opportunity;
+
+                                const linkedApp = currentOppApplicants.find(a => 
+                                  a.id === conv.applicationId || 
+                                  a.applicantId === conv.applicantId || 
+                                  a.applicantEmail === conv.applicantEmail
+                                ) || {
+                                  id: conv.applicationId || 'app-chat',
+                                  opportunityId: conv.opportunityId,
+                                  applicantId: conv.applicantId,
+                                  applicantName: conv.applicantName,
+                                  applicantEmail: conv.applicantEmail
+                                } as OpportunityApplication;
+
+                                openInAppChat(linkedOpp, linkedApp, 'employer');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition ${
+                                hasUnread
+                                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                              }`}
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>{hasUnread ? 'Reply Now' : 'Open Chat'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Candidate Pool View */}
+            {employerPortalSubTab === 'candidates' && (
+              <>
             {/* Flat Vacancy Pill Selector (No heavy cards) */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
               {employerOpportunities.map(opp => {
@@ -1733,12 +2001,12 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
                         <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1.5 flex-wrap">
                           {app.qualificationType && (
                             <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-medium capitalize">
-                              🎓 {app.qualificationType.replace('_', ' ')}
+                              {app.qualificationType.replace('_', ' ')}
                             </span>
                           )}
                           {app.documents && app.documents.length > 0 && (
                             <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-medium">
-                              📎 {app.documents.length} {app.documents.length === 1 ? 'doc' : 'docs'}
+                              {app.documents.length} {app.documents.length === 1 ? 'doc' : 'docs'}
                             </span>
                           )}
                           {answeredScreeningCount > 0 && (
@@ -1751,6 +2019,41 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
 
                       {/* Actions & Status Control Column */}
                       <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                        {/* In-App Orbit Chat Button */}
+                        {(() => {
+                          const candidateConv = employerConversations.find(c => 
+                            (c.applicantId === app.applicantId || c.applicantEmail === app.applicantEmail || c.applicationId === app.id) &&
+                            c.opportunityId === app.opportunityId
+                          );
+                          const hasUnreadFromCandidate = (candidateConv?.unreadCount || 0) > 0;
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentOpp = opportunities.find(o => o.id === employerSelectedOppId) || selectedOpp;
+                                if (currentOpp) {
+                                  openInAppChat(currentOpp, app, 'employer');
+                                }
+                              }}
+                              title="Chat inside Orbit"
+                              className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                                hasUnreadFromCandidate 
+                                  ? 'bg-blue-600 text-white shadow-xs animate-pulse' 
+                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
+                              }`}
+                            >
+                              <MessageSquare className={`w-3.5 h-3.5 ${hasUnreadFromCandidate ? 'text-white' : 'text-blue-600'}`} />
+                              <span className="hidden md:inline">Orbit Chat</span>
+                              {hasUnreadFromCandidate && (
+                                <span className="bg-white text-blue-600 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                                  {candidateConv?.unreadCount}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })()}
+
                         {/* WhatsApp Button */}
                         {hasPhone && (
                           <a
@@ -1810,6 +2113,8 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
                 })}
               </div>
             )}
+            </>
+          )}
           </div>
         )}
       </div>
@@ -1818,6 +2123,32 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
       {/* OPPORTUNITY DETAILS MODAL */}
       {/* ========================================================================= */}
       {showDetailsModal && selectedOpp && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4 animate-fade-in text-left">
+          <div className="bg-white w-full max-w-3xl max-h-[94vh] rounded-3xl overflow-y-auto shadow-2xl flex flex-col border border-slate-100">
+            <OpportunityProfileView
+              opportunity={selectedOpp}
+              onBack={() => setShowDetailsModal(false)}
+              onApply={() => {
+                setShowDetailsModal(false);
+                setApplicantName(currentUser?.name || '');
+                setApplicantEmail(currentUser?.email || '');
+                setShowApplyModal(true);
+              }}
+              onChat={() => {
+                setShowDetailsModal(false);
+                openInAppChat(selectedOpp, undefined, 'applicant');
+              }}
+              onOpenApsCalc={() => {
+                setShowDetailsModal(false);
+                setShowApsCalc(true);
+              }}
+              distanceKm={getOppDistance(selectedOpp)}
+            />
+          </div>
+        </div>
+      )}
+
+      {false && showDetailsModal && selectedOpp && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in text-left">
           <div className="bg-white w-full max-w-2xl max-h-[92vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col">
             {/* Optional Banner Image */}
@@ -1850,7 +2181,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
                 )}
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    {renderCategoryBadge(selectedOpp.category)}
+                    {renderCategoryBadge(selectedOpp)}
                     {selectedOpp.isPublicDirectory && (
                       <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                         Public Directory
@@ -1981,37 +2312,75 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
 
               {selectedOpp.requiredDocuments && selectedOpp.requiredDocuments.length > 0 && (
                 <div>
-                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider mb-2">Required Documents</h4>
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider mb-2">Documents Needed</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {selectedOpp.requiredDocuments.map((doc, i) => (
-                      <span key={i} className="px-2.5 py-1 bg-slate-100 rounded-lg text-xs text-slate-700 font-medium">
-                        📄 {doc}
+                      <span key={i} className="px-2.5 py-1 bg-slate-100 rounded-lg text-xs text-slate-700 font-medium flex items-center gap-1">
+                        {doc}
                       </span>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Contact & Application Information */}
+              {(selectedOpp.creatorEmail || selectedOpp.creatorPhone || selectedOpp.applicationInstructions) && (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-2">
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Contact & Application Information</h4>
+                  {selectedOpp.applicationInstructions && (
+                    <p className="text-xs text-slate-600 leading-relaxed">{selectedOpp.applicationInstructions}</p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700 pt-0.5">
+                    {selectedOpp.creatorEmail && (
+                      <a
+                        href={`mailto:${selectedOpp.creatorEmail}?subject=Inquiry regarding ${encodeURIComponent(selectedOpp.title)}`}
+                        className="flex items-center gap-1.5 text-blue-600 hover:underline font-medium"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>{selectedOpp.creatorEmail}</span>
+                      </a>
+                    )}
+                    {selectedOpp.creatorPhone && (
+                      <a
+                        href={`tel:${selectedOpp.creatorPhone}`}
+                        className="flex items-center gap-1.5 text-slate-700 hover:underline font-medium"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{selectedOpp.creatorPhone}</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Map/GPS Action */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                <div className="flex items-center gap-2 text-slate-700">
+                  <Navigation className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="font-medium">Map & Navigation Directions</span>
+                </div>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    selectedOpp.address ? `${selectedOpp.address}, ${selectedOpp.city || ''} ${selectedOpp.province || ''}` : selectedOpp.location
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-800 inline-flex items-center gap-1 transition"
+                >
+                  <span>Open in Maps</span>
+                  <ExternalLink className="w-3 h-3 text-slate-500" />
+                </a>
+              </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+            {/* One Clear Apply Button */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
               <button
                 onClick={() => setShowDetailsModal(false)}
-                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
+                className="px-4 py-2.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition"
               >
                 Close
               </button>
-
-              {selectedOpp.officialApplicationUrl && (
-                <a
-                  href={selectedOpp.officialApplicationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-slate-800 hover:bg-black text-white rounded-xl text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <span>Official Application Portal</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
 
               <button
                 onClick={() => {
@@ -2020,9 +2389,10 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
                   setApplicantEmail(currentUser?.email || '');
                   setShowApplyModal(true);
                 }}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer transition flex items-center justify-center gap-2 shadow-xs"
               >
-                Apply with Orbit
+                <span>Apply</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -2116,7 +2486,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
                     className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition flex items-center gap-1.5"
                   >
                     <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                    {isCapturingApplicantGps ? 'Capturing GPS...' : applicantCoordinates ? '📍 GPS Verified' : 'Capture Current GPS / Location'}
+                    {isCapturingApplicantGps ? 'Capturing GPS...' : applicantCoordinates ? 'GPS Verified' : 'Capture Current GPS / Location'}
                   </button>
 
                   {applicantLocationStatus && (
@@ -2415,513 +2785,301 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
       )}
 
       {/* ========================================================================= */}
+      {/* APPLICATION RECEIVED MODAL */}
+      {/* ========================================================================= */}
+      {showApplicationReceivedModal && submittedAppInfo && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in text-center">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-7 shadow-2xl flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-2xs">
+              <CheckCircle2 className="w-9 h-9" />
+            </div>
+
+            <div>
+              <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Application Received</span>
+              <h3 className="font-bold text-lg text-slate-900 font-sans mt-0.5">{submittedAppInfo.title}</h3>
+              <p className="text-xs text-slate-500 font-sans mt-0.5">{submittedAppInfo.company}</p>
+            </div>
+
+            <div className="w-full bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left text-xs flex flex-col gap-2">
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Reference ID</span>
+                <span className="font-mono font-bold text-slate-900">{submittedAppInfo.id.substring(0, 12)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Submitted</span>
+                <span className="font-medium text-slate-900">{submittedAppInfo.submittedAt}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Attached Documents</span>
+                <span className="font-bold text-emerald-700">{submittedAppInfo.docsCount} verified</span>
+              </div>
+              {submittedAppInfo.hasGps && (
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Proximity</span>
+                  <span className="font-bold text-blue-700">GPS Location Attached</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed max-w-xs font-sans">
+              Your application has been received and is currently being processed. You will receive real-time status updates and employer communications directly within <strong>My Applications</strong>.
+            </p>
+
+            <div className="w-full flex flex-col gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setShowApplicationReceivedModal(false);
+                  if (selectedOpp) {
+                    openInAppChat(selectedOpp, undefined, 'applicant');
+                  }
+                }}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer transition shadow-xs flex items-center justify-center gap-1.5"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Message Employer / Admissions Now</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setShowApplicationReceivedModal(false);
+                    setActiveTab('applications');
+                  }}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition"
+                >
+                  Track in My Applications
+                </button>
+                <button
+                  onClick={() => {
+                    setShowApplicationReceivedModal(false);
+                  }}
+                  className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* POST NEW VACANCY MODAL (EMPLOYER SIDE) */}
       {/* ========================================================================= */}
       {showPostVacancyModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 animate-fade-in text-left">
-          <div className="bg-white w-full max-w-xl max-h-[92vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col">
-            <div className="p-4 px-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in text-left">
+          <div className="bg-white w-full max-w-xl max-h-[92vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+            {/* Header */}
+            <div className="p-4 px-6 border-b border-neutral-200 flex items-center justify-between bg-white">
               <div>
-                <h3 className="font-bold text-sm text-slate-900 font-sans">Post Opportunity / Vacancy</h3>
-                <p className="text-[11px] text-slate-500 font-sans">Reach thousands of qualified job seekers, students, and graduates</p>
+                <h3 className="font-bold text-base text-neutral-900 font-sans">Post Job Vacancy</h3>
+                <p className="text-xs text-neutral-500 font-sans mt-0.5">Publish a vacancy to reach candidates across Orbit AI</p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowPostVacancyModal(false)}
-                className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500 cursor-pointer"
+                className="p-1.5 hover:bg-neutral-100 rounded-full text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto flex flex-col gap-3.5 text-xs font-sans">
+            {/* Clean, Minimal Form */}
+            <div className="p-6 overflow-y-auto space-y-4 text-xs font-sans">
+              {/* Job Title */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Opportunity Title *</label>
+                <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Job Title *</label>
                 <input
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Junior Software Engineer, Marketing Intern, STEM Bursary"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                  placeholder="e.g. Sales Consultant, Software Developer, Office Administrator"
+                  className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Company / Institution *</label>
-                  <input
-                    type="text"
-                    value={newCompany}
-                    onChange={(e) => setNewCompany(e.target.value)}
-                    placeholder="e.g. Apex Tech, Sasol Foundation"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Category *</label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value as OpportunityCategory)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
-                  >
-                    <option value="job">Job</option>
-                    <option value="internship">Internship</option>
-                    <option value="learnership">Learnership</option>
-                    <option value="scholarship">Scholarship / Bursary</option>
-                    <option value="university">University / TVET Admissions</option>
-                  </select>
-                </div>
+              {/* Company / Business Name */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Company or Business Name *</label>
+                <input
+                  type="text"
+                  value={newCompany}
+                  onChange={(e) => setNewCompany(e.target.value)}
+                  placeholder="e.g. Acme Logistics, TechForward"
+                  className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Employment Type & Workplace Mode */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Opportunity Type</label>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Employment Type</label>
                   <select
                     value={newType}
                     onChange={(e) => setNewType(e.target.value as OpportunityType)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
                   >
                     <option value="Full-time">Full-time</option>
                     <option value="Part-time">Part-time</option>
                     <option value="Contract">Contract</option>
                     <option value="Internship">Internship</option>
                     <option value="Learnership">Learnership</option>
-                    <option value="Bursary">Bursary</option>
-                    <option value="Undergraduate">Undergraduate</option>
-                    <option value="TVET">TVET</option>
                   </select>
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Workplace Mode</label>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Workplace Mode</label>
                   <select
                     value={newWorkplace}
                     onChange={(e) => setNewWorkplace(e.target.value as OpportunityWorkplace)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
                   >
+                    <option value="On-site">On-site</option>
                     <option value="Hybrid">Hybrid</option>
                     <option value="Remote">Remote</option>
-                    <option value="On-site">On-site</option>
                   </select>
                 </div>
               </div>
 
-              {/* Physical Location Details with Exact Address & GPS Capture */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                    Exact Vacancy Location & GPS Pinning *
-                  </span>
-                  <span className="text-[10px] text-slate-400">Enables applicant "Near Me" discovery</span>
-                </div>
-
+              {/* Contact Details (Email & Phone) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Physical Street Address *</label>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Contact Email *</label>
                   <input
-                    type="text"
-                    value={newAddress}
-                    onChange={(e) => setNewAddress(e.target.value)}
-                    placeholder="e.g. 15 Alice Lane, Sandton"
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                    type="email"
+                    value={newEmployerEmail}
+                    onChange={(e) => setNewEmployerEmail(e.target.value)}
+                    placeholder="e.g. careers@company.co.za"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={newEmployerPhone}
+                    onChange={(e) => setNewEmployerPhone(e.target.value)}
+                    placeholder="e.g. 011 234 5678 or 082 123 4567"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
+                  />
+                </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-3">
+              {/* Location & Automatic GPS Capture */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-neutral-800">Job Location & GPS</label>
+                  <button
+                    type="button"
+                    onClick={handleCaptureEmployerGps}
+                    disabled={isCapturingEmployerGps}
+                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+                  >
+                    <Navigation className="w-3 h-3" />
+                    <span>{isCapturingEmployerGps ? 'Capturing GPS...' : newCoordinates ? 'Re-detect GPS' : 'Detect GPS Location'}</span>
+                  </button>
+                </div>
+
+                {/* GPS Status feedback */}
+                {newCoordinates ? (
+                  <div className="mb-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-800">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      GPS captured: {newCoordinates.lat.toFixed(4)}, {newCoordinates.lng.toFixed(4)}
+                    </span>
+                    <span className="text-[10px] text-emerald-600 font-medium">Enabled for Near Me</span>
+                  </div>
+                ) : employerGpsStatus ? (
+                  <p className="mb-2 text-[11px] text-neutral-500 font-sans">
+                    {employerGpsStatus}
+                  </p>
+                ) : null}
+
+                {/* Physical address or city entry (used as address or fallback when GPS denied) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">City / Town *</label>
+                    <input
+                      type="text"
+                      value={newAddress}
+                      onChange={(e) => setNewAddress(e.target.value)}
+                      placeholder="Physical street address (e.g. 15 Alice Lane)"
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
+                    />
+                  </div>
+                  <div>
                     <input
                       type="text"
                       value={newCity}
                       onChange={(e) => setNewCity(e.target.value)}
-                      placeholder="e.g. Johannesburg"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Province / Region *</label>
-                    <input
-                      type="text"
-                      value={newProvince}
-                      onChange={(e) => setNewProvince(e.target.value)}
-                      placeholder="e.g. Gauteng"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                      placeholder="City / Town (e.g. Johannesburg or Cape Town)"
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
                     />
                   </div>
                 </div>
-
-                {/* GPS Capture Controls */}
-                <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex flex-col gap-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCaptureEmployerGps}
-                      disabled={isCapturingEmployerGps}
-                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1.5 self-start"
-                    >
-                      <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                      {isCapturingEmployerGps ? 'Capturing GPS...' : newCoordinates ? '📍 GPS Captured' : 'Capture Exact GPS Location'}
-                    </button>
-
-                    {newCoordinates && (
-                      <span className="text-[11px] text-emerald-700 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                        {newCoordinates.lat.toFixed(4)}, {newCoordinates.lng.toFixed(4)} (Exact Pin)
-                      </span>
-                    )}
-                  </div>
-
-                  {employerGpsStatus && (
-                    <span className="text-[11px] text-slate-500">{employerGpsStatus}</span>
-                  )}
-
-                  {/* Quick Hub Coordinates Presets */}
-                  <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100">
-                    <span className="text-[10px] text-slate-400 font-medium">Quick Hubs:</span>
-                    {[
-                      { name: 'Sandton CBD', lat: -26.1076, lng: 28.0567, city: 'Sandton', prov: 'Gauteng' },
-                      { name: 'Rosebank', lat: -26.1458, lng: 28.0433, city: 'Johannesburg', prov: 'Gauteng' },
-                      { name: 'Cape Town Foreshore', lat: -33.9188, lng: 18.4233, city: 'Cape Town', prov: 'Western Cape' },
-                      { name: 'Durban Central', lat: -29.8587, lng: 31.0218, city: 'Durban', prov: 'KwaZulu-Natal' },
-                      { name: 'Pretoria CBD', lat: -25.7479, lng: 28.2293, city: 'Pretoria', prov: 'Gauteng' }
-                    ].map(hub => (
-                      <button
-                        key={hub.name}
-                        type="button"
-                        onClick={() => {
-                          setNewCoordinates({ lat: hub.lat, lng: hub.lng });
-                          if (!newCity) setNewCity(hub.city);
-                          if (!newProvince) setNewProvince(hub.prov);
-                          setEmployerGpsStatus(`Pinned to ${hub.name} coordinates.`);
-                        }}
-                        className="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded cursor-pointer transition"
-                      >
-                        {hub.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
-              {/* Three Clear Image Options (Upload Poster / Upload Logo / Generate with Orbit AI) */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
-                    Vacancy Media & Visual Branding
-                  </span>
-                  <span className="text-[10px] text-slate-500">Choose one of three presentation options</span>
-                </div>
-
-                {/* 3-Option Tab Segment */}
-                <div className="grid grid-cols-3 gap-1.5 bg-slate-200/70 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setVacancyImageMode('poster')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold cursor-pointer transition text-center ${
-                      vacancyImageMode === 'poster'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    1. Upload Poster
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVacancyImageMode('logo')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold cursor-pointer transition text-center ${
-                      vacancyImageMode === 'logo'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    2. Upload Logo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVacancyImageMode('ai_generate')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold cursor-pointer transition text-center flex items-center justify-center gap-1 ${
-                      vacancyImageMode === 'ai_generate'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    3. Orbit AI Poster
-                  </button>
-                </div>
-
-                {/* Option 1: Poster / Banner Upload */}
-                {vacancyImageMode === 'poster' && (
-                  <div className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-slate-700 text-xs">Upload Poster / Banner Image</label>
-                      <span className="text-[10px] text-slate-400">PNG, JPG, or WebP</span>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <label className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition flex items-center gap-1.5 shrink-0">
-                        <Upload className="w-3.5 h-3.5 text-slate-500" />
-                        Choose File
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = () => {
-                                setNewPosterImage(reader.result as string);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </label>
-                      <input
-                        type="url"
-                        value={newPosterImage}
-                        onChange={(e) => setNewPosterImage(e.target.value)}
-                        placeholder="Or paste poster image URL..."
-                        className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
-                      />
-                    </div>
-
-                    {newPosterImage && (
-                      <div className="relative rounded-xl overflow-hidden border border-slate-200 max-h-36">
-                        <img src={newPosterImage} alt="Poster preview" className="w-full h-36 object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setNewPosterImage('')}
-                          className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-1 rounded-full text-xs"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Option 2: Company Logo Upload */}
-                {vacancyImageMode === 'logo' && (
-                  <div className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-slate-700 text-xs">Upload Company Logo</label>
-                      <span className="text-[10px] text-slate-400">Square or rectangular logo</span>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <label className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition flex items-center gap-1.5 shrink-0">
-                        <Upload className="w-3.5 h-3.5 text-slate-500" />
-                        Choose File
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = () => {
-                                setNewLogoUrl(reader.result as string);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </label>
-                      <input
-                        type="url"
-                        value={newLogoUrl}
-                        onChange={(e) => setNewLogoUrl(e.target.value)}
-                        placeholder="Or paste company logo URL..."
-                        className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
-                      />
-                    </div>
-
-                    {newLogoUrl && (
-                      <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-200">
-                        <img src={newLogoUrl} alt="Logo preview" className="w-12 h-12 object-contain rounded-lg bg-white p-1 border border-slate-200" />
-                        <span className="text-xs text-slate-600 font-medium truncate">Logo uploaded successfully</span>
-                        <button
-                          type="button"
-                          onClick={() => setNewLogoUrl('')}
-                          className="text-xs text-rose-600 hover:underline ml-auto"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Option 3: Generate Professional Poster with Orbit AI */}
-                {vacancyImageMode === 'ai_generate' && (
-                  <div className="bg-white p-3 rounded-xl border border-blue-200 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-800 text-xs flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                        Orbit AI Poster Generator
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {(['navy', 'clean', 'slate'] as const).map(th => (
-                          <button
-                            key={th}
-                            type="button"
-                            onClick={() => setAiPosterTheme(th)}
-                            className={`px-2 py-0.5 rounded text-[10px] capitalize font-medium cursor-pointer border ${
-                              aiPosterTheme === th
-                                ? 'bg-blue-50 border-blue-600 text-blue-700 font-bold'
-                                : 'bg-slate-50 border-slate-200 text-slate-600'
-                            }`}
-                          >
-                            {th}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <p className="text-[11px] text-slate-500">
-                      Creates a studio-quality graphic poster with typography, badges, and company details.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={handleTriggerAiPoster}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer transition flex items-center justify-center gap-1.5 shadow-xs"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Generate Professional Poster
-                    </button>
-
-                    {aiGeneratedPosterPreview && (
-                      <div className="relative rounded-xl overflow-hidden border border-slate-200 mt-1">
-                        <img src={aiGeneratedPosterPreview} alt="AI Generated Poster" className="w-full h-40 object-cover" />
-                        <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900/80 text-white backdrop-blur-xs">
-                          ✓ Orbit AI Generated
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Dynamic Application Rules & Requirements */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-2.5">
-                <span className="text-xs font-bold text-slate-800 block">
-                  Application Requirements & Screening
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Minimum Qualification Required</label>
-                    <select
-                      value={newQualificationRequired}
-                      onChange={(e) => setNewQualificationRequired(e.target.value as any)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none"
-                    >
-                      <option value="matric">Matric (Grade 12)</option>
-                      <option value="grade_9">Grade 9 / General Certificate</option>
-                      <option value="degree_diploma">Diploma / Degree</option>
-                      <option value="other">Other / Not specified</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col justify-center">
-                    <label className="font-bold text-slate-700 block mb-1">Proof of Residence Required?</label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setNewProofOfResRequired(false)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition ${
-                          !newProofOfResRequired
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-slate-700 border-slate-200'
-                        }`}
-                      >
-                        No
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewProofOfResRequired(true)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition ${
-                          newProofOfResRequired
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-slate-700 border-slate-200'
-                        }`}
-                      >
-                        Yes (Required)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Additional Required Documents (Comma separated)</label>
-                  <input
-                    type="text"
-                    value={newRequiredDocs}
-                    onChange={(e) => setNewRequiredDocs(e.target.value)}
-                    placeholder="e.g. Driver's License, Academic Transcript, Portfolio"
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
+              {/* Job Description */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Compensation / Stipend / Grant</label>
-                <input
-                  type="text"
-                  value={newCompensation}
-                  onChange={(e) => setNewCompensation(e.target.value)}
-                  placeholder="e.g. R25,000 / month or Full Tuition"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Description & Role Responsibilities *</label>
+                <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Job Description *</label>
                 <textarea
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Provide detailed description of the role, department, or academic program..."
-                  rows={3}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                  placeholder="Describe the role, key responsibilities, and tasks..."
+                  rows={4}
+                  className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
                 />
               </div>
 
+              {/* Candidate Requirements */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Requirements (One per line) *</label>
+                <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Candidate Requirements (Optional)</label>
                 <textarea
                   value={newRequirements}
                   onChange={(e) => setNewRequirements(e.target.value)}
-                  placeholder="Grade 12 / Matric Certificate&#10;Diploma or Degree in Computer Science&#10;Proficiency in React / TypeScript&#10;2+ years experience"
-                  rows={3}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 font-mono"
+                  placeholder="e.g. Grade 12 Matric Certificate, 2+ years experience, Valid Driver's License (one per line)"
+                  rows={2}
+                  className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Application Deadline</label>
-                <input
-                  type="date"
-                  value={newDeadline}
-                  onChange={(e) => setNewDeadline(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
-                />
+              {/* Compensation & Deadline */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Salary / Compensation (Optional)</label>
+                  <input
+                    type="text"
+                    value={newCompensation}
+                    onChange={(e) => setNewCompensation(e.target.value)}
+                    placeholder="e.g. R18,000 - R25,000 / month or Market Related"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">Application Deadline (Optional)</label>
+                  <input
+                    type="date"
+                    value={newDeadline}
+                    onChange={(e) => setNewDeadline(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs outline-none focus:border-blue-600 transition"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+            {/* Footer */}
+            <div className="p-4 px-6 bg-neutral-50 border-t border-neutral-200 flex items-center justify-end gap-3">
               <button
+                type="button"
                 onClick={() => setShowPostVacancyModal(false)}
-                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
+                className="px-4 py-2 bg-white border border-neutral-300 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-50 transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleCreateVacancy}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer transition shadow-xs"
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
               >
-                Publish Opportunity
+                Publish Vacancy
               </button>
             </div>
           </div>
@@ -3084,7 +3242,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
             <div className="p-4 px-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-xs">
-                  {dossierApplicant.applicantName.charAt(0).toUpperCase()}
+                  {(dossierApplicant.applicantName || 'A').charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">{dossierApplicant.applicantName}</h3>
@@ -3134,7 +3292,7 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
 
                   {dossierApplicant.applicantPhone && (
                     <span className="text-slate-600 font-medium px-2 py-1 bg-white border border-slate-200 rounded-xl">
-                      📞 {dossierApplicant.applicantPhone}
+                      {dossierApplicant.applicantPhone}
                     </span>
                   )}
                 </div>
@@ -3333,6 +3491,25 @@ export const OpportunitiesScreen: React.FC<OpportunitiesScreenProps> = ({ onBack
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP REALTIME OPPORTUNITY CHAT MODAL */}
+      {/* ========================================================================= */}
+      {showChatModal && chatTargetOpp && (
+        <OpportunityChatModal
+          isOpen={showChatModal}
+          onClose={() => {
+            setShowChatModal(false);
+            setChatTargetOpp(null);
+            setChatTargetApp(null);
+            refreshChatCountsAndThreads();
+          }}
+          opportunity={chatTargetOpp}
+          application={chatTargetApp}
+          currentUser={currentUser}
+          userRole={chatUserRole}
+        />
       )}
     </SafeAreaView>
   );

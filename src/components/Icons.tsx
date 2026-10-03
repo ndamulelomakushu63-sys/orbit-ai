@@ -42,6 +42,7 @@ export {
   AlertTriangle,
   FileCode,
   Check,
+  CheckCheck,
   Building,
   Shield,
   Bell,
@@ -84,7 +85,9 @@ export {
   MessageSquare,
   Navigation,
   Locate,
-  LocateFixed
+  LocateFixed,
+  Layers,
+  Globe
 } from 'lucide-react';
 
 

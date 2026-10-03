@@ -27,6 +27,12 @@ import { MarketOrdersScreen } from '../screens/MarketOrdersScreen';
 import { MarketSellerScreen } from '../screens/MarketSellerScreen';
 import { OpportunitiesScreen } from '../screens/OpportunitiesScreen';
 import { PremiumLockScreen } from '../components/PremiumLockScreen';
+import { AboutScreen } from '../screens/AboutScreen';
+import { ContactScreen } from '../screens/ContactScreen';
+import { PrivacyPolicyScreen } from '../screens/PrivacyPolicyScreen';
+import { TermsScreen } from '../screens/TermsScreen';
+import { RefundPolicyScreen } from '../screens/RefundPolicyScreen';
+import { CancellationPolicyScreen } from '../screens/CancellationPolicyScreen';
 
 export const AppNavigator: React.FC = () => {
   const { mobileScreen, setMobileScreen, currentUser } = useAppState();
@@ -38,12 +44,34 @@ export const AppNavigator: React.FC = () => {
     switch (mobileScreen) {
       case "splash":
         return <SplashScreen />;
+      case "home":
+      case "chat":
+        return <HomeChatScreen />;
+      case "about":
+      case "about-orbit":
+      case "about-orbit-ai":
+        return <AboutScreen onBack={() => setMobileScreen("chat")} />;
+      case "contact":
+      case "contact-us":
+      case "support-contact":
+        return <ContactScreen onBack={() => setMobileScreen("chat")} />;
+      case "privacy":
+      case "privacy-policy":
+        return <PrivacyPolicyScreen onBack={() => setMobileScreen("chat")} />;
+      case "terms":
+      case "terms-of-service":
+      case "terms-of-use":
+        return <TermsScreen onBack={() => setMobileScreen("chat")} />;
+      case "refund":
+      case "refund-policy":
+        return <RefundPolicyScreen onBack={() => setMobileScreen("chat")} />;
+      case "cancellation":
+      case "cancellation-policy":
+        return <CancellationPolicyScreen onBack={() => setMobileScreen("chat")} />;
       case "login":
         return <LoginScreen />;
       case "register":
         return <RegisterScreen />;
-      case "chat":
-        return <HomeChatScreen />;
       case "history":
         return <ChatHistoryScreen />;
       case "profile":
@@ -59,6 +87,7 @@ export const AppNavigator: React.FC = () => {
         }
         return <TaskModeScreen />;
       case "upgrade":
+      case "subscriptions":
         return <SubscriptionScreen />;
       case "agents":
       case "agent":
@@ -94,6 +123,7 @@ export const AppNavigator: React.FC = () => {
         return <BusinessModeScreen />;
       case "orbit-rewards":
         return <OrbitRewardsScreen />;
+      case "market-home":
       case "market":
         return (
           <MarketHomeScreen

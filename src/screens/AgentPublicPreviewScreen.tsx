@@ -6,7 +6,7 @@ import { useAppState } from '../services/state';
 export const AgentPublicPreviewScreen: React.FC = () => {
   const { setMobileScreen } = useAppState();
 
-  const demoLink = "https://orbit-ai.vercel.app/?ref=DEMO123";
+  const demoLink = "https://orbitai.co.za/?ref=DEMO123";
 
   return (
     <SafeAreaView className="bg-white flex flex-col h-full overflow-hidden select-none">

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView } from '../components/ReactNativeShim';
 import { Shield, Sparkles, RefreshCw, AlertCircle, HardDrive, Check } from '../components/Icons';
+import { ArrowLeft } from 'lucide-react';
 import { useAppState } from '../services/state';
 import { BottomNav } from '../components/BottomNav';
 
 export const SettingsScreen: React.FC = () => {
-  const { currentUser, setConversations, setChatMessages } = useAppState();
+  const { currentUser, setConversations, setChatMessages, setMobileScreen } = useAppState();
   const [modelType, setModelType] = useState<'flash' | 'pro'>('flash');
   const [temperature, setTemperature] = useState<number>(0.7);
   const [purgedSuccess, setPurgedSuccess] = useState(false);
@@ -26,11 +27,21 @@ export const SettingsScreen: React.FC = () => {
     <SafeAreaView className="bg-slate-50 flex flex-col h-full justify-between">
       
       {/* HEADER SECTION */}
-      <View className="px-5 py-4 bg-white border-b border-slate-100 flex flex-row items-center justify-between select-none">
-        <Text className="text-base font-bold text-slate-800 tracking-tight">System Settings</Text>
+      <View className="px-4 py-3.5 bg-white border-b border-slate-100 flex flex-row items-center gap-3 select-none">
+        <button
+          id="settings_back_btn"
+          onClick={() => setMobileScreen('chat')}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 transition"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <Text className="text-base font-bold text-slate-800 tracking-tight">AI & Account Settings</Text>
+          <Text className="text-[11px] text-slate-400">Configure AI models, inference, and local preferences</Text>
+        </div>
       </View>
 
-      <ScrollView className="flex-1 bg-slate-50 p-4" contentContainerClassName="space-y-4 pb-6">
+      <ScrollView className="flex-1 bg-slate-50 p-4" contentContainerClassName="space-y-4 pb-20">
         
         {/* MODEL COMPANION SETTINGS */}
         <View className="bg-white p-5 border border-slate-200/55 rounded-3xl space-y-4 shadow-2xs">
@@ -139,7 +150,7 @@ export const SettingsScreen: React.FC = () => {
             </View>
             <View className="flex flex-row justify-between text-slate-500">
               <Text className="text-slate-450 font-medium font-sans">V1 Release Target</Text>
-              <Text className="font-mono font-bold text-slate-700">React Native 0.72</Text>
+              <Text className="font-mono font-bold text-slate-700">Orbit Social + AI v2.0</Text>
             </View>
           </View>
         </View>

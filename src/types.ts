@@ -14,6 +14,16 @@ export interface UserProfile {
   uid: string;
   name: string;
   email: string;
+  username?: string;
+  phone?: string;
+  avatarUrl?: string;
+  avatar_url?: string;
+  bio?: string;
+  allow_contact_discovery?: boolean;
+  is_discoverable?: boolean;
+  who_can_message?: 'everyone' | 'friends' | 'none';
+  who_can_view_posts?: 'everyone' | 'friends';
+  contact_syncing_enabled?: boolean;
   plan: UserPlan;
   subscription_status?: 'free' | 'pro_monthly' | 'pro_yearly';
   chat_count_today?: number;
@@ -345,8 +355,19 @@ export interface MarketSettings {
 // ORBIT OPPORTUNITIES HUB TYPES
 // ==========================================
 
-export type OpportunityCategory = 'job' | 'internship' | 'learnership' | 'scholarship' | 'university';
-export type OpportunityType = 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Learnership' | 'Bursary' | 'Undergraduate' | 'Postgraduate' | 'TVET';
+export type OpportunityCategory = 
+  | 'job' 
+  | 'internship' 
+  | 'learnership' 
+  | 'apprenticeship'
+  | 'scholarship' 
+  | 'bursary'
+  | 'university' 
+  | 'tvet'
+  | 'graduate_programme'
+  | 'government'
+  | 'training';
+export type OpportunityType = 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Learnership' | 'Apprenticeship' | 'Bursary' | 'Undergraduate' | 'Postgraduate' | 'TVET' | 'Government';
 export type OpportunityWorkplace = 'On-site' | 'Remote' | 'Hybrid';
 
 export interface Opportunity {
@@ -376,12 +397,18 @@ export interface Opportunity {
   requirements: string[];
   compensationOrGrant?: string;
   deadline?: string;
+  verified?: boolean;
+  industry?: string;
+  educationLevel?: string;
+  nqfLevel?: number;
+  websiteUrl?: string;
   // Custom document requirements & screening
   proofOfResidenceRequired?: boolean;
   qualificationRequired?: 'matric' | 'grade9' | 'diploma_degree' | 'other' | 'none';
   customRequiredDocuments?: string[];
   screeningQuestions?: Array<{ id: string; question: string; type?: 'text' | 'yes_no' | 'choice'; options?: string[]; required?: boolean }>;
   // Public University / TVET & Admissions specific
+  isDirectOrbitApply?: boolean;
   isPublicDirectory?: boolean;
   sourceDisclaimer?: string;
   openingDate?: string;
@@ -396,7 +423,7 @@ export interface Opportunity {
   applicantCount?: number;
 }
 
-export type ApplicationStatus = 'Submitted' | 'Under Review' | 'Shortlisted' | 'Interview' | 'Accepted' | 'Not Selected';
+export type ApplicationStatus = 'Submitted' | 'Under Review' | 'Shortlisted' | 'Interview' | 'Accepted' | 'Not Selected' | 'Unsuccessful' | 'Withdrawn';
 
 export interface ApplicationDocument {
   id: string;
@@ -443,6 +470,29 @@ export interface OpportunityApplication {
   submittedAt: string;
   updatedAt: string;
 }
+
+export interface OpportunityMessage {
+  id: string;
+  conversationId?: string;
+  opportunityId: string;
+  opportunityTitle: string;
+  companyName: string;
+  applicationId?: string;
+  applicantId?: string;
+  applicantName?: string;
+  applicantEmail?: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'applicant' | 'employer';
+  recipientId: string;
+  recipientName: string;
+  text: string;
+  timestamp: string;
+  createdAt?: string;
+  read?: boolean;
+  status?: 'sent' | 'delivered' | 'read';
+}
+
 
 
 

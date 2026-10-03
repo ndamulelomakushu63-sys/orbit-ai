@@ -5,7 +5,6 @@ import { FormattedMessage } from '../components/FormattedMessage';
 import { useAppState } from '../services/state';
 import { UserPlan, ChatMessage } from '../types';
 import { Reply, Trash2, X, Download, Share2 } from 'lucide-react';
-import { BottomNav } from '../components/BottomNav';
 
 interface MessageWithParsedAttachments {
   text: string;
@@ -720,101 +719,59 @@ export const HomeChatScreen: React.FC = () => {
         </div>
       </View>
 
-      {/* FOOTER TO HEADER LAYOUT: 6 links above the chat window in a single horizontal scrollable row */}
-      <View className="w-full bg-slate-50 border-b border-slate-100 select-none">
-        <div className="flex flex-row overflow-x-auto whitespace-nowrap scrollbar-none py-2 px-4 items-center justify-start sm:justify-center gap-4">
+      {/* TOP INFORMATION / LEGAL NAVIGATION AREA */}
+      <View className="w-full bg-slate-50 border-b border-slate-200/80 select-none">
+        <div className="flex flex-row items-center overflow-x-auto whitespace-nowrap scrollbar-none py-2 px-3 sm:px-4 gap-2.5 sm:gap-3 text-slate-600">
           <TouchableOpacity 
-            onClick={() => {
-              setShowAbout(true);
-              setShowPrivacy(false);
-              setShowTerms(false);
-              setShowRefund(false);
-              setShowCancellation(false);
-              setShowContact(false);
-            }} 
-            className="py-0.5 px-1 hover:opacity-80"
+            onClick={() => setMobileScreen("about")} 
+            className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"
           >
-            <Text className={`text-[11px] font-sans font-medium ${showAbout ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>About</Text>
+            <Text className="text-[11.5px] font-sans font-medium text-slate-600 hover:text-blue-600">About Orbit AI</Text>
           </TouchableOpacity>
           
-          <Text className="text-[10px] text-slate-300">|</Text>
+          <Text className="text-[10px] text-slate-300 select-none">|</Text>
           
           <TouchableOpacity 
-            onClick={() => {
-              setShowAbout(false);
-              setShowPrivacy(true);
-              setShowTerms(false);
-              setShowRefund(false);
-              setShowCancellation(false);
-              setShowContact(false);
-            }} 
-            className="py-0.5 px-1 hover:opacity-80"
+            onClick={() => setMobileScreen("cancellation")} 
+            className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"
           >
-            <Text className={`text-[11px] font-sans font-medium ${showPrivacy ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Privacy Policy</Text>
+            <Text className="text-[11.5px] font-sans font-medium text-slate-600 hover:text-blue-600">Cancellation Policy</Text>
           </TouchableOpacity>
           
-          <Text className="text-[10px] text-slate-300">|</Text>
+          <Text className="text-[10px] text-slate-300 select-none">|</Text>
           
           <TouchableOpacity 
-            onClick={() => {
-              setShowAbout(false);
-              setShowPrivacy(false);
-              setShowTerms(true);
-              setShowRefund(false);
-              setShowCancellation(false);
-              setShowContact(false);
-            }} 
-            className="py-0.5 px-1 hover:opacity-80"
+            onClick={() => setMobileScreen("refund")} 
+            className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"
           >
-            <Text className={`text-[11px] font-sans font-medium ${showTerms ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Terms of Use</Text>
+            <Text className="text-[11.5px] font-sans font-medium text-slate-600 hover:text-blue-600">Refund Policy</Text>
           </TouchableOpacity>
           
-          <Text className="text-[10px] text-slate-300">|</Text>
+          <Text className="text-[10px] text-slate-300 select-none">|</Text>
           
           <TouchableOpacity 
-            onClick={() => {
-              setShowAbout(false);
-              setShowPrivacy(false);
-              setShowTerms(false);
-              setShowRefund(true);
-              setShowCancellation(false);
-              setShowContact(false);
-            }} 
-            className="py-0.5 px-1 hover:opacity-80"
+            onClick={() => setMobileScreen("privacy")} 
+            className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"
           >
-            <Text className={`text-[11px] font-sans font-medium ${showRefund ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Refund Policy</Text>
+            <Text className="text-[11.5px] font-sans font-medium text-slate-600 hover:text-blue-600">Privacy Policy</Text>
           </TouchableOpacity>
           
-          <Text className="text-[10px] text-slate-300">|</Text>
+          <Text className="text-[10px] text-slate-300 select-none">|</Text>
           
           <TouchableOpacity 
-            onClick={() => {
-              setShowAbout(false);
-              setShowPrivacy(false);
-              setShowTerms(false);
-              setShowRefund(false);
-              setShowCancellation(true);
-              setShowContact(false);
-            }} 
-            className="py-0.5 px-1 hover:opacity-80"
+            onClick={() => setMobileScreen("terms")} 
+            className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"
           >
-            <Text className={`text-[11px] font-sans font-medium ${showCancellation ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Cancellation Policy</Text>
+            <Text className="text-[11.5px] font-sans font-medium text-slate-600 hover:text-blue-600">Terms</Text>
           </TouchableOpacity>
           
-          <Text className="text-[10px] text-slate-300">|</Text>
+          <Text className="text-[10px] text-slate-300 select-none">|</Text>
           
           <TouchableOpacity 
-            onClick={() => {
-              setShowAbout(false);
-              setShowPrivacy(false);
-              setShowTerms(false);
-              setShowRefund(false);
-              setShowCancellation(false);
-              setShowContact(true);
-            }} 
-            className="py-0.5 px-1 hover:opacity-80"
+            onClick={() => setMobileScreen("contact")} 
+            className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"
           >
-            <Text className={`text-[11px] font-sans font-medium ${showContact ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'}`}>Contact Us</Text>
+            <Text className="text-[11.5px] font-sans font-medium text-slate-600 hover:text-blue-600">Contact & Support</Text>
           </TouchableOpacity>
         </div>
       </View>
@@ -829,10 +786,7 @@ export const HomeChatScreen: React.FC = () => {
        >
         <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex flex-col gap-6 flex-1">
          {activeMessages.length === 0 ? (
-           <View className="flex flex-col items-center justify-center text-center p-4 space-y-6 my-auto pt-4 max-w-lg mx-auto">
-             <View className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center">
-               <Orbit className="w-6 h-6 text-blue-500" />
-             </View>
+           <View className="flex flex-col items-center justify-center text-center p-4 space-y-6 my-auto pt-6 max-w-lg mx-auto">
              <View className="space-y-1.5">
                <Text className="text-slate-900 font-bold text-base font-sans">Orbit AI Productivity &amp; Innovation Companion</Text>
                <Text className="text-slate-500 text-xs text-center px-2 leading-relaxed font-sans font-medium">
@@ -844,38 +798,38 @@ export const HomeChatScreen: React.FC = () => {
              <View className="grid grid-cols-2 gap-2 w-full pt-1 max-w-sm text-left">
               <TouchableOpacity 
                 onClick={() => handleSuggestionClick("Draft a professional POPIA compliance checklist")}
-                className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-[11px] leading-tight hover:border-blue-400 transition text-left cursor-pointer"
+                className="border border-slate-200 hover:bg-slate-50 p-2.5 rounded-lg text-[11px] leading-tight transition text-left cursor-pointer"
               >
-                <Text className="text-[11px] text-slate-700 font-bold font-sans">POPIA quick list</Text>
+                <Text className="text-[11px] text-slate-700 font-medium font-sans">POPIA quick list</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 onClick={() => handleSuggestionClick("Write a python class for compounding interest rates")}
-                className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-[11px] leading-tight hover:border-blue-400 transition text-left cursor-pointer"
+                className="border border-slate-200 hover:bg-slate-50 p-2.5 rounded-lg text-[11px] leading-tight transition text-left cursor-pointer"
               >
-                <Text className="text-[11px] text-slate-700 font-bold font-sans">Write compound interest code</Text>
+                <Text className="text-[11px] text-slate-700 font-medium font-sans">Write compound interest code</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 onClick={() => handleSuggestionClick("Review a sample South African service level agreement outline")}
-                className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-[11px] leading-tight hover:border-blue-400 transition text-left cursor-pointer"
+                className="border border-slate-200 hover:bg-slate-50 p-2.5 rounded-lg text-[11px] leading-tight transition text-left cursor-pointer"
               >
-                <Text className="text-[11px] text-slate-700 font-bold font-sans">SLA document outline</Text>
+                <Text className="text-[11px] text-slate-700 font-medium font-sans">SLA document outline</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 onClick={() => handleSuggestionClick("Draft cold business letters for Pretoria retail space")}
-                className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-[11px] leading-tight hover:border-blue-400 transition text-left cursor-pointer"
+                className="border border-slate-200 hover:bg-slate-50 p-2.5 rounded-lg text-[11px] leading-tight transition text-left cursor-pointer"
               >
-                <Text className="text-[11px] text-slate-700 font-bold font-sans">Business sales letter</Text>
+                <Text className="text-[11px] text-slate-700 font-medium font-sans">Business sales letter</Text>
               </TouchableOpacity>
             </View>
 
-            {/* PUBLISHER INFORMATION & PLATFORM GUIDANCE CARD FOR ADSENSE COMPLIANCE */}
-            <View className="w-full bg-slate-50/80 border border-slate-200/80 rounded-3xl p-4 space-y-3.5 text-left shadow-2xs mt-4">
-              <View className="border-b border-slate-200/60 pb-2 flex flex-row items-center justify-between">
-                <Text className="text-xs font-bold text-slate-900 font-sans uppercase tracking-wider">About Orbit AI Platform</Text>
-                <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">Publisher Guide</span>
+            {/* Platform Guidance - Unboxed & Clean */}
+            <View className="w-full border-t border-slate-200 pt-5 mt-2 space-y-3 text-left">
+              <View className="pb-1 flex flex-row items-center justify-between">
+                <Text className="text-xs font-semibold text-slate-800 font-sans uppercase tracking-wider">About Orbit AI Platform</Text>
+                <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Publisher Guide</span>
               </View>
 
               <Text className="text-[11px] text-slate-600 leading-relaxed font-sans">
@@ -883,32 +837,32 @@ export const HomeChatScreen: React.FC = () => {
               </Text>
 
               <View className="space-y-2">
-                <Text className="text-[11px] font-bold text-slate-800 font-sans">Core Modules &amp; Publisher Features:</Text>
+                <Text className="text-[11px] font-semibold text-slate-800 font-sans">Core Modules &amp; Publisher Features:</Text>
                 
                 <View className="space-y-1.5 text-[11px] text-slate-600 font-sans">
-                  <View className="flex flex-row items-start gap-1.5">
-                    <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <View className="flex flex-row items-start gap-2">
+                    <span className="text-slate-400 shrink-0">•</span>
                     <Text className="text-[11px] text-slate-600">
                       <strong className="text-slate-800">AI Chat Companion:</strong> Multi-lingual natural language assistant supporting code generation, research, math, translation, and analysis.
                     </Text>
                   </View>
 
-                  <View className="flex flex-row items-start gap-1.5">
-                    <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <View className="flex flex-row items-start gap-2">
+                    <span className="text-slate-400 shrink-0">•</span>
                     <Text className="text-[11px] text-slate-600">
                       <strong className="text-slate-800">Task Mode Studio:</strong> Step-by-step interview wizard generating ATS-friendly PDF CVs, cover letters, and formal business plans.
                     </Text>
                   </View>
 
-                  <View className="flex flex-row items-start gap-1.5">
-                    <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <View className="flex flex-row items-start gap-2">
+                    <span className="text-slate-400 shrink-0">•</span>
                     <Text className="text-[11px] text-slate-600">
                       <strong className="text-slate-800">Business Mode &amp; Directory:</strong> Register local enterprises, publish business profiles, and access AI-generated pitch decks.
                     </Text>
                   </View>
 
-                  <View className="flex flex-row items-start gap-1.5">
-                    <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <View className="flex flex-row items-start gap-2">
+                    <span className="text-slate-400 shrink-0">•</span>
                     <Text className="text-[11px] text-slate-600">
                       <strong className="text-slate-800">Agent Referral &amp; Rewards:</strong> Transparent referral commissions (R10 per Pro referral) and verified daily rewarded ad earnings with EFT bank payouts.
                     </Text>
@@ -916,8 +870,8 @@ export const HomeChatScreen: React.FC = () => {
                 </View>
               </View>
 
-              <View className="pt-2 border-t border-slate-200/60 flex flex-col space-y-1 text-[10px] text-slate-500 font-sans">
-                <Text className="font-bold text-slate-700">Privacy &amp; POPIA Guarantee:</Text>
+              <View className="pt-2 border-t border-slate-100 flex flex-col space-y-1 text-[10px] text-slate-500 font-sans">
+                <Text className="font-semibold text-slate-700">Privacy &amp; POPIA Guarantee:</Text>
                 <Text>
                   Your conversation history and personal details are protected under South African POPIA regulations and encrypted for complete confidentiality.
                 </Text>

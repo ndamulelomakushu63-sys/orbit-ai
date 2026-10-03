@@ -73,7 +73,6 @@ interface AppContextType {
   setObdiLeads: React.Dispatch<React.SetStateAction<ObdiLead[]>>;
   businessPaymentStatus: 'success' | 'cancelled' | null;
   setBusinessPaymentStatus: (status: 'success' | 'cancelled' | null) => void;
-
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -700,7 +699,59 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 
 
-  const [mobileScreen, setMobileScreen] = useState<string>("splash");
+  const getInitialScreenFromPath = (): string => {
+    if (typeof window === 'undefined') return "splash";
+    const path = window.location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+    if (path === 'about') return 'about';
+    if (path === 'contact' || path === 'support') return 'contact';
+    if (path === 'privacy' || path === 'privacy-policy') return 'privacy';
+    if (path === 'terms' || path === 'terms-of-service') return 'terms';
+    if (path === 'refund' || path === 'refund-policy' || path === 'cancellation') return 'refund';
+    if (path === 'login' || path === 'signin') return 'login';
+    if (path === 'register' || path === 'join' || path === 'signup') return 'register';
+    if (path === 'business' || path === 'business-mode') return 'business-mode';
+    if (path === 'market') return 'market';
+    if (path === 'opportunities') return 'opportunities';
+    return "splash";
+  };
+
+  const [mobileScreen, setMobileScreenInternal] = useState<string>(getInitialScreenFromPath);
+
+  const setMobileScreen = (screen: string) => {
+    setMobileScreenInternal(screen);
+    try {
+      if (typeof window !== 'undefined') {
+        const publicPaths: Record<string, string> = {
+          'about': '/about',
+          'contact': '/contact',
+          'privacy': '/privacy',
+          'terms': '/terms',
+          'refund': '/refund',
+          'chat': '/',
+          'home': '/',
+          'login': '/login',
+          'register': '/register'
+        };
+        const targetPath = publicPaths[screen];
+        if (targetPath && window.location.pathname !== targetPath) {
+          window.history.pushState({}, '', targetPath);
+        }
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const screen = getInitialScreenFromPath();
+      if (screen !== 'splash') {
+        setMobileScreenInternal(screen);
+      } else {
+        setMobileScreenInternal('chat');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [businessPaymentStatus, setBusinessPaymentStatus] = useState<'success' | 'cancelled' | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string>("conv-1");
   const [isAiTyping, setIsAiTyping] = useState<boolean>(false);

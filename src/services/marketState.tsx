@@ -51,7 +51,7 @@ interface MarketContextType {
 
   // Data Actions
   refreshMarketData: () => Promise<void>;
-  createBrand: (brand: MarketBrand) => Promise<boolean>;
+  createBrand: (brand: MarketBrand) => Promise<{ success: boolean; error?: string }>;
   createProduct: (product: MarketProduct) => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: MarketOrderStatus, trackingNumber?: string) => Promise<boolean>;
   refreshOrders: () => Promise<void>;
@@ -252,9 +252,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [cartSubtotal, deliveryFee]);
 
   // Brand / Product creations
-  const createBrand = async (newBrand: MarketBrand): Promise<boolean> => {
-    const success = await dbUpsertMarketBrand(newBrand);
-    if (success) {
+  const createBrand = async (newBrand: MarketBrand): Promise<{ success: boolean; error?: string }> => {
+    const res = await dbUpsertMarketBrand(newBrand);
+    if (res.success) {
       setBrands(prev => {
         const idx = prev.findIndex(b => b.id === newBrand.id);
         if (idx >= 0) {
@@ -264,8 +264,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         return [...prev, newBrand];
       });
+      return { success: true };
     }
-    return success;
+    return { success: false, error: res.error || "Failed to register brand" };
   };
 
   const createProduct = async (newProduct: MarketProduct): Promise<boolean> => {
