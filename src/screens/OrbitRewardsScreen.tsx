@@ -22,6 +22,7 @@ import {
   dbInsertAuditLog
 } from '../services/supabase';
 import { getRewardedAdsService, RewardedAd, AdWatchResult } from '../services/rewardedAds';
+import { GoogleAdSenseUnit } from '../components/GoogleAdSenseUnit';
 
 export const OrbitRewardsScreen: React.FC = () => {
   const { currentUser, setUsers, referrals, withdrawals, setWithdrawals, setMobileScreen } = useAppState();
@@ -429,32 +430,6 @@ export const OrbitRewardsScreen: React.FC = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 relative">
-      {/* PRE-LAUNCH TEMPORARY NOTICE OVERLAY */}
-      <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-md w-full p-6 space-y-6 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mx-auto text-slate-900">
-            <Clock className="w-6 h-6 text-slate-800" />
-          </div>
-
-          <div className="space-y-3">
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Coming Soon</h2>
-            <div className="text-xs text-slate-600 leading-relaxed space-y-2 text-left bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <p>Orbit Rewards is currently being prepared for launch.</p>
-              <p>We're waiting for final Google AdSense approval before enabling daily rewarded adverts.</p>
-              <p>Everything is already built and will automatically become available once approval is complete.</p>
-              <p className="font-semibold text-slate-800 pt-1">Thank you for your patience.</p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setMobileScreen('chat')}
-            className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-
       {/* EXECUTIVE TOP HEADER */}
       <View className="h-14 bg-white border-b border-slate-200/80 px-6 flex flex-row items-center justify-between select-none">
         <TouchableOpacity 
@@ -479,6 +454,88 @@ export const OrbitRewardsScreen: React.FC = () => {
       </View>
 
       <ScrollView className="flex-1 px-4 sm:px-6 py-6 max-w-4xl mx-auto w-full space-y-6">
+
+        {/* ============================================================ */}
+        {/* GENUINE PUBLISHER CONTENT CONTAINER: ORBIT REWARDS ECOSYSTEM */}
+        {/* ============================================================ */}
+        <div id="orbit-rewards-publisher-content" className="space-y-6">
+          
+          {/* 1. COMPREHENSIVE PROGRAM OVERVIEW CARD */}
+          <View className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-5">
+            <View className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <View className="flex flex-row items-center gap-3.5">
+                <View className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center shrink-0 shadow-xs">
+                  <Award className="w-6 h-6 text-white" />
+                </View>
+                <View className="space-y-0.5">
+                  <Text className="text-lg font-bold text-slate-900 tracking-tight">Orbit Rewards Program</Text>
+                  <Text className="text-xs text-slate-500">Official Rewards, Sponsor Campaigns &amp; Verified South African EFT Payouts</Text>
+                </View>
+              </View>
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-xs font-semibold rounded-full flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Verified Platform</span>
+                </span>
+              </div>
+            </View>
+
+            <View className="space-y-3 text-xs text-slate-600 leading-relaxed">
+              <p>
+                Orbit Rewards is Orbit AI's dedicated rewards platform. Through our partner network, active members interact with verified sponsor campaigns and rewarded advert sessions to earn monetary yields in South African Rand (ZAR). Earnings accumulate directly in your Orbit balance and can be transferred securely to any major South African bank.
+              </p>
+            </View>
+
+            {/* 4 OPERATIONAL PILLARS OF ORBIT REWARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-2">
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-slate-900" />
+                  <h4 className="text-xs font-bold text-slate-900">Verified Sponsor Campaigns</h4>
+                </div>
+                <p className="text-[11.5px] text-slate-500 leading-relaxed">
+                  We partner with authorized commercial advertisers and Google-certified networks to showcase legitimate products, digital tools, and financial services relevant to South African users.
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                  <h4 className="text-xs font-bold text-slate-900">Real Rand Earnings (ZAR)</h4>
+                </div>
+                <p className="text-[11.5px] text-slate-500 leading-relaxed">
+                  Every completed ad session provides an audited reward credited instantly to your account. Track your daily accruals, monthly yield, and lifetime earnings transparently.
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-blue-600" />
+                  <h4 className="text-xs font-bold text-slate-900">Community Quality &amp; Daily Caps</h4>
+                </div>
+                <p className="text-[11.5px] text-slate-500 leading-relaxed">
+                  To protect advertiser integrity, user activity is governed by a fair-usage policy capped at 20 verified sessions per 24 hours. Automated scripts and bot traffic are strictly blocked.
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Send className="w-4 h-4 text-indigo-600" />
+                  <h4 className="text-xs font-bold text-slate-900">Direct South African EFT Payouts</h4>
+                </div>
+                <p className="text-[11.5px] text-slate-500 leading-relaxed">
+                  Once your balance reaches the minimum threshold of R100.00, submit a withdrawal request directly to Capitec, FNB, Standard Bank, Absa, Nedbank, TymeBank, or other domestic banks.
+                </p>
+              </div>
+            </div>
+          </View>
+
+          {/* DEDICATED GOOGLE ADSENSE PLACEMENT */}
+          {/* Strictly rendered only inside Orbit Rewards with verified publisher content present */}
+          <GoogleAdSenseUnit 
+            hasContentReady={!loadingMetrics} 
+            isModalActive={showWithdrawModal || !!activeAdModal} 
+          />
 
         {/* ============================================================ */}
         {/* 1. LOCKED STATE ( < 4 VERIFIED AGENT REFERRALS )             */}
@@ -817,6 +874,7 @@ export const OrbitRewardsScreen: React.FC = () => {
           </View>
         )}
 
+        </div>
       </ScrollView>
 
       {/* ============================================================ */}
