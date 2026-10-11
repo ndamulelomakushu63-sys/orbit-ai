@@ -15,15 +15,15 @@ interface GoogleAdSenseUnitProps {
 const ADSENSE_CLIENT_ID = "ca-pub-4390078695601187";
 
 // Public, content-rich screens verified compliant with Google Publisher Policies
-// NEVER allow ads on reward screens, private chat, login/register, splash, or transactional pages
-const ALLOWED_ADSENSE_SCREENS = ['about'];
+// NEVER allow ads on private chat, login/register, splash, or transactional pages
+const ALLOWED_ADSENSE_SCREENS = ['about', 'orbit-rewards'];
 
 /**
  * Dedicated, Policy-Compliant Google AdSense Placement Component
  *
  * Strict Google AdSense Policy Enforcement:
- * 1. ONLY renders on verified public, content-rich informational screens ('about')
- * 2. NEVER renders on Orbit Rewards, Chat, Login, Register, Splash, or payment/error screens
+ * 1. ONLY renders on verified public, content-rich informational screens ('about', 'orbit-rewards')
+ * 2. NEVER renders on Chat, Login, Register, Splash, or payment/error screens
  * 3. ONLY requests ads after publisher content is confirmed present in the DOM (> 500 characters)
  * 4. NEVER renders during loading states, errors, or when any modal/dialog is active
  * 5. Positioned inline within publisher editorial content with clear "ADVERTISEMENT" labeling
@@ -60,7 +60,9 @@ export const GoogleAdSenseUnit: React.FC<GoogleAdSenseUnitProps> = ({
 
     // Condition 3: Check that genuine publisher content is actually rendered in the DOM
     const timer = setTimeout(() => {
-      const contentEl = document.getElementById('about-publisher-content');
+      const contentEl = 
+        document.getElementById('about-publisher-content') ||
+        document.getElementById('orbit-rewards-publisher-content');
       const textLength = contentEl ? (contentEl.textContent || '').trim().length : 0;
 
       // Meaningful publisher content requirement (> 500 characters of genuine content)

@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput } from '../components/ReactNativeShim';
-import { 
-  ArrowLeft, Award, Play, CheckCircle, DollarSign, 
-  AlertCircle, Lock, ShieldCheck, RefreshCw, Send, HelpCircle, Users, Clock, ExternalLink
-} from '../components/Icons';
+import { ArrowLeft, CheckCircle, ExternalLink, AlertCircle, Clock } from '../components/Icons';
 import { useAppState } from '../services/state';
-import { WithdrawalRecord, WithdrawalStatus, OrbitRewardHistoryItem, OrbitRewardBalance } from '../types';
+import { WithdrawalRecord, WithdrawalStatus, OrbitRewardHistoryItem } from '../types';
 import { 
-  supabase, 
   dbFetchRewardBalance, 
   dbUpsertRewardBalance, 
   dbFetchRewardHistory, 
@@ -21,12 +16,13 @@ import {
   dbClaimAdSession,
   dbInsertAuditLog
 } from '../services/supabase';
-import { getRewardedAdsService, RewardedAd, AdWatchResult } from '../services/rewardedAds';
+import { getRewardedAdsService, RewardedAd } from '../services/rewardedAds';
+import { GoogleAdSenseUnit } from '../components/GoogleAdSenseUnit';
 
 export const OrbitRewardsScreen: React.FC = () => {
   const { currentUser, setUsers, referrals, withdrawals, setWithdrawals, setMobileScreen } = useAppState();
 
-  // Read referral progress directly from state / database
+  // Read referral progress directly from state
   const myReferrals = currentUser ? referrals.filter(r => r.referrerId === currentUser.uid) : [];
 
   // Orbit Rewards database state
@@ -34,7 +30,6 @@ export const OrbitRewardsScreen: React.FC = () => {
   const [dbVerifiedReferralsCount, setDbVerifiedReferralsCount] = useState<number>(0);
   const [maxDailyAds, setMaxDailyAds] = useState<number>(20);
   const [minWithdrawal, setMinWithdrawal] = useState<number>(100);
-  const [policyNotice, setPolicyNotice] = useState<string>("");
 
   // Determine unlock status directly from database record or referral threshold (>=4)
   const verifiedReferralsCount = Math.max(myReferrals.length, dbVerifiedReferralsCount);
@@ -57,14 +52,12 @@ export const OrbitRewardsScreen: React.FC = () => {
   const [adCompleted, setAdCompleted] = useState<boolean>(false);
   const [adError, setAdError] = useState<string>("");
   const [claimingReward, setClaimingReward] = useState<boolean>(false);
-  const [cancelAdFn, setCancelAdFn] = useState<(() => void) | null>(null);
 
   // Withdrawal modal state
   const [showWithdrawModal, setShowWithdrawModal] = useState<boolean>(false);
   const [withdrawFullName, setWithdrawFullName] = useState<string>(currentUser?.name || "");
   const [withdrawBankName, setWithdrawBankName] = useState<string>("Capitec Bank");
   const [withdrawAccountNumber, setWithdrawAccountNumber] = useState<string>("");
-  const [withdrawAccountHolder, setWithdrawAccountHolder] = useState<string>(currentUser?.name || "");
   const [withdrawAmount, setWithdrawAmount] = useState<string>("100");
   const [withdrawBranchCode, setWithdrawBranchCode] = useState<string>("");
   const [withdrawAccountType, setWithdrawAccountType] = useState<string>("Savings");
@@ -86,7 +79,6 @@ export const OrbitRewardsScreen: React.FC = () => {
         if (settings && isMounted) {
           setMaxDailyAds(settings.maxDailyAds || 20);
           setMinWithdrawal(settings.minWithdrawal || 100);
-          if (settings.policyNotice) setPolicyNotice(settings.policyNotice);
         }
 
         if (!currentUser) {
@@ -156,15 +148,13 @@ export const OrbitRewardsScreen: React.FC = () => {
     if (!currentUser) return;
 
     if (todayAdCount >= maxDailyAds) {
-      alert(`Daily limit reached (${maxDailyAds}/${maxDailyAds}). Please return tomorrow to watch more rewarded ads.`);
+      alert(`Daily limit reached (${maxDailyAds}/${maxDailyAds}). Please return tomorrow to participate in more sessions.`);
       return;
     }
 
-    // Start ad watch session in ad_watch_sessions table
     const sessionId = await dbStartAdSession(currentUser.uid, ad.id);
     setActiveSessionId(sessionId);
 
-    // Audit log
     await dbInsertAuditLog(currentUser.uid, 'AD_WATCH_STARTED', {
       adId: ad.id,
       adTitle: ad.title,
@@ -177,122 +167,97 @@ export const OrbitRewardsScreen: React.FC = () => {
     setIsAdPlaying(true);
     setAdTotalDuration(ad.durationSeconds);
     setAdCountdown(ad.durationSeconds);
-
-    const adsService = getRewardedAdsService();
-    const cancel = adsService.showRewardedAd(
-      ad,
-      (remaining, total) => {
-        setAdCountdown(remaining);
-        setAdTotalDuration(total);
-      },
-      async (result: AdWatchResult) => {
-        setAdCompleted(true);
-        setIsAdPlaying(false);
-
-        // Mark session as completed in ad_watch_sessions table
-        if (sessionId) {
-          const hash = `ver-hash-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-          await dbCompleteAdSession(sessionId, hash);
-          await dbInsertAuditLog(currentUser.uid, 'AD_WATCH_COMPLETED', {
-            adId: ad.id,
-            sessionId,
-            hash
-          });
-        }
-      },
-      async (errorMsg: string) => {
-        setAdError(errorMsg);
-        setIsAdPlaying(false);
-        await dbInsertAuditLog(currentUser.uid, 'AD_WATCH_CANCELLED', {
-          adId: ad.id,
-          sessionId,
-          errorMsg
-        });
-      }
-    );
-
-    setCancelAdFn(() => cancel);
   };
+
+  // Timer countdown for ad modal
+  useEffect(() => {
+    if (!isAdPlaying || adCountdown <= 0) {
+      if (isAdPlaying && adCountdown <= 0) {
+        setIsAdPlaying(false);
+        setAdCompleted(true);
+        if (currentUser && activeSessionId) {
+          dbCompleteAdSession(activeSessionId);
+        }
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setAdCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isAdPlaying, adCountdown, currentUser, activeSessionId]);
 
   // Claim verified reward
   const handleClaimReward = async () => {
     if (!currentUser || !activeAdModal || claimingReward) return;
 
-    setClaimingReward(true);
     try {
+      setClaimingReward(true);
       const rewardVal = activeAdModal.rewardEst;
       const todayStr = new Date().toISOString().split('T')[0];
-      const newTodayCount = todayAdCount + 1;
-      const newMonthly = monthlyEarnings + rewardVal;
-      const newLifetime = lifetimeEarnings + rewardVal;
-      const newBalance = (currentUser.balance || 0) + rewardVal;
 
-      // 1. Create history item
-      const historyItem: OrbitRewardHistoryItem = {
-        id: `rew-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      if (activeSessionId) {
+        await dbClaimAdSession(activeSessionId, rewardVal);
+      }
+
+      const nextBalance = (currentUser.balance || 0) + rewardVal;
+      const nextTotalEarnings = lifetimeEarnings + rewardVal;
+      const nextMonthlyEarnings = monthlyEarnings + rewardVal;
+      const nextTodayCount = todayAdCount + 1;
+
+      await dbUpsertRewardBalance({
+        userId: currentUser.uid,
+        totalEarnings: nextTotalEarnings,
+        pendingEarnings: 0,
+        monthlyEarnings: nextMonthlyEarnings,
+        todayAdCount: nextTodayCount,
+        lastAdDate: todayStr
+      });
+
+      const newHistoryItem: OrbitRewardHistoryItem = {
+        id: `rwd_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         userId: currentUser.uid,
         adId: activeAdModal.id,
         adTitle: activeAdModal.title,
         rewardAmount: rewardVal,
-        status: 'verified',
         timestamp: new Date().toISOString()
       };
 
-      // 2. Mark reward claimed in ad_watch_sessions table
-      if (activeSessionId) {
-        await dbClaimAdSession(activeSessionId);
-      }
+      await dbInsertRewardHistoryItem(newHistoryItem);
 
-      // 3. Local state update
-      setTodayAdCount(newTodayCount);
-      setMonthlyEarnings(newMonthly);
-      setLifetimeEarnings(newLifetime);
-      setRewardHistory(prev => [historyItem, ...prev]);
-
-      setUsers(prev => prev.map(u => u.uid === currentUser.uid ? { ...u, balance: newBalance } : u));
-
-      // 4. Supabase database update
-      await dbInsertRewardHistoryItem(historyItem);
-      await dbUpsertRewardBalance({
-        userId: currentUser.uid,
-        totalEarnings: newLifetime,
-        monthlyEarnings: newMonthly,
-        todayAdCount: newTodayCount,
-        lastAdDate: todayStr
-      });
-
-      await supabase
-        .from('profiles')
-        .update({ balance: newBalance })
-        .eq('id', currentUser.uid);
-
-      // 5. Audit log
       await dbInsertAuditLog(currentUser.uid, 'AD_REWARD_CLAIMED', {
         adId: activeAdModal.id,
         rewardAmount: rewardVal,
-        sessionId: activeSessionId
+        newBalance: nextBalance
       });
 
-      // Close modal
+      setUsers(prev => prev.map(u => u.uid === currentUser.uid ? { ...u, balance: nextBalance } : u));
+      setLifetimeEarnings(nextTotalEarnings);
+      setMonthlyEarnings(nextMonthlyEarnings);
+      setTodayAdCount(nextTodayCount);
+      setRewardHistory(prev => [newHistoryItem, ...prev]);
+
       setActiveAdModal(null);
       setActiveSessionId(null);
       setAdCompleted(false);
-      alert(`Success! You earned R${rewardVal.toFixed(2)} from ${activeAdModal.title}.`);
+
     } catch (err: any) {
       console.error("Error claiming reward:", err);
-      alert("Reward claim failed: " + (err.message || String(err)));
+      setAdError("Failed to claim reward. Please try again.");
     } finally {
       setClaimingReward(false);
     }
   };
 
   const handleCloseAdModal = () => {
-    if (isAdPlaying && cancelAdFn) {
-      if (!confirm("Are you sure you want to close? Your reward will be forfeited if closed before advert completion.")) {
-        return;
-      }
-      cancelAdFn();
-    }
     setActiveAdModal(null);
     setActiveSessionId(null);
     setIsAdPlaying(false);
@@ -300,116 +265,70 @@ export const OrbitRewardsScreen: React.FC = () => {
     setAdError("");
   };
 
-  // Withdrawal Submission
-  const handleWithdrawSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  // Handle withdrawal submission
+  const handleWithdrawSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!currentUser) return;
-
-    if (
-      !withdrawFullName.trim() ||
-      !withdrawBankName.trim() ||
-      !withdrawAccountNumber.trim() ||
-      !withdrawAccountHolder.trim() ||
-      !withdrawAmount.trim()
-    ) {
-      setWithdrawError("Please complete all banking details required for payout.");
-      setWithdrawSuccess("");
-      return;
-    }
-
-    const value = parseFloat(withdrawAmount);
-    if (isNaN(value) || value < minWithdrawal) {
-      setWithdrawError(`Minimum withdrawal amount is R${minWithdrawal}.00`);
-      setWithdrawSuccess("");
-      return;
-    }
 
     setWithdrawError("");
     setWithdrawSuccess("");
-    setWithdrawLoading(true);
+
+    const value = parseFloat(withdrawAmount);
+    if (isNaN(value) || value < minWithdrawal) {
+      setWithdrawError(`Minimum withdrawal amount is R${minWithdrawal.toFixed(2)}.`);
+      return;
+    }
+
+    if ((currentUser.balance || 0) < value) {
+      setWithdrawError(`Insufficient funds. Your current balance is R${(currentUser.balance || 0).toFixed(2)}.`);
+      return;
+    }
+
+    if (!withdrawAccountNumber.trim() || withdrawAccountNumber.length < 6) {
+      setWithdrawError("Please enter a valid South African bank account number.");
+      return;
+    }
+
+    if (!withdrawFullName.trim()) {
+      setWithdrawError("Please enter the full account holder name.");
+      return;
+    }
 
     try {
-      // 1. Verify fresh balance from reward_balances and profiles in Supabase
-      const balRecord = await dbFetchRewardBalance(currentUser.uid);
-      const { data: profile, error: profileErr } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('id', currentUser.uid)
-        .single();
-
-      if (profileErr) {
-        throw new Error(`Failed to verify wallet balance: ${profileErr.message}`);
-      }
-
-      const freshProfileBal = Number(profile?.balance || 0);
-      const freshRewardBal = Number(balRecord?.totalEarnings || freshProfileBal);
-      const availableBal = Math.max(freshProfileBal, freshRewardBal);
-
-      if (value > availableBal) {
-        setWithdrawError(`Requested amount exceeds your available balance of R${availableBal.toFixed(2)}.`);
-        setWithdrawLoading(false);
-        return;
-      }
-
-      // 2. Check for duplicate pending requests in withdrawal_requests
-      const { data: existingPending } = await supabase
-        .from('withdrawal_requests')
-        .select('id, status')
-        .eq('user_id', currentUser.uid)
-        .in('status', ['Pending', 'Approved']);
-
-      if (existingPending && existingPending.length > 0) {
-        setWithdrawError("You already have an active withdrawal request being processed.");
-        setWithdrawLoading(false);
-        return;
-      }
-
-      // 3. Create request record
-      const reqId = `with-${Date.now()}`;
-      const nowIso = new Date().toISOString();
+      setWithdrawLoading(true);
+      const reqId = `WTH-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
       const newRecord: WithdrawalRecord = {
         id: reqId,
         userId: currentUser.uid,
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        fullName: withdrawFullName,
-        bankName: withdrawBankName,
-        accountNumber: withdrawAccountNumber,
-        accountHolder: withdrawAccountHolder,
-        branchCode: withdrawBranchCode,
-        accountType: withdrawAccountType,
+        userName: withdrawFullName.trim(),
         amount: value,
+        bankName: withdrawBankName,
+        accountNumber: withdrawAccountNumber.trim(),
+        branchCode: withdrawBranchCode.trim() || undefined,
+        accountType: withdrawAccountType,
         status: WithdrawalStatus.PENDING,
-        timestamp: nowIso
+        timestamp: new Date().toISOString()
       };
 
-      // 4. Upsert withdrawal request to Supabase
       await dbUpsertWithdrawal(newRecord);
 
-      // 5. Update profile and reward balance in Supabase
-      const nextBalance = Math.max(0, availableBal - value);
-      await supabase
-        .from('profiles')
-        .update({ balance: nextBalance })
-        .eq('id', currentUser.uid);
-
+      const nextBalance = (currentUser.balance || 0) - value;
       await dbUpsertRewardBalance({
         userId: currentUser.uid,
-        totalEarnings: nextBalance,
+        totalEarnings: lifetimeEarnings,
+        pendingEarnings: value,
         monthlyEarnings: monthlyEarnings,
         todayAdCount: todayAdCount,
         lastAdDate: new Date().toISOString().split('T')[0]
       });
 
-      // 6. Log audit event
       await dbInsertAuditLog(currentUser.uid, 'WITHDRAWAL_REQUESTED', {
         amount: value,
         bankName: withdrawBankName,
         requestId: reqId
       });
 
-      // 7. Update local state
       setWithdrawals(prev => [newRecord, ...prev]);
       setUsers(prev => prev.map(u => u.uid === currentUser.uid ? { ...u, balance: nextBalance } : u));
 
@@ -431,592 +350,496 @@ export const OrbitRewardsScreen: React.FC = () => {
   const userWithdrawals = currentUser ? withdrawals.filter(w => w.userId === currentUser.uid) : [];
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 relative">
-      {/* EXECUTIVE TOP HEADER */}
-      <View className="h-14 bg-white border-b border-slate-200/80 px-6 flex flex-row items-center justify-between select-none">
-        <TouchableOpacity 
-          onClick={() => setMobileScreen("chat")} 
-          className="flex flex-row items-center gap-2 py-1.5 px-2.5 -ml-2 rounded-lg hover:bg-slate-100 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 text-slate-700" />
-          <Text className="text-xs font-semibold text-slate-700">Back</Text>
-        </TouchableOpacity>
+    <div id="orbit_rewards_screen" className="flex flex-col h-full w-full bg-white text-slate-900 overflow-hidden relative font-sans">
+      {/* Clean Top Header */}
+      <header className="bg-white border-b border-slate-200 px-4 py-3.5 shrink-0 select-none">
+        <div className="flex items-center justify-between max-w-3xl mx-auto">
+          <button 
+            onClick={() => setMobileScreen("chat")} 
+            className="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-slate-900 py-1 transition-colors cursor-pointer"
+            aria-label="Back to chat"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-600" />
+            <span>Back to Chat</span>
+          </button>
 
-        <View className="flex flex-row items-center gap-2">
-          <View className="w-2 h-2 rounded-full bg-slate-900" />
-          <Text className="text-sm font-bold text-slate-900 tracking-tight">Orbit Rewards</Text>
-        </View>
+          <span className="text-sm font-bold text-slate-900 tracking-tight">Orbit Rewards</span>
 
-        <TouchableOpacity
-          onClick={() => setMobileScreen('chat')}
-          className="px-3 py-1 bg-white hover:bg-slate-100/80 text-slate-700 border border-slate-200/80 rounded-full flex flex-row items-center gap-1.5 transition cursor-pointer select-none"
-        >
-          <Text className="text-xs font-medium text-slate-700">Chat</Text>
-        </TouchableOpacity>
-      </View>
+          <button
+            onClick={() => setMobileScreen('about')}
+            className="text-xs text-slate-500 hover:text-slate-800 transition cursor-pointer"
+          >
+            About
+          </button>
+        </div>
+      </header>
 
-      <ScrollView className="flex-1 px-4 sm:px-6 py-6 max-w-4xl mx-auto w-full space-y-6">
-
-        {/* ============================================================ */}
-        {/* GENUINE PUBLISHER CONTENT CONTAINER: ORBIT REWARDS ECOSYSTEM */}
-        {/* ============================================================ */}
-        <div id="orbit-rewards-publisher-content" className="space-y-6">
+      {/* Main Content Area - Clean, Mature, Minimal Interface */}
+      <div 
+        className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <main id="orbit-rewards-publisher-content" className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 pb-24">
           
-          {/* 1. COMPREHENSIVE PROGRAM OVERVIEW CARD */}
-          <View className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-5">
-            <View className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-              <View className="flex flex-row items-center gap-3.5">
-                <View className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center shrink-0 shadow-xs">
-                  <Award className="w-6 h-6 text-white" />
-                </View>
-                <View className="space-y-0.5">
-                  <Text className="text-lg font-bold text-slate-900 tracking-tight">Orbit Rewards Program</Text>
-                  <Text className="text-xs text-slate-500">Official Rewards, Sponsor Campaigns &amp; Verified South African EFT Payouts</Text>
-                </View>
-              </View>
-              <div className="flex items-center gap-2 self-start sm:self-center">
-                <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-xs font-semibold rounded-full flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Verified Platform</span>
-                </span>
-              </div>
-            </View>
+          {/* Section 1: Programme Overview */}
+          <section className="space-y-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Programme Overview</span>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Orbit Rewards Programme &amp; Payout Information
+            </h1>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Orbit Rewards is an engagement programme integrated directly into Orbit AI. Through verified sponsor campaigns and commercial partnerships, eligible South African participants can interact with verified brand sessions and accumulate rewards denominated in South African Rand (ZAR). Earnings are recorded in real time and can be paid out directly to verified South African bank accounts via EFT.
+            </p>
+          </section>
 
-            <View className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p>
-                Orbit Rewards is Orbit AI's dedicated rewards platform. Through our partner network, active members interact with verified sponsor campaigns and rewarded advert sessions to earn monetary yields in South African Rand (ZAR). Earnings accumulate directly in your Orbit balance and can be transferred securely to any major South African bank.
-              </p>
-            </View>
+          <hr className="border-slate-200" />
 
-            {/* 4 OPERATIONAL PILLARS OF ORBIT REWARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-2">
-              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-slate-900" />
-                  <h4 className="text-xs font-bold text-slate-900">Verified Sponsor Campaigns</h4>
+          {/* Section 2: How the Programme Works */}
+          <section className="space-y-4">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">How It Works</span>
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              Participation &amp; Verification Steps
+            </h2>
+            
+            <div className="space-y-3 text-sm text-slate-600 leading-relaxed">
+              <div className="flex items-start gap-3">
+                <span className="font-bold text-slate-900 shrink-0">1.</span>
+                <div>
+                  <strong className="text-slate-900 font-semibold">Account Registration &amp; Qualification:</strong>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                    Any registered Orbit AI member can view programme guidelines. To activate daily rewarded ad sessions, users must qualify by either referring four verified users through their official Agent link or upgrading to Orbit Pro.
+                  </p>
                 </div>
-                <p className="text-[11.5px] text-slate-500 leading-relaxed">
-                  We partner with authorized commercial advertisers and Google-certified networks to showcase legitimate products, digital tools, and financial services relevant to South African users.
-                </p>
               </div>
 
-              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
-                  <h4 className="text-xs font-bold text-slate-900">Real Rand Earnings (ZAR)</h4>
+              <div className="flex items-start gap-3">
+                <span className="font-bold text-slate-900 shrink-0">2.</span>
+                <div>
+                  <strong className="text-slate-900 font-semibold">Verified Sponsor Sessions:</strong>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                    Once unlocked, members can view available sponsor adverts. Each session runs for a fixed duration (typically 15 to 30 seconds) and requires full completion before credit is issued.
+                  </p>
                 </div>
-                <p className="text-[11.5px] text-slate-500 leading-relaxed">
-                  Every completed ad session provides an audited reward credited instantly to your account. Track your daily accruals, monthly yield, and lifetime earnings transparently.
-                </p>
               </div>
 
-              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-600" />
-                  <h4 className="text-xs font-bold text-slate-900">Community Quality &amp; Daily Caps</h4>
+              <div className="flex items-start gap-3">
+                <span className="font-bold text-slate-900 shrink-0">3.</span>
+                <div>
+                  <strong className="text-slate-900 font-semibold">Real-Time ZAR Balance Accrual:</strong>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                    Upon completion of an ad session, the reward value is audited and credited directly to the member's wallet balance in South African Rand.
+                  </p>
                 </div>
-                <p className="text-[11.5px] text-slate-500 leading-relaxed">
-                  To protect advertiser integrity, user activity is governed by a fair-usage policy capped at 20 verified sessions per 24 hours. Automated scripts and bot traffic are strictly blocked.
-                </p>
               </div>
 
-              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Send className="w-4 h-4 text-indigo-600" />
-                  <h4 className="text-xs font-bold text-slate-900">Direct South African EFT Payouts</h4>
+              <div className="flex items-start gap-3">
+                <span className="font-bold text-slate-900 shrink-0">4.</span>
+                <div>
+                  <strong className="text-slate-900 font-semibold">Direct EFT Bank Payouts:</strong>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                    When your wallet balance reaches the minimum threshold of R100.00, you can submit a payout request. Payouts are transferred directly via EFT to your nominated South African bank account.
+                  </p>
                 </div>
-                <p className="text-[11.5px] text-slate-500 leading-relaxed">
-                  Once your balance reaches the minimum threshold of R100.00, submit a withdrawal request directly to Capitec, FNB, Standard Bank, Absa, Nedbank, TymeBank, or other domestic banks.
-                </p>
               </div>
             </div>
-          </View>
+          </section>
 
-          {/* GUEST / VISITOR NOTICE FOR PUBLIC EXPLORATION */}
-          {!currentUser && (
-            <View className="bg-gradient-to-r from-blue-900 via-slate-900 to-slate-950 rounded-2xl p-6 text-white space-y-4 shadow-sm border border-slate-800">
-              <View className="space-y-1">
-                <Text className="text-base font-bold text-white tracking-tight">Join the Orbit Rewards Program</Text>
-                <Text className="text-xs text-slate-300 leading-relaxed font-sans">
-                  Sign in or create a free account to track verified referrals, access verified commercial sponsor campaigns, and request South African EFT bank payouts.
-                </Text>
-              </View>
-              <div className="flex flex-row items-center gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setMobileScreen('login')}
-                  className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileScreen('register')}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition cursor-pointer border border-blue-400"
-                >
-                  Create Account
-                </button>
+          <hr className="border-slate-200" />
+
+          {/* Section 3: Rules, Limits & Conditions */}
+          <section className="space-y-4">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Terms &amp; Limits</span>
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              Programme Rules &amp; Transparent Limits
+            </h2>
+
+            <ul className="space-y-2.5 text-xs sm:text-sm text-slate-600 list-disc pl-5 leading-relaxed">
+              <li>
+                <strong className="text-slate-900">Daily Session Limit:</strong> A standard cap of 20 completed sessions per 24-hour cycle is enforced to maintain fair usage and protect partner campaigns.
+              </li>
+              <li>
+                <strong className="text-slate-900">Minimum Withdrawal Threshold:</strong> Payouts can be requested once your balance reaches a minimum of R100.00.
+              </li>
+              <li>
+                <strong className="text-slate-900">Supported South African Banks:</strong> Capitec, First National Bank (FNB), Standard Bank, Absa, Nedbank, TymeBank, Discovery Bank, and Bank Zero.
+              </li>
+              <li>
+                <strong className="text-slate-900">Processing Timeline:</strong> Withdrawal requests undergo routine security and account checks, with EFT transfers typically cleared within 24 to 48 business hours.
+              </li>
+              <li>
+                <strong className="text-slate-900">Fraud Prevention &amp; Integrity:</strong> Automated scripts, bots, click farms, and proxy manipulation are strictly prohibited. Violating accounts are permanently suspended and accrued balances are forfeited.
+              </li>
+              <li>
+                <strong className="text-slate-900">Non-Incentivised Ad Policy:</strong> Orbit AI complies strictly with Google Publisher Policies. Google AdSense advertisements shown on this site are independent editorial displays. We never offer rewards, compensation, or incentives for viewing or clicking Google-served advertisements.
+              </li>
+            </ul>
+          </section>
+
+          <hr className="border-slate-200" />
+
+          {/* Section 4: Policy-Compliant Google AdSense Advertisement Area */}
+          {/* Reserved, clearly defined, appropriately spaced area isolated from action buttons */}
+          <section className="space-y-3 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Sponsored Notice</span>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              The display space below supports Orbit AI's platform infrastructure. Advertisements are provided through verified publisher networks and do not confer rewards or incentives.
+            </p>
+
+            <GoogleAdSenseUnit 
+              hasContentReady={!loadingMetrics} 
+              isModalActive={Boolean(activeAdModal || showWithdrawModal)} 
+            />
+          </section>
+
+          <hr className="border-slate-200" />
+
+          {/* Section 5: Member Dashboard & Activity */}
+          <section className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Member Space</span>
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight mt-0.5">
+                  Your Programme Status &amp; Wallet
+                </h2>
               </div>
-            </View>
-          )}
 
-        {/* ============================================================ */}
-        {/* 1. LOCKED STATE ( < 4 VERIFIED AGENT REFERRALS )             */}
-        {/* ============================================================ */}
-        {!isUnlocked && (
-          <View className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs divide-y divide-slate-100 overflow-hidden">
-            
-            {/* LOCKED HERO & PROGRESS SECTION */}
-            <View className="p-6 space-y-5">
-              <View className="flex flex-row items-start justify-between gap-4">
-                <View className="flex flex-row items-center gap-3.5">
-                  <View className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                    <Lock className="w-5 h-5 text-slate-700" />
-                  </View>
-                  <View className="space-y-0.5">
-                    <Text className="text-base font-bold text-slate-900">Orbit Rewards Program</Text>
-                    <Text className="text-xs text-slate-500">Refer 4 verified users with your Agent link to unlock daily ad rewards.</Text>
-                  </View>
-                </View>
-                <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200/60 text-[11px] font-semibold rounded-full shrink-0">
-                  Locked
-                </span>
-              </View>
-
-              {/* PROGRESS METER */}
-              <View className="space-y-2 pt-1">
-                <View className="flex flex-row justify-between items-center text-xs">
-                  <Text className="font-semibold text-slate-700">Referral Requirement</Text>
-                  <Text className="font-bold text-slate-900 font-mono">
-                    {verifiedReferralsCount} / 4 Verified Referrals
-                  </Text>
-                </View>
-
-                {/* Progress Bar */}
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
-                  <div 
-                    className="h-full bg-slate-900 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, (verifiedReferralsCount / 4) * 100)}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <Text className="text-[11px] text-slate-500">
-                    {4 - verifiedReferralsCount > 0
-                      ? `${4 - verifiedReferralsCount} more verified referral${4 - verifiedReferralsCount > 1 ? 's' : ''} needed to unlock.`
-                      : "Threshold met! Unlocking Orbit Rewards..."}
-                  </Text>
-
-                  <TouchableOpacity
-                    onClick={() => setMobileScreen("agent")}
-                    className="text-blue-600 hover:text-blue-700 text-xs font-semibold flex flex-row items-center gap-1 transition-colors"
-                  >
-                    <span>View Agent Link</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </TouchableOpacity>
-                </div>
-              </View>
-            </View>
-
-            {/* VERIFIED REFERRALS LIST SECTION */}
-            <View className="p-6 space-y-4">
-              <View className="flex flex-row items-center justify-between">
-                <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Verified Referrals ({verifiedReferralsCount})
-                </Text>
-                <Text className="text-[11px] text-slate-400">Tracked in real-time</Text>
-              </View>
-
-              {myReferrals.length === 0 ? (
-                <View className="py-6 text-center items-center justify-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
-                  <Users className="w-5 h-5 text-slate-400 mb-1" />
-                  <Text className="text-xs text-slate-600 font-medium">No verified referrals recorded yet</Text>
-                  <Text className="text-[11px] text-slate-400 mt-0.5 max-w-sm">
-                    Share your official link from the Agent Program to register users.
-                  </Text>
-                </View>
-              ) : (
-                <View className="divide-y divide-slate-100">
-                  {myReferrals.map((ref, idx) => (
-                    <View key={ref.id || idx} className="py-2.5 flex flex-row items-center justify-between">
-                      <View className="flex flex-row items-center gap-3">
-                        <View className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs border border-slate-200">
-                          {ref.referredName ? ref.referredName.charAt(0).toUpperCase() : 'U'}
-                        </View>
-                        <View>
-                          <Text className="text-xs font-semibold text-slate-800">{ref.referredName || 'Referred User'}</Text>
-                          <Text className="text-[10px] text-slate-400">{new Date(ref.timestamp).toLocaleDateString()}</Text>
-                        </View>
-                      </View>
-                      <View className="bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full flex flex-row items-center gap-1">
-                        <CheckCircle className="w-3 h-3 text-emerald-600" />
-                        <Text className="text-[10px] font-semibold text-emerald-700">Verified</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* PROGRAM POLICY SUMMARY */}
-            <View className="p-6 bg-slate-50/50 space-y-3">
-              <Text className="text-xs font-bold text-slate-900 uppercase tracking-wider">Program Policy & Guidelines</Text>
-              <View className="space-y-2 text-xs text-slate-600 leading-relaxed">
-                <View className="flex flex-row items-start gap-2">
-                  <span className="font-bold text-slate-400">•</span>
-                  <Text className="text-xs text-slate-600"><strong className="text-slate-800">Milestone Unlock:</strong> 4 verified sign-ups or an active Pro upgrade unlocks full access to daily rewarded advert sessions.</Text>
-                </View>
-                <View className="flex flex-row items-start gap-2">
-                  <span className="font-bold text-slate-400">•</span>
-                  <Text className="text-xs text-slate-600"><strong className="text-slate-800">Daily Cap:</strong> Standard cap of 20 verified ad playbacks per 24-hour cycle.</Text>
-                </View>
-                <View className="flex flex-row items-start gap-2">
-                  <span className="font-bold text-slate-400">•</span>
-                  <Text className="text-xs text-slate-600"><strong className="text-slate-800">EFT Dispersals:</strong> Minimum payout threshold is R100.00 directly to standard South African banking accounts.</Text>
-                </View>
-              </View>
-            </View>
-
-          </View>
-        )}
-
-        {/* ============================================================ */}
-        {/* 2. UNLOCKED STATE ( >= 4 VERIFIED AGENT REFERRALS )           */}
-        {/* ============================================================ */}
-        {isUnlocked && (
-          <View className="space-y-6">
-
-            {/* UNLOCKED HERO HEADER & METRIC STRIP */}
-            <View className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-6">
-              <View className="flex flex-row items-center justify-between">
-                <View className="flex flex-row items-center gap-3">
-                  <View className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-5 h-5 text-white" />
-                  </View>
-                  <View>
-                    <Text className="text-base font-bold text-slate-900">Rewards Overview</Text>
-                    <Text className="text-xs text-slate-500">Monetize daily rewarded ad sessions & manage EFT payouts.</Text>
-                  </View>
-                </View>
-                <TouchableOpacity
+              {currentUser && isUnlocked && (
+                <button
+                  type="button"
                   onClick={() => {
                     setWithdrawError("");
                     setWithdrawSuccess("");
                     setShowWithdrawModal(true);
                   }}
-                  className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold flex flex-row items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Request Payout</span>
-                </TouchableOpacity>
-              </View>
+                  Request Payout
+                </button>
+              )}
+            </div>
 
-              {/* 4-COLUMN METRIC GRID */}
-              <View className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
-                <View className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
-                  <Text className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Watched Today</Text>
-                  <Text className="text-base font-bold text-slate-900 font-mono">{todayAdCount} / {maxDailyAds}</Text>
-                  <Text className="text-[10px] text-slate-500">20 Max Daily</Text>
-                </View>
+            {!currentUser ? (
+              <div className="py-4 space-y-3">
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  You are currently viewing Orbit Rewards as a guest. To view your personal referral count, participate in sponsor sessions, and request bank payouts, please sign in or register for a free account.
+                </p>
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setMobileScreen('login')}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileScreen('register')}
+                    className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  >
+                    Create Free Account
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Minimal Metrics Table / Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-3 border-y border-slate-100 text-xs">
+                  <div>
+                    <span className="text-slate-400 block">Status</span>
+                    <span className="font-semibold text-slate-900">
+                      {isUnlocked ? "Unlocked" : "Locked (Threshold 4)"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Verified Referrals</span>
+                    <span className="font-semibold text-slate-900 font-mono">
+                      {verifiedReferralsCount} / 4
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Today's Sessions</span>
+                    <span className="font-semibold text-slate-900 font-mono">
+                      {todayAdCount} / {maxDailyAds}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Wallet Balance</span>
+                    <span className="font-bold text-slate-900 font-mono">
+                      R {(currentUser?.balance || 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
 
-                <View className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
-                  <Text className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Available Today</Text>
-                  <Text className="text-base font-bold text-blue-600 font-mono">{Math.max(0, maxDailyAds - todayAdCount)} Ready</Text>
-                  <Text className="text-[10px] text-slate-500">Ad Sessions</Text>
-                </View>
-
-                <View className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
-                  <Text className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Monthly Yield</Text>
-                  <Text className="text-base font-bold text-slate-900 font-mono">R {monthlyEarnings.toFixed(2)}</Text>
-                  <Text className="text-[10px] text-slate-500">Current Month</Text>
-                </View>
-
-                <View className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
-                  <Text className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Wallet Balance</Text>
-                  <Text className="text-base font-bold text-slate-900 font-mono">R {(currentUser?.balance || 0).toFixed(2)}</Text>
-                  <Text className="text-[10px] text-slate-500">Available Payout</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* AVAILABLE REWARDED ADVERTS SECTION */}
-            <View className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
-              <View className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
-                <View className="flex flex-row items-center gap-2">
-                  <Play className="w-4 h-4 text-slate-900" />
-                  <Text className="text-sm font-bold text-slate-900">Available Sponsor Adverts</Text>
-                </View>
-                <Text className="text-xs font-semibold text-slate-500 font-mono">{todayAdCount}/{maxDailyAds} Completed Today</Text>
-              </View>
-
-              <View className="divide-y divide-slate-100">
-                {getRewardedAdsService().getAvailableAds().map((ad) => {
-                  const isDisabled = todayAdCount >= maxDailyAds;
-                  return (
-                    <View 
-                      key={ad.id}
-                      className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                {/* Locked guidance */}
+                {!isUnlocked && (
+                  <div className="space-y-2 py-2">
+                    <p className="text-xs sm:text-sm text-slate-600">
+                      Your rewards account is currently locked. You have <strong className="text-slate-900 font-semibold">{verifiedReferralsCount}</strong> of <strong className="text-slate-900 font-semibold">4</strong> required verified referrals. Share your link via the Agent Program to unlock rewarded sessions.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setMobileScreen("agent")}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition cursor-pointer"
                     >
-                      <View className="space-y-1 flex-1">
-                        <View className="flex flex-row items-center gap-2">
-                          <Text className="text-xs font-bold text-slate-900">{ad.title}</Text>
-                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">{ad.category}</span>
-                        </View>
-                        <Text className="text-xs text-slate-500 leading-relaxed">{ad.description}</Text>
-                        <Text className="text-[10px] text-slate-400">Sponsor: {ad.sponsor} • Duration: {ad.durationSeconds}s</Text>
-                      </View>
-
-                      <View className="flex flex-row items-center justify-between md:justify-end gap-4 shrink-0">
-                        <Text className="text-sm font-bold text-slate-900 font-mono">+R {ad.rewardEst.toFixed(2)}</Text>
-                        <TouchableOpacity
-                          onClick={() => handleWatchAdClick(ad)}
-                          disabled={isDisabled}
-                          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors flex flex-row items-center gap-1.5 cursor-pointer ${
-                            isDisabled 
-                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                              : 'bg-slate-900 hover:bg-slate-800 text-white shadow-2xs'
-                          }`}
-                        >
-                          <Play className="w-3.5 h-3.5" />
-                          <span>{isDisabled ? 'Limit Reached' : 'Watch Ad'}</span>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* ACTIVITY & HISTORY SECTION (TABBED) */}
-            <View className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
-              <View className="flex flex-row items-center justify-between border-b border-slate-100 pb-3">
-                <View className="flex flex-row items-center gap-2">
-                  <TouchableOpacity
-                    onClick={() => setActivityTab('rewards')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                      activityTab === 'rewards'
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    Reward History ({rewardHistory.length})
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onClick={() => setActivityTab('withdrawals')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                      activityTab === 'withdrawals'
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    Withdrawal Requests ({userWithdrawals.length})
-                  </TouchableOpacity>
-                </View>
-
-                {activityTab === 'withdrawals' && (
-                  <Text className="text-[11px] text-slate-400 font-medium">Min payout: R100.00</Text>
+                      <span>Go to Agent Program Link</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 )}
-              </View>
 
-              {/* REWARDS TAB CONTENT */}
-              {activityTab === 'rewards' && (
-                <View>
-                  {rewardHistory.length === 0 ? (
-                    <View className="py-8 text-center items-center justify-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
-                      <Clock className="w-5 h-5 text-slate-400 mb-1" />
-                      <Text className="text-xs text-slate-600 font-medium">No advert rewards logged yet</Text>
-                      <Text className="text-[11px] text-slate-400 mt-0.5">Watch an ad above to register your first verified payout.</Text>
-                    </View>
-                  ) : (
-                    <View className="divide-y divide-slate-100">
-                      {rewardHistory.map((item) => (
-                        <View key={item.id} className="py-3 flex flex-row items-center justify-between">
-                          <View className="space-y-0.5">
-                            <Text className="text-xs font-semibold text-slate-800">{item.adTitle}</Text>
-                            <Text className="text-[10px] text-slate-400">{new Date(item.timestamp).toLocaleString()}</Text>
-                          </View>
-                          <View className="flex flex-row items-center gap-3">
-                            <Text className="text-xs font-bold text-slate-900 font-mono">+R {item.rewardAmount.toFixed(2)}</Text>
-                            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium">Verified</span>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
+                {/* Unlocked sponsor sessions */}
+                {isUnlocked && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-900">Available Sponsor Sessions</h3>
+                      <span className="text-xs text-slate-500 font-mono">
+                        {Math.max(0, maxDailyAds - todayAdCount)} remaining today
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-slate-100">
+                      {getRewardedAdsService().getAvailableAds().map(ad => {
+                        const isDisabled = todayAdCount >= maxDailyAds;
+                        return (
+                          <div key={ad.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-900">{ad.title}</span>
+                                <span className="text-[10px] text-slate-500">({ad.category})</span>
+                              </div>
+                              <p className="text-xs text-slate-500">{ad.description}</p>
+                              <span className="text-[10px] text-slate-400 block">
+                                Sponsor: {ad.sponsor} &bull; Duration: {ad.durationSeconds}s
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-4 shrink-0 self-start sm:self-center">
+                              <span className="text-xs font-bold text-slate-900 font-mono">
+                                +R {ad.rewardEst.toFixed(2)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleWatchAdClick(ad)}
+                                disabled={isDisabled}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                                  isDisabled
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-white'
+                                }`}
+                              >
+                                {isDisabled ? 'Daily Cap Reached' : 'Start Session'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Activity History Tabs */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-3 border-b border-slate-200 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setActivityTab('rewards')}
+                      className={`text-xs font-semibold pb-1 transition cursor-pointer ${
+                        activityTab === 'rewards'
+                          ? 'text-slate-900 border-b-2 border-slate-900'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Session History ({rewardHistory.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActivityTab('withdrawals')}
+                      className={`text-xs font-semibold pb-1 transition cursor-pointer ${
+                        activityTab === 'withdrawals'
+                          ? 'text-slate-900 border-b-2 border-slate-900'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Withdrawals ({userWithdrawals.length})
+                    </button>
+                  </div>
+
+                  {activityTab === 'rewards' && (
+                    <div>
+                      {rewardHistory.length === 0 ? (
+                        <p className="text-xs text-slate-400 py-3">No completed sessions logged yet.</p>
+                      ) : (
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {rewardHistory.slice(0, 10).map(item => (
+                            <div key={item.id} className="py-2.5 flex items-center justify-between">
+                              <div>
+                                <span className="font-medium text-slate-800 block">{item.adTitle}</span>
+                                <span className="text-[10px] text-slate-400">{new Date(item.timestamp).toLocaleString()}</span>
+                              </div>
+                              <span className="font-semibold text-slate-900 font-mono">+R {item.rewardAmount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
-                </View>
-              )}
 
-              {/* WITHDRAWALS TAB CONTENT */}
-              {activityTab === 'withdrawals' && (
-                <View>
-                  {userWithdrawals.length === 0 ? (
-                    <View className="py-8 text-center items-center justify-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
-                      <DollarSign className="w-5 h-5 text-slate-400 mb-1" />
-                      <Text className="text-xs text-slate-600 font-medium">No withdrawal requests submitted</Text>
-                      <Text className="text-[11px] text-slate-400 mt-0.5">Submit a payout request once your balance reaches R100.00.</Text>
-                    </View>
-                  ) : (
-                    <View className="divide-y divide-slate-100">
-                      {userWithdrawals.map((w) => (
-                        <View key={w.id} className="py-3 flex flex-row items-center justify-between">
-                          <View className="space-y-0.5">
-                            <Text className="text-xs font-bold text-slate-900 font-mono">R {w.amount.toFixed(2)}</Text>
-                            <Text className="text-[10px] text-slate-500">{w.bankName} • {w.accountNumber ? `••••${w.accountNumber.slice(-4)}` : ''}</Text>
-                            <Text className="text-[10px] text-slate-400">{new Date(w.timestamp).toLocaleDateString()}</Text>
-                          </View>
-
-                          <View className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                            w.status === WithdrawalStatus.PAID
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : w.status === WithdrawalStatus.APPROVED
-                              ? 'bg-blue-100 text-blue-800'
-                              : w.status === WithdrawalStatus.REJECTED
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {w.status}
-                          </View>
-                        </View>
-                      ))}
-                    </View>
+                  {activityTab === 'withdrawals' && (
+                    <div>
+                      {userWithdrawals.length === 0 ? (
+                        <p className="text-xs text-slate-400 py-3">No withdrawal requests submitted yet.</p>
+                      ) : (
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {userWithdrawals.map(w => (
+                            <div key={w.id} className="py-2.5 flex items-center justify-between">
+                              <div>
+                                <span className="font-medium text-slate-800 block">
+                                  R {w.amount.toFixed(2)} &bull; {w.bankName}
+                                </span>
+                                <span className="text-[10px] text-slate-400">{new Date(w.timestamp).toLocaleDateString()}</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                w.status === WithdrawalStatus.PAID
+                                  ? 'bg-slate-100 text-slate-800'
+                                  : w.status === WithdrawalStatus.APPROVED
+                                  ? 'bg-slate-100 text-slate-800'
+                                  : w.status === WithdrawalStatus.REJECTED
+                                  ? 'bg-rose-50 text-rose-700'
+                                  : 'bg-amber-50 text-amber-700'
+                              }`}>
+                                {w.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
-                </View>
-              )}
+                </div>
+              </div>
+            )}
+          </section>
 
-            </View>
+          <hr className="border-slate-200" />
 
-            {/* PROGRAM RULES FOOTER */}
-            <View className="p-4 bg-slate-100/60 rounded-xl border border-slate-200/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs text-slate-500">
-              <View className="flex flex-row items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-slate-500 shrink-0" />
-                <Text className="text-xs text-slate-600 font-medium">Max 20 rewarded ads / day • R100 min payout threshold • Verified EFT processing</Text>
-              </View>
-            </View>
+          {/* Section 6: Help, Support & Transparency */}
+          <section className="space-y-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Assistance</span>
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              Support &amp; Inquiries
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              If you experience any issues with referral attribution, session tracking, or bank transfer processing, our support team is available to assist you.
+            </p>
+            <div className="pt-1 text-xs text-slate-500 space-y-1">
+              <div><strong className="text-slate-700">Official Support:</strong> ndamulelomakushu63@gmail.com</div>
+              <div><strong className="text-slate-700">Platform:</strong> Orbit AI (orbitai.co.za)</div>
+              <div><strong className="text-slate-700">Jurisdiction:</strong> Republic of South Africa</div>
+            </div>
+          </section>
 
-          </View>
-        )}
+          {/* Footer note */}
+          <footer className="text-xs text-slate-400 pt-4 border-t border-slate-100 space-y-1">
+            <p>&copy; 2026 Orbit AI Rewards Programme. All rights reserved.</p>
+            <p>Governed in compliance with POPIA and South African banking standards.</p>
+          </footer>
 
-        </div>
-      </ScrollView>
+        </main>
+      </div>
 
-      {/* ============================================================ */}
-      {/* MODAL: REWARDED AD PLAYER MODAL                              */}
-      {/* ============================================================ */}
+      {/* Modal: Partner Session Player Modal (Clean & minimal) */}
       {activeAdModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-slate-900 text-white rounded-2xl w-full max-w-md border border-slate-800 shadow-xl p-6 relative flex flex-col space-y-4">
-            
-            {/* Header / Sponsor */}
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-xs font-semibold text-slate-300 tracking-wider uppercase">Rewarded Advert</span>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4 shadow-xl border border-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Partner Session</span>
+                <h3 className="text-sm font-bold text-slate-900 mt-0.5">{activeAdModal.title}</h3>
               </div>
-              <span className="text-xs text-slate-400 font-mono">{activeAdModal.sponsor}</span>
+              <span className="text-xs text-slate-400">{activeAdModal.sponsor}</span>
             </div>
 
-            {/* Ad Banner Box */}
-            <div className={`w-full h-40 rounded-xl bg-gradient-to-br ${activeAdModal.bannerGradient} p-4 flex flex-col justify-between relative shadow-inner overflow-hidden`}>
-              <div className="space-y-1">
-                <span className="bg-white/10 text-white text-[10px] font-semibold px-2 py-0.5 rounded-md backdrop-blur-xs">
-                  {activeAdModal.category}
-                </span>
-                <h3 className="text-base font-bold text-white leading-tight mt-1">{activeAdModal.title}</h3>
-                <p className="text-xs text-slate-300 line-clamp-2">{activeAdModal.description}</p>
-              </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {activeAdModal.description}
+            </p>
 
-              {/* Countdown & Yield */}
-              <div className="flex justify-between items-end pt-2">
-                <div className="bg-black/40 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-white/10">
-                  <p className="text-[10px] text-slate-400">Reward</p>
-                  <p className="text-xs font-bold text-emerald-400 font-mono">+R {activeAdModal.rewardEst.toFixed(2)}</p>
-                </div>
-
-                <div className="bg-black/40 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-white/10 flex items-center gap-1.5 font-mono text-xs font-semibold text-slate-200">
-                  <Clock className="w-3.5 h-3.5 animate-spin text-blue-400" />
-                  <span>{adCountdown}s</span>
-                </div>
-              </div>
+            <div className="flex items-center justify-between text-xs py-2 border-y border-slate-100">
+              <span className="text-slate-500">Reward value: <strong className="text-slate-900 font-mono">+R {activeAdModal.rewardEst.toFixed(2)}</strong></span>
+              <span className="text-slate-500 flex items-center gap-1 font-mono">
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <span>{adCountdown}s remaining</span>
+              </span>
             </div>
 
-            {/* Progress Bar */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] text-slate-400">
-                <span>Verification Progress</span>
-                <span className="font-mono text-blue-400 font-medium">
-                  {adCompleted ? "Completed" : `${Math.round(((adTotalDuration - adCountdown) / adTotalDuration) * 100)}%`}
-                </span>
-              </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+            {/* Verification status */}
+            <div className="space-y-1">
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                  className="h-full bg-slate-900 rounded-full transition-all duration-300"
                   style={{ width: adCompleted ? '100%' : `${((adTotalDuration - adCountdown) / adTotalDuration) * 100}%` }}
                 />
               </div>
             </div>
 
-            {/* Action Buttons */}
             {adCompleted ? (
               <button
+                type="button"
                 onClick={handleClaimReward}
                 disabled={claimingReward}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <CheckCircle className="w-4 h-4" />
-                <span>{claimingReward ? "Claiming..." : `Claim R${activeAdModal.rewardEst.toFixed(2)} Reward`}</span>
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>{claimingReward ? "Crediting..." : `Claim R${activeAdModal.rewardEst.toFixed(2)} Credit`}</span>
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleCloseAdModal}
-                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition-colors cursor-pointer"
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition cursor-pointer"
               >
-                Cancel Advert
+                Cancel Session
               </button>
             )}
 
             {adError && (
-              <p className="text-xs text-rose-400 text-center font-medium">{adError}</p>
+              <p className="text-xs text-rose-600 text-center">{adError}</p>
             )}
-
           </div>
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL: WITHDRAWAL REQUEST FORM MODAL                         */}
-      {/* ============================================================ */}
+      {/* Modal: Withdrawal Request Form (Clean & minimal) */}
       {showWithdrawModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md border border-slate-200 shadow-xl p-6 relative flex flex-col space-y-4 max-h-[90vh] overflow-y-auto">
-            
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Send className="w-4 h-4 text-blue-600" />
-                <h3 className="text-sm font-bold text-slate-900">Request EFT Withdrawal</h3>
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">EFT Payout</span>
+                <h3 className="text-sm font-bold text-slate-900 mt-0.5">Request Bank Withdrawal</h3>
               </div>
               <button 
+                type="button"
                 onClick={() => setShowWithdrawModal(false)}
                 className="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer"
               >
-                ×
+                &times;
               </button>
             </div>
 
             <p className="text-xs text-slate-600">
-              Enter your South African banking details below. Minimum payout amount is <strong className="text-slate-900">R100.00</strong>.
+              Enter your South African banking details below. Minimum payout threshold is <strong className="text-slate-900 font-semibold">R100.00</strong>.
             </p>
 
             {withdrawError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{withdrawError}</span>
               </div>
             )}
 
             {withdrawSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-medium flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 shrink-0" />
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{withdrawSuccess}</span>
               </div>
             )}
@@ -1024,11 +847,13 @@ export const OrbitRewardsScreen: React.FC = () => {
             <form onSubmit={handleWithdrawSubmit} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
-                <TextInput 
+                <input 
+                  type="text"
                   value={withdrawFullName}
-                  onChange={(e: any) => setWithdrawFullName(e.target.value)}
+                  onChange={e => setWithdrawFullName(e.target.value)}
                   placeholder="e.g. Sipho Khumalo"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-800"
                 />
               </div>
 
@@ -1036,8 +861,8 @@ export const OrbitRewardsScreen: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Bank Name</label>
                 <select 
                   value={withdrawBankName}
-                  onChange={(e) => setWithdrawBankName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                  onChange={e => setWithdrawBankName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-800"
                 >
                   <option value="Capitec Bank">Capitec Bank</option>
                   <option value="First National Bank (FNB)">First National Bank (FNB)</option>
@@ -1053,19 +878,21 @@ export const OrbitRewardsScreen: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Account Number</label>
-                  <TextInput 
+                  <input 
+                    type="text"
                     value={withdrawAccountNumber}
-                    onChange={(e: any) => setWithdrawAccountNumber(e.target.value)}
+                    onChange={e => setWithdrawAccountNumber(e.target.value)}
                     placeholder="123456789"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 font-mono"
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-800 font-mono"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Account Type</label>
                   <select 
                     value={withdrawAccountType}
-                    onChange={(e) => setWithdrawAccountType(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                    onChange={e => setWithdrawAccountType(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-800"
                   >
                     <option value="Savings">Savings</option>
                     <option value="Cheque">Cheque / Current</option>
@@ -1076,22 +903,24 @@ export const OrbitRewardsScreen: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Branch Code (Optional)</label>
-                  <TextInput 
+                  <input 
+                    type="text"
                     value={withdrawBranchCode}
-                    onChange={(e: any) => setWithdrawBranchCode(e.target.value)}
+                    onChange={e => setWithdrawBranchCode(e.target.value)}
                     placeholder="e.g. 250655"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 font-mono"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-800 font-mono"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Amount (ZAR)</label>
-                  <TextInput 
-                    value={withdrawAmount}
-                    onChange={(e: any) => setWithdrawAmount(e.target.value)}
-                    placeholder="100"
+                  <input 
                     type="number"
+                    value={withdrawAmount}
+                    onChange={e => setWithdrawAmount(e.target.value)}
+                    placeholder="100"
                     min="100"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 font-mono font-bold"
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-800 font-mono font-bold"
                   />
                 </div>
               </div>
@@ -1100,18 +929,15 @@ export const OrbitRewardsScreen: React.FC = () => {
                 <button
                   type="submit"
                   disabled={withdrawLoading}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition cursor-pointer"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{withdrawLoading ? "Submitting..." : "Submit Withdrawal Request"}</span>
+                  {withdrawLoading ? "Submitting..." : "Submit Withdrawal Request"}
                 </button>
               </div>
             </form>
-
           </div>
         </div>
       )}
-
-    </SafeAreaView>
+    </div>
   );
 };
