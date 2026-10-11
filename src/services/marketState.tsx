@@ -14,11 +14,26 @@ import {
   dbUpsertMarketBrand, 
   dbUpsertMarketProduct, 
   dbUpdateMarketOrderStatus, 
-  dbFetchMarketSettings,
-  DEFAULT_MARKET_BRANDS,
-  DEFAULT_MARKET_PRODUCTS
+  dbFetchMarketSettings 
 } from './supabase';
 import { useAppState } from './state';
+
+function isMockBrand(id?: string, name?: string): boolean {
+  const n = (name || '').toLowerCase().trim();
+  const i = (id || '').toLowerCase().trim();
+  return i === 'brand-orbit-official' || i === 'brand-orbit' || i === 'brand-authentic' || i === 'brand-kasi-crafted' || i === 'brand-beach-collection' || i === 'brand-beat-collection' ||
+    n === 'orbit collection' || n === 'orbit' || n === 'authentic' || n === 'kasi crafted' || n === 'beach collection' || n === 'beat collection' || n.includes('beach collection') || n.includes('beat collection') || n.includes('orbit collection') || n.includes('nike') || n.includes('adidas');
+}
+
+function isMockProduct(id?: string, name?: string, brandName?: string): boolean {
+  const n = (name || '').toLowerCase().trim();
+  const b = (brandName || '').toLowerCase().trim();
+  const i = (id || '').toLowerCase().trim();
+  return i.startsWith('prod-orb-') || i === 'prod-orbit-tshirt' || i.startsWith('prod-auth-') || i.startsWith('prod-kasi-') || i === 'prod-beat-collection-tee' ||
+    b === 'orbit collection' || b === 'orbit' || b === 'authentic' || b === 'kasi crafted' || b === 'beach collection' || b === 'beat collection' ||
+    b.includes('beach collection') || b.includes('beat collection') || b.includes('orbit collection') ||
+    n.includes('orbit t-shirt') || n.includes('authentic classic') || n.includes('kasi crafted') || n.includes('beach collection') || n.includes('beat collection');
+}
 
 interface MarketContextType {
   brands: MarketBrand[];
@@ -61,8 +76,32 @@ const MarketContext = createContext<MarketContextType | undefined>(undefined);
 
 export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAppState();
-  const [brands, setBrands] = useState<MarketBrand[]>(DEFAULT_MARKET_BRANDS);
-  const [products, setProducts] = useState<MarketProduct[]>(DEFAULT_MARKET_PRODUCTS);
+  const [brands, setBrands] = useState<MarketBrand[]>(() => {
+    try {
+      const local = localStorage.getItem('orbit_market_brands');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((b: any) => b && b.id && b.name && !isMockBrand(b.id, b.name));
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  const [products, setProducts] = useState<MarketProduct[]>(() => {
+    try {
+      const local = localStorage.getItem('orbit_market_products');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p: any) => p && p.id && p.name && !isMockProduct(p.id, p.name, p.brandName || p.brand_name));
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
   const [orders, setOrders] = useState<MarketOrder[]>([]);
   const [settings, setSettings] = useState<MarketSettings>({
     id: 'default',
@@ -77,14 +116,15 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [selectedProduct, setSelectedProduct] = useState<MarketProduct | null>(null);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
 
-  // Cart state persisted locally - filter out any old demo items
+  // Cart state persisted locally, filtering any old mock product items
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem('orbit_market_cart');
       if (!saved) return [];
       const parsed: CartItem[] = JSON.parse(saved);
-      const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
-      return Array.isArray(parsed) ? parsed.filter(item => item && !demoIds.includes(item.productId)) : [];
+      return Array.isArray(parsed) ? parsed.filter(item => 
+        item && item.productId && item.productName && !isMockProduct(item.productId, item.productName, item.brandName)
+      ) : [];
     } catch (e) {
       return [];
     }

@@ -33,6 +33,7 @@ import { PrivacyPolicyScreen } from '../screens/PrivacyPolicyScreen';
 import { TermsScreen } from '../screens/TermsScreen';
 import { RefundPolicyScreen } from '../screens/RefundPolicyScreen';
 import { CancellationPolicyScreen } from '../screens/CancellationPolicyScreen';
+import { AdminDashboardScreen } from '../screens/AdminDashboardScreen';
 
 export const AppNavigator: React.FC = () => {
   const { mobileScreen, setMobileScreen, currentUser } = useAppState();
@@ -158,6 +159,9 @@ export const AppNavigator: React.FC = () => {
             onBack={() => setMobileScreen("chat")}
           />
         );
+      case "admin":
+      case "orbit-ai-admin":
+        return <AdminDashboardScreen />;
       default:
         return <SplashScreen />;
     }

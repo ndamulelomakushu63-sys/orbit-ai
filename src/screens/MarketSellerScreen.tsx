@@ -126,6 +126,16 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
       return;
     }
 
+    const normalized = trimmed.toLowerCase();
+    const existingBrand = brands.find(b => 
+      b.name.trim().toLowerCase() === normalized || 
+      (normalized.includes('orbit') && (b.isOrbitCollection || b.name.toLowerCase().includes('orbit')))
+    );
+    if (existingBrand) {
+      setBrandError(null);
+      return;
+    }
+
     const check = await dbCheckBrandNameExists(trimmed, userOwnedBrand?.id);
     if (check.exists) {
       setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
@@ -185,12 +195,25 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
 
     const normalized = cleanBrand.toLowerCase();
 
-    // Check database uniqueness
-    const check = await dbCheckBrandNameExists(cleanBrand, userOwnedBrand?.id);
-    if (check.exists) {
-      setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
-      setIsSubmittingProd(false);
-      return;
+    // Check if brand already exists (e.g. user's own brand or existing registered brand)
+    const existingBrand = brands.find(b => 
+      b.name.trim().toLowerCase() === normalized
+    );
+
+    let targetBrandId = '';
+    let targetBrandName = cleanBrand;
+
+    if (existingBrand) {
+      targetBrandId = existingBrand.id;
+      targetBrandName = existingBrand.name;
+    } else {
+      // If creating a brand for the first time, check uniqueness
+      const check = await dbCheckBrandNameExists(cleanBrand, userOwnedBrand?.id);
+      if (check.exists && (!userOwnedBrand || userOwnedBrand.name.trim().toLowerCase() !== normalized)) {
+        setBrandError("Sorry, that brand/storefront name already exists. Please choose another name.");
+        setIsSubmittingProd(false);
+        return;
+      }
     }
 
     if (!prodName.trim() || !prodPrice.trim()) {
@@ -198,39 +221,38 @@ export const MarketSellerScreen: React.FC<MarketSellerScreenProps> = ({
       return;
     }
 
-    // Determine target brand id & registration
-    let targetBrandId = '';
-    let targetBrandName = cleanBrand;
+    // Determine target brand id & registration if not existing
+    if (!targetBrandId) {
+      if (userOwnedBrand && userOwnedBrand.name.trim().toLowerCase() === normalized) {
+        targetBrandId = userOwnedBrand.id;
+        targetBrandName = userOwnedBrand.name;
+      } else {
+        // Register brand
+        const newBrandId = userOwnedBrand?.id || `brand-${Date.now()}`;
+        const newBrand: MarketBrand = {
+          id: newBrandId,
+          userId: currentUser?.uid,
+          name: cleanBrand,
+          slug: generateBrandSlug(cleanBrand),
+          description: brandDesc.trim() || `Official storefront for ${cleanBrand}`,
+          location: brandLocation.trim() || 'South Africa',
+          contactEmail: currentUser?.email || '',
+          contactPhone: brandContact.trim(),
+          isVerified: true,
+          isOrbitCollection: false,
+          status: 'Active',
+          createdAt: userOwnedBrand?.createdAt || new Date().toISOString()
+        };
 
-    if (userOwnedBrand && userOwnedBrand.name.trim().toLowerCase() === normalized) {
-      targetBrandId = userOwnedBrand.id;
-      targetBrandName = userOwnedBrand.name;
-    } else {
-      // Register brand in the database
-      const newBrandId = userOwnedBrand?.id || `brand-${Date.now()}`;
-      const newBrand: MarketBrand = {
-        id: newBrandId,
-        userId: currentUser?.uid,
-        name: cleanBrand,
-        slug: generateBrandSlug(cleanBrand),
-        description: brandDesc.trim() || `Official storefront for ${cleanBrand}`,
-        location: brandLocation.trim() || 'South Africa',
-        contactEmail: currentUser?.email || '',
-        contactPhone: brandContact.trim(),
-        isVerified: true,
-        isOrbitCollection: normalized === 'orbit collection',
-        status: 'Active',
-        createdAt: userOwnedBrand?.createdAt || new Date().toISOString()
-      };
-
-      const brandRes = await createBrand(newBrand);
-      if (typeof brandRes === 'object' && !brandRes.success) {
-        setBrandError(brandRes.error || "Sorry, that brand/storefront name already exists. Please choose another name.");
-        setIsSubmittingProd(false);
-        return;
+        const brandRes = await createBrand(newBrand);
+        if (typeof brandRes === 'object' && !brandRes.success) {
+          setBrandError(brandRes.error || "Sorry, that brand/storefront name already exists. Please choose another name.");
+          setIsSubmittingProd(false);
+          return;
+        }
+        targetBrandId = newBrandId;
+        targetBrandName = cleanBrand;
       }
-      targetBrandId = newBrandId;
-      targetBrandName = cleanBrand;
     }
 
     const priceNum = parseFloat(prodPrice) || 0;

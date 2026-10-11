@@ -521,6 +521,19 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return;
     }
 
+    if (plan === "market-order") {
+      setMobileScreen("market-orders");
+      const orderId = searchParams.get("order_id");
+      const orderNumber = searchParams.get("order_number");
+      window.history.replaceState({}, document.title, window.location.pathname);
+      if (isSuccess) {
+        console.log(`[PayFast] Successful market order payment returned for ${orderNumber || orderId}.`);
+      } else if (isCancelled) {
+        console.log(`[PayFast] Cancelled market order payment for ${orderNumber || orderId}.`);
+      }
+      return;
+    }
+
     if (isSuccess) {
       console.log("[PayFast] Successful payment returned. Pulling latest subscription from database...");
       
@@ -700,19 +713,23 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 
   const getInitialScreenFromPath = (): string => {
-    if (typeof window === 'undefined') return "splash";
+    if (typeof window === 'undefined') return "home";
     const path = window.location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
-    if (path === 'about') return 'about';
-    if (path === 'contact' || path === 'support') return 'contact';
+    if (path === 'about' || path === 'about-orbit' || path === 'about-orbit-ai') return 'about';
+    if (path === 'contact' || path === 'support-contact') return 'contact';
     if (path === 'privacy' || path === 'privacy-policy') return 'privacy';
-    if (path === 'terms' || path === 'terms-of-service') return 'terms';
-    if (path === 'refund' || path === 'refund-policy' || path === 'cancellation') return 'refund';
+    if (path === 'terms' || path === 'terms-of-service' || path === 'terms-of-use') return 'terms';
+    if (path === 'refund' || path === 'refund-policy') return 'refund';
+    if (path === 'cancellation' || path === 'cancellation-policy') return 'cancellation';
     if (path === 'login' || path === 'signin') return 'login';
     if (path === 'register' || path === 'join' || path === 'signup') return 'register';
     if (path === 'business' || path === 'business-mode') return 'business-mode';
-    if (path === 'market') return 'market';
-    if (path === 'opportunities') return 'opportunities';
-    return "splash";
+    if (path === 'market' || path === 'marketplace' || path === 'market-home') return 'market';
+    if (path === 'opportunities' || path === 'jobs' || path === 'careers') return 'opportunities';
+    if (path === 'rewards' || path === 'orbit-rewards') return 'orbit-rewards';
+    if (path === 'help' || path === 'support') return 'support';
+    if (path === 'admin' || path === 'orbit-ai-admin') return 'admin';
+    return "home";
   };
 
   const [mobileScreen, setMobileScreenInternal] = useState<string>(getInitialScreenFromPath);
@@ -727,10 +744,17 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           'privacy': '/privacy',
           'terms': '/terms',
           'refund': '/refund',
+          'cancellation': '/cancellation',
           'chat': '/',
           'home': '/',
           'login': '/login',
-          'register': '/register'
+          'register': '/register',
+          'business-mode': '/business',
+          'market': '/market',
+          'opportunities': '/opportunities',
+          'orbit-rewards': '/rewards',
+          'support': '/contact',
+          'admin': '/admin'
         };
         const targetPath = publicPaths[screen];
         if (targetPath && window.location.pathname !== targetPath) {

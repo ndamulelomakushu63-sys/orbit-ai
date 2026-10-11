@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { BottomNav } from '../components/BottomNav';
+import { GoogleAdSenseUnit } from '../components/GoogleAdSenseUnit';
 
 interface AboutScreenProps {
   onBack?: () => void;
@@ -33,7 +34,7 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
         className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <main className="max-w-3xl mx-auto p-4 sm:p-8 space-y-8 pb-28">
+        <main id="about-publisher-content" className="max-w-3xl mx-auto p-4 sm:p-8 space-y-8 pb-28">
           {/* Mission */}
           <section className="space-y-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Our Mission</span>
@@ -105,6 +106,9 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
           </section>
 
           <hr className="border-slate-200" />
+
+          {/* Policy-Compliant Google AdSense Placement - Contextual Editorial Slot */}
+          <GoogleAdSenseUnit hasContentReady={true} />
 
           {/* Who We Build For */}
           <section className="space-y-4">

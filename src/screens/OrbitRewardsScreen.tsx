@@ -22,7 +22,6 @@ import {
   dbInsertAuditLog
 } from '../services/supabase';
 import { getRewardedAdsService, RewardedAd, AdWatchResult } from '../services/rewardedAds';
-import { GoogleAdSenseUnit } from '../components/GoogleAdSenseUnit';
 
 export const OrbitRewardsScreen: React.FC = () => {
   const { currentUser, setUsers, referrals, withdrawals, setWithdrawals, setMobileScreen } = useAppState();
@@ -75,8 +74,6 @@ export const OrbitRewardsScreen: React.FC = () => {
 
   // Load Reward history, settings & balances from Supabase
   useEffect(() => {
-    if (!currentUser) return;
-
     let isMounted = true;
 
     const loadRewardsData = async () => {
@@ -90,6 +87,11 @@ export const OrbitRewardsScreen: React.FC = () => {
           setMaxDailyAds(settings.maxDailyAds || 20);
           setMinWithdrawal(settings.minWithdrawal || 100);
           if (settings.policyNotice) setPolicyNotice(settings.policyNotice);
+        }
+
+        if (!currentUser) {
+          if (isMounted) setLoadingMetrics(false);
+          return;
         }
 
         // 2. Fetch Orbit Rewards record from orbit_rewards table in Supabase
@@ -530,12 +532,33 @@ export const OrbitRewardsScreen: React.FC = () => {
             </div>
           </View>
 
-          {/* DEDICATED GOOGLE ADSENSE PLACEMENT */}
-          {/* Strictly rendered only inside Orbit Rewards with verified publisher content present */}
-          <GoogleAdSenseUnit 
-            hasContentReady={!loadingMetrics} 
-            isModalActive={showWithdrawModal || !!activeAdModal} 
-          />
+          {/* GUEST / VISITOR NOTICE FOR PUBLIC EXPLORATION */}
+          {!currentUser && (
+            <View className="bg-gradient-to-r from-blue-900 via-slate-900 to-slate-950 rounded-2xl p-6 text-white space-y-4 shadow-sm border border-slate-800">
+              <View className="space-y-1">
+                <Text className="text-base font-bold text-white tracking-tight">Join the Orbit Rewards Program</Text>
+                <Text className="text-xs text-slate-300 leading-relaxed font-sans">
+                  Sign in or create a free account to track verified referrals, access verified commercial sponsor campaigns, and request South African EFT bank payouts.
+                </Text>
+              </View>
+              <div className="flex flex-row items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMobileScreen('login')}
+                  className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileScreen('register')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition cursor-pointer border border-blue-400"
+                >
+                  Create Account
+                </button>
+              </div>
+            </View>
+          )}
 
         {/* ============================================================ */}
         {/* 1. LOCKED STATE ( < 4 VERIFIED AGENT REFERRALS )             */}

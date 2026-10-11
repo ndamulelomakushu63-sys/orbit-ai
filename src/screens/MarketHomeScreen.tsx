@@ -56,12 +56,15 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({
       return product.brandId === selectedBrandId;
     }
     if (activeCategory === 'All') return true;
-    return product.brandName?.toLowerCase() === activeCategory.toLowerCase() || 
-           product.category?.toLowerCase() === activeCategory.toLowerCase();
+
+    const catLower = activeCategory.toLowerCase().trim();
+    const prodBrandLower = (product.brandName || '').toLowerCase().trim();
+    const prodCategoryLower = (product.category || '').toLowerCase().trim();
+
+    return prodBrandLower === catLower || prodCategoryLower === catLower;
   });
 
   const activeBrandObj = selectedBrandId ? brands.find(b => b.id === selectedBrandId) : null;
-  const thirdPartyBrands = brands.filter(b => !b.isOrbitCollection && b.name.toLowerCase() !== 'orbit collection');
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden bg-white text-slate-900 flex flex-col font-sans selection:bg-blue-50 selection:text-blue-900">
@@ -134,7 +137,7 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({
             Curated Local Marketplace
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 max-w-xl leading-relaxed font-sans font-medium">
-            Shop directly from official Orbit merchandise and verified South African brands with integrated courier delivery.
+            Shop directly from verified South African brands with integrated courier delivery.
           </p>
         </div>
 
@@ -199,8 +202,8 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({
           </div>
         )}
 
-        {/* 3rd Party Brand Onboarding Notice if no 3rd-party brands yet */}
-        {!selectedBrandId && thirdPartyBrands.length === 0 && activeCategory === 'All' && (
+        {/* Local Brand Onboarding Notice if no brands registered yet */}
+        {!selectedBrandId && brands.length === 0 && activeCategory === 'All' && (
           <div className="p-3.5 sm:p-4 rounded-2xl bg-blue-50/60 border border-blue-100/80 flex items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2.5 text-slate-700">
               <Store className="w-4 h-4 text-blue-600 shrink-0" />
@@ -226,19 +229,21 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({
         ) : filteredProducts.length === 0 ? (
           <div className="py-16 text-center bg-slate-50 border border-slate-200/80 rounded-3xl p-8 space-y-3">
             <Tag className="w-8 h-8 text-slate-400 mx-auto" />
-            <h3 className="text-sm font-bold text-slate-800">No products available yet</h3>
+            <h3 className="text-sm font-bold text-slate-800">No products available yet.</h3>
             <p className="text-xs text-slate-500 max-w-xs mx-auto">
-              Products will appear here once published by the seller.
+              Products will appear here once published by registered brands.
             </p>
-            <button
-              onClick={() => {
-                setSelectedBrandId(null);
-                setActiveCategory('All');
-              }}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
-            >
-              Show All Products
-            </button>
+            {activeCategory !== 'All' && (
+              <button
+                onClick={() => {
+                  setSelectedBrandId(null);
+                  setActiveCategory('All');
+                }}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                Show All Products
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">

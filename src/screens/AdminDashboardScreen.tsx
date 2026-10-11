@@ -4,7 +4,7 @@ import {
   Building, User, Mail, DollarSign, Award, Briefcase, 
   Search, Check, XCircle, Trash2, Shield, Info, Smartphone 
 } from '../components/Icons';
-import { Edit3, Plus, X, MessageSquare, Tag, Camera, Upload, Trash, CheckCircle, RefreshCw, Lock } from 'lucide-react';
+import { Edit3, Plus, X, MessageSquare, Tag, Camera, Upload, Trash, CheckCircle, RefreshCw, Lock, Download } from 'lucide-react';
 import { useAppState } from '../services/state';
 import { UserPlan, WithdrawalStatus, UserProfile, WithdrawalRecord, ObdiLead } from '../types';
 import { dbUpsertObdiLead, dbDeleteObdiLead, dbUploadObdiPhoto, supabase } from '../services/supabase';
@@ -331,7 +331,7 @@ export const AdminDashboardScreen: React.FC = () => {
     <ScrollView className="bg-slate-50 min-h-screen px-6 py-8" contentContainerClassName="space-y-8 max-w-7xl mx-auto pb-16">
       
       {/* Title banner */}
-      <View className="flex flex-row justify-between items-center bg-white border border-slate-200/60 p-6 rounded-3xl shadow-3xs">
+      <View className="flex flex-row justify-between items-center bg-white border border-slate-200/60 p-6 rounded-3xl shadow-3xs flex-wrap gap-4">
         <View>
           <Text className="text-xl font-bold text-slate-900 tracking-tight flex flex-row items-center gap-2">
             <Shield className="w-5 h-5 text-blue-600" />
@@ -342,9 +342,21 @@ export const AdminDashboardScreen: React.FC = () => {
           </Text>
         </View>
 
-        <span className="text-[10px] bg-green-50 text-green-700 font-black px-2.5 py-1 rounded-full border border-green-100 uppercase tracking-widest font-sans font-mono animate-pulse">
-          ● Secure Sync Online
-        </span>
+        <div className="flex items-center gap-3">
+          <a 
+            href="/download-project-zip"
+            download="orbit-ai-project.zip"
+            className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold px-4 py-2 rounded-2xl text-xs shadow-md hover:shadow-blue-500/25 border border-blue-500 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+            title="Download full Orbit AI project ZIP"
+          >
+            <Download className="w-4 h-4 text-white" />
+            <span>Download Project ZIP</span>
+          </a>
+
+          <span className="text-[10px] bg-green-50 text-green-700 font-black px-2.5 py-1 rounded-full border border-green-100 uppercase tracking-widest font-sans font-mono animate-pulse">
+            ● Secure Sync Online
+          </span>
+        </div>
       </View>
 
       {/* DATABASE SCHEMA SETUP & MIGRATION CARD */}

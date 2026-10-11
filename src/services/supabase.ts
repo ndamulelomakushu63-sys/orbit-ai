@@ -1151,9 +1151,8 @@ export async function dbInsertAuditLog(userId: string, actionType: string, detai
 // 12. ORBIT MARKET (VISION 1) DB OPERATIONS
 // ==========================================
 
-export const DEFAULT_MARKET_BRANDS: MarketBrand[] = [];
-
-export const DEFAULT_MARKET_PRODUCTS: MarketProduct[] = [];
+export { DEFAULT_MARKET_BRANDS, DEFAULT_MARKET_PRODUCTS } from './marketCatalog';
+import { DEFAULT_MARKET_BRANDS, DEFAULT_MARKET_PRODUCTS } from './marketCatalog';
 
 export async function dbUploadMarketProductImage(file: File, filename?: string): Promise<string | null> {
   try {
@@ -1183,51 +1182,119 @@ export async function dbUploadMarketProductImage(file: File, filename?: string):
   });
 }
 
+function isMockBrand(id?: string, name?: string): boolean {
+  const n = (name || "").toLowerCase().trim();
+  const i = (id || "").toLowerCase().trim();
+  return i === "brand-orbit-official" || i === "brand-orbit" || i === "brand-authentic" || i === "brand-kasi-crafted" || i === "brand-beach-collection" || i === "brand-beat-collection" ||
+    n === "orbit collection" || n === "orbit" || n === "authentic" || n === "kasi crafted" || n === "beach collection" || n === "beat collection" || n.includes("beach collection") || n.includes("beat collection") || n.includes("orbit collection") || n.includes("nike") || n.includes("adidas");
+}
+
+function isMockProduct(id?: string, name?: string, brandName?: string): boolean {
+  const n = (name || "").toLowerCase().trim();
+  const b = (brandName || "").toLowerCase().trim();
+  const i = (id || "").toLowerCase().trim();
+  return i.startsWith("prod-orb-") || i === "prod-orbit-tshirt" || i.startsWith("prod-auth-") || i.startsWith("prod-kasi-") || i === "prod-beat-collection-tee" ||
+    b === "orbit collection" || b === "orbit" || b === "authentic" || b === "kasi crafted" || b === "beach collection" || b === "beat collection" ||
+    b.includes("beach collection") || b.includes("beat collection") || b.includes("orbit collection") ||
+    n.includes("orbit t-shirt") || n.includes("authentic classic") || n.includes("kasi crafted") || n.includes("beach collection") || n.includes("beat collection");
+}
+
 export async function dbFetchMarketBrands(): Promise<MarketBrand[]> {
+  const brandMap = new Map<string, MarketBrand>();
+
+  // 1. Query Supabase database
   try {
     const { data, error } = await supabase
       .from('market_brands')
       .select('*')
       .order('created_at', { ascending: true });
 
-    if (error || !data || data.length === 0) {
-      const local = localStorage.getItem('orbit_market_brands');
-      if (local) {
-        try {
-          const parsed = JSON.parse(local);
-          // Strip out the placeholder test Orbit Collection brand
-          const cleaned = Array.isArray(parsed) 
-            ? parsed.filter((b: any) => b && b.id !== 'brand-orbit' && !(b.isOrbitCollection && !b.userId))
-            : [];
-          if (cleaned.length !== (parsed ? parsed.length : 0)) {
-            localStorage.setItem('orbit_market_brands', JSON.stringify(cleaned));
-          }
-          return cleaned;
-        } catch (e) {}
-      }
-      return DEFAULT_MARKET_BRANDS;
+    if (!error && Array.isArray(data) && data.length > 0) {
+      data.forEach((b: any) => {
+        if (b && b.id && b.name && !isMockBrand(b.id, b.name)) {
+          brandMap.set(b.id, {
+            id: b.id,
+            userId: b.user_id,
+            name: b.name,
+            slug: b.slug,
+            description: b.description || '',
+            location: b.location || '',
+            contactEmail: b.contact_email || '',
+            contactPhone: b.contact_phone || '',
+            isVerified: b.is_verified ?? false,
+            isOrbitCollection: false,
+            createdAt: b.created_at
+          });
+        }
+      });
     }
-
-    // Filter out the test placeholder brand if present in DB
-    const activeBrands = data.filter((b: any) => b.id !== 'brand-orbit' && !(b.is_orbit_collection && !b.user_id));
-
-    return activeBrands.map((b: any) => ({
-      id: b.id,
-      userId: b.user_id,
-      name: b.name,
-      slug: b.slug,
-      description: b.description || '',
-      location: b.location || '',
-      contactEmail: b.contact_email || '',
-      contactPhone: b.contact_phone || '',
-      isVerified: b.is_verified ?? false,
-      isOrbitCollection: b.is_orbit_collection ?? false,
-      createdAt: b.created_at
-    }));
   } catch (err) {
-    console.warn("Supabase fetch market brands failed, using fallback:", err);
-    return DEFAULT_MARKET_BRANDS;
+    console.warn("Supabase fetch market brands notice:", err);
   }
+
+  // 2. Fetch from persistent server backend endpoint
+  try {
+    const res = await fetch('/api/market/brands');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.brands)) {
+        data.brands.forEach((b: any) => {
+          if (b && b.id && b.name && !isMockBrand(b.id, b.name)) {
+            brandMap.set(b.id, {
+              id: b.id,
+              userId: b.userId || b.user_id || undefined,
+              name: b.name,
+              slug: b.slug || generateBrandSlug(b.name),
+              description: b.description || '',
+              location: b.location || '',
+              contactEmail: b.contactEmail || b.contact_email || '',
+              contactPhone: b.contactPhone || b.contact_phone || '',
+              isVerified: b.isVerified ?? b.is_verified ?? true,
+              isOrbitCollection: false,
+              createdAt: b.createdAt || b.created_at || new Date().toISOString()
+            });
+          }
+        });
+      }
+    }
+  } catch (apiErr) {
+    // Non-blocking fallback
+  }
+
+  // 3. Load from local cache (user-created storefronts, strictly filtering out any mock data)
+  try {
+    const local = localStorage.getItem('orbit_market_brands');
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((b: any) => {
+          if (b && b.id && b.name && !isMockBrand(b.id, b.name)) {
+            brandMap.set(b.id, {
+              id: b.id,
+              userId: b.userId || b.user_id || undefined,
+              name: b.name,
+              slug: b.slug || generateBrandSlug(b.name),
+              description: b.description || '',
+              location: b.location || '',
+              contactEmail: b.contactEmail || b.contact_email || '',
+              contactPhone: b.contactPhone || b.contact_phone || '',
+              isVerified: b.isVerified ?? b.is_verified ?? true,
+              isOrbitCollection: false,
+              createdAt: b.createdAt || b.created_at || new Date().toISOString()
+            });
+          }
+        });
+      }
+    }
+  } catch (e) {}
+
+  const result = Array.from(brandMap.values());
+  // Save combined sanitized state to local cache for instant future loads
+  try {
+    localStorage.setItem('orbit_market_brands', JSON.stringify(result));
+  } catch (e) {}
+
+  return result;
 }
 
 export function normalizeBrandName(name: string): string {
@@ -1289,12 +1356,12 @@ export async function dbCheckBrandNameExists(
     console.warn("Supabase check brand query notice:", err);
   }
 
-  // 2. Fallback check against local cache (ignoring old test placeholder)
+  // 2. Fallback check against local cache
   try {
     const local = localStorage.getItem('orbit_market_brands');
-    const list: MarketBrand[] = local ? JSON.parse(local) : [...DEFAULT_MARKET_BRANDS];
+    const list: MarketBrand[] = local ? JSON.parse(local) : [];
     const match = list.find(b => {
-      if (b.id === 'brand-orbit' && !b.userId) return false; // Ignore old test placeholder
+      if (isMockBrand(b.id, b.name)) return false;
       if (excludeBrandId && b.id === excludeBrandId) return false;
       const bNorm = normalizeBrandName(b.name || '');
       const bSlug = (b.slug || generateBrandSlug(b.name || '')).trim().toLowerCase();
@@ -1320,15 +1387,6 @@ export async function dbUpsertMarketBrand(brand: MarketBrand): Promise<{ success
       return { success: false, error: "Brand name cannot be empty." };
     }
 
-    // Pre-flight uniqueness verification against existing Supabase data
-    const check = await dbCheckBrandNameExists(cleanName, brand.id);
-    if (check.exists) {
-      return { 
-        success: false, 
-        error: "Sorry, that brand/storefront name already exists. Please choose another name." 
-      };
-    }
-
     const cleanSlug = brand.slug ? generateBrandSlug(brand.slug) : generateBrandSlug(cleanName);
 
     const dbPayload = {
@@ -1341,31 +1399,43 @@ export async function dbUpsertMarketBrand(brand: MarketBrand): Promise<{ success
       contact_email: brand.contactEmail || '',
       contact_phone: brand.contactPhone || '',
       is_verified: brand.isVerified ?? false,
-      is_orbit_collection: brand.isOrbitCollection ?? false,
+      is_orbit_collection: false,
       created_at: brand.createdAt || new Date().toISOString()
     };
 
-    const { error } = await supabase
-      .from('market_brands')
-      .upsert(dbPayload);
+    // 1. Post to persistent server API endpoint
+    try {
+      await fetch('/api/market/brands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dbPayload)
+      });
+    } catch (e) {}
 
-    if (error) {
-      // Catch database-level unique constraint violations (code 23505)
-      if (error.code === '23505' || /duplicate key|unique constraint/i.test(error.message || '')) {
-        return { 
-          success: false, 
-          error: "Sorry, that brand/storefront name already exists. Please choose another name." 
-        };
+    // 2. Upsert in Supabase
+    try {
+      const { error } = await supabase
+        .from('market_brands')
+        .upsert(dbPayload);
+
+      if (error) {
+        if (error.code === '23505' || /duplicate key|unique constraint/i.test(error.message || '')) {
+          return { 
+            success: false, 
+            error: "Sorry, that brand/storefront name already exists. Please choose another name." 
+          };
+        }
       }
-      throw error;
+    } catch (dbErr) {
+      console.warn("Supabase upsert market brand fallback:", dbErr);
     }
 
-    // Sync to local cache
+    // 3. Sync to local cache
     try {
       const local = localStorage.getItem('orbit_market_brands');
-      const list = local ? JSON.parse(local) : [...DEFAULT_MARKET_BRANDS];
+      const list = local ? JSON.parse(local) : [];
       const idx = list.findIndex((b: any) => b.id === brand.id);
-      const savedBrand = { ...brand, name: cleanName, slug: cleanSlug };
+      const savedBrand = { ...brand, name: cleanName, slug: cleanSlug, isOrbitCollection: false };
       if (idx >= 0) list[idx] = savedBrand;
       else list.push(savedBrand);
       localStorage.setItem('orbit_market_brands', JSON.stringify(list));
@@ -1373,161 +1443,240 @@ export async function dbUpsertMarketBrand(brand: MarketBrand): Promise<{ success
 
     return { success: true };
   } catch (err: any) {
-    if (err?.code === '23505' || /duplicate key|unique constraint/i.test(err?.message || '')) {
-      return { 
-        success: false, 
-        error: "Sorry, that brand/storefront name already exists. Please choose another name." 
-      };
-    }
-
-    console.warn("Supabase upsert market brand fallback:", err);
-    try {
-      const cleanName = (brand.name || '').trim();
-      const cleanSlug = brand.slug ? generateBrandSlug(brand.slug) : generateBrandSlug(cleanName);
-      const local = localStorage.getItem('orbit_market_brands');
-      const list = local ? JSON.parse(local) : [...DEFAULT_MARKET_BRANDS];
-      const idx = list.findIndex((b: any) => b.id === brand.id);
-      const savedBrand = { ...brand, name: cleanName, slug: cleanSlug };
-      if (idx >= 0) list[idx] = savedBrand;
-      else list.push(savedBrand);
-      localStorage.setItem('orbit_market_brands', JSON.stringify(list));
-    } catch (e) {}
     return { success: true };
   }
 }
 
 export async function dbFetchMarketProducts(): Promise<MarketProduct[]> {
+  const prodMap = new Map<string, MarketProduct>();
+
+  // 1. Query Supabase database
   try {
     const { data: prods, error: pErr } = await supabase
       .from('market_products')
       .select('*')
       .order('created_at', { ascending: true });
 
-    if (pErr || !prods || prods.length === 0) {
-      const local = localStorage.getItem('orbit_market_products');
-      if (local) {
-        try {
-          const parsed = JSON.parse(local);
-          const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
-          const cleaned = Array.isArray(parsed) ? parsed.filter((p: any) => p && !demoIds.includes(p.id) && p.brandId !== 'brand-orbit') : [];
-          if (cleaned.length !== parsed.length) {
-            localStorage.setItem('orbit_market_products', JSON.stringify(cleaned));
+    if (!pErr && Array.isArray(prods) && prods.length > 0) {
+      const { data: variants } = await supabase
+        .from('market_product_variants')
+        .select('*');
+
+      prods.forEach((p: any) => {
+        if (p && p.id && p.name && !isMockProduct(p.id, p.name, p.brand_name)) {
+          const pVariants = (variants || [])
+            .filter((v: any) => v.product_id === p.id)
+            .map((v: any) => ({
+              id: v.id,
+              productId: v.product_id,
+              sizeName: v.size_name,
+              stockQuantity: Number(v.stock_quantity || 0),
+              priceOverride: v.price_override ? Number(v.price_override) : undefined
+            }));
+
+          let imgList: string[] = [];
+          if (Array.isArray(p.images) && p.images.length > 0) {
+            imgList = p.images;
+          } else if (p.image_url) {
+            imgList = [p.image_url];
           }
-          return cleaned;
-        } catch (e) {}
-      }
-      return DEFAULT_MARKET_PRODUCTS;
+
+          prodMap.set(p.id, {
+            id: p.id,
+            brandId: p.brand_id,
+            brandName: p.brand_name || '',
+            name: p.name,
+            description: p.description || '',
+            price: Number(p.price || 0),
+            category: p.category || p.brand_name || 'Marketplace',
+            imageUrl: p.image_url || imgList[0] || '',
+            images: imgList,
+            isPublished: p.is_published ?? true,
+            inStock: p.in_stock ?? true,
+            stockQuantity: Number(p.stock_quantity || 0),
+            variants: pVariants.length > 0 ? pVariants : (prodMap.get(p.id)?.variants || []),
+            createdAt: p.created_at
+          });
+        }
+      });
     }
-
-    const { data: variants } = await supabase
-      .from('market_product_variants')
-      .select('*');
-
-    const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
-    const activeProds = prods.filter((p: any) => !demoIds.includes(p.id) && p.brand_id !== 'brand-orbit');
-
-    return activeProds.map((p: any) => {
-      const pVariants = (variants || [])
-        .filter((v: any) => v.product_id === p.id)
-        .map((v: any) => ({
-          id: v.id,
-          productId: v.product_id,
-          sizeName: v.size_name,
-          stockQuantity: Number(v.stock_quantity || 0),
-          priceOverride: v.price_override ? Number(v.price_override) : undefined
-        }));
-
-      let imgList: string[] = [];
-      if (Array.isArray(p.images) && p.images.length > 0) {
-        imgList = p.images;
-      } else if (p.image_url) {
-        imgList = [p.image_url];
-      }
-
-      return {
-        id: p.id,
-        brandId: p.brand_id,
-        brandName: p.brand_name || '',
-        name: p.name,
-        description: p.description || '',
-        price: Number(p.price || 0),
-        category: p.category || p.brand_name || 'Marketplace',
-        imageUrl: p.image_url || imgList[0] || '',
-        images: imgList,
-        isPublished: p.is_published ?? true,
-        inStock: p.in_stock ?? true,
-        stockQuantity: Number(p.stock_quantity || 0),
-        variants: pVariants,
-        createdAt: p.created_at
-      };
-    });
   } catch (err) {
-    console.warn("Supabase fetch market products failed, using fallback:", err);
-    try {
-      const local = localStorage.getItem('orbit_market_products');
-      if (local) {
-        const parsed = JSON.parse(local);
-        const demoIds = ['prod-orb-tshirt', 'prod-orb-premium-tee', 'prod-orb-hoodie', 'prod-orb-cap'];
-        return Array.isArray(parsed) ? parsed.filter((p: any) => p && !demoIds.includes(p.id) && p.brandId !== 'brand-orbit') : [];
-      }
-    } catch (e) {}
-    return DEFAULT_MARKET_PRODUCTS;
+    console.warn("Supabase fetch market products notice:", err);
   }
+
+  // 2. Fetch from persistent server backend endpoint
+  try {
+    const res = await fetch('/api/market/products');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.products)) {
+        data.products.forEach((p: any) => {
+          if (p && p.id && p.name && !isMockProduct(p.id, p.name, p.brandName || p.brand_name)) {
+            prodMap.set(p.id, {
+              id: p.id,
+              brandId: p.brandId || p.brand_id || '',
+              brandName: p.brandName || p.brand_name || '',
+              name: p.name,
+              description: p.description || '',
+              price: Number(p.price || 0),
+              category: p.category || p.brandName || 'Marketplace',
+              imageUrl: p.imageUrl || p.image_url || '',
+              images: Array.isArray(p.images) ? p.images : (p.imageUrl ? [p.imageUrl] : []),
+              isPublished: p.isPublished ?? p.is_published ?? true,
+              inStock: p.inStock ?? p.in_stock ?? true,
+              stockQuantity: Number(p.stockQuantity ?? p.stock_quantity ?? 10),
+              variants: Array.isArray(p.variants) ? p.variants : [],
+              createdAt: p.createdAt || p.created_at || new Date().toISOString()
+            });
+          }
+        });
+      }
+    }
+  } catch (apiErr) {
+    // Non-blocking fallback
+  }
+
+  // 3. Load from local cache (user-published products, strictly filtering out mock data)
+  try {
+    const local = localStorage.getItem('orbit_market_products');
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((p: any) => {
+          if (p && p.id && p.name && !isMockProduct(p.id, p.name, p.brandName || p.brand_name)) {
+            prodMap.set(p.id, {
+              id: p.id,
+              brandId: p.brandId || p.brand_id || '',
+              brandName: p.brandName || p.brand_name || '',
+              name: p.name,
+              description: p.description || '',
+              price: Number(p.price || 0),
+              category: p.category || p.brandName || 'Marketplace',
+              imageUrl: p.imageUrl || p.image_url || '',
+              images: Array.isArray(p.images) ? p.images : (p.imageUrl ? [p.imageUrl] : []),
+              isPublished: p.isPublished ?? p.is_published ?? true,
+              inStock: p.inStock ?? p.in_stock ?? true,
+              stockQuantity: Number(p.stockQuantity ?? p.stock_quantity ?? 10),
+              variants: Array.isArray(p.variants) ? p.variants : [],
+              createdAt: p.createdAt || p.created_at || new Date().toISOString()
+            });
+          }
+        });
+      }
+    }
+  } catch (e) {}
+
+  const result = Array.from(prodMap.values());
+  // Save sanitized merged state to local cache for instant persistence across refresh
+  try {
+    localStorage.setItem('orbit_market_products', JSON.stringify(result));
+  } catch (e) {}
+
+  return result;
 }
 
 export async function dbUpsertMarketProduct(product: MarketProduct): Promise<boolean> {
   try {
+    if (isMockProduct(product.id, product.name, product.brandName)) return true;
     const mainImg = product.imageUrl || (product.images && product.images.length > 0 ? product.images[0] : null);
-    const { error: pErr } = await supabase
-      .from('market_products')
-      .upsert({
-        id: product.id,
-        brand_id: product.brandId,
-        brand_name: product.brandName,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        category: product.category,
-        image_url: mainImg,
-        images: product.images || (mainImg ? [mainImg] : []),
-        is_published: product.isPublished ?? true,
-        in_stock: product.inStock,
-        stock_quantity: product.stockQuantity,
-        created_at: product.createdAt || new Date().toISOString()
+
+    // 1. Post to persistent server API endpoint
+    try {
+      await fetch('/api/market/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(product)
       });
+    } catch (e) {}
 
-    if (pErr) throw pErr;
+    // 2. Upsert in Supabase
+    try {
+      const { error: pErr } = await supabase
+        .from('market_products')
+        .upsert({
+          id: product.id,
+          brand_id: product.brandId,
+          brand_name: product.brandName,
+          name: product.name,
+          description: product.description,
+          price: product.price,
+          category: product.category,
+          image_url: mainImg,
+          images: product.images || (mainImg ? [mainImg] : []),
+          is_published: product.isPublished ?? true,
+          in_stock: product.inStock,
+          stock_quantity: product.stockQuantity,
+          created_at: product.createdAt || new Date().toISOString()
+        });
 
-    if (product.variants && product.variants.length > 0) {
-      for (const v of product.variants) {
-        await supabase
-          .from('market_product_variants')
-          .upsert({
-            id: v.id,
-            product_id: product.id,
-            size_name: v.sizeName,
-            stock_quantity: v.stockQuantity,
-            price_override: v.priceOverride || null
-          });
+      if (!pErr && product.variants && product.variants.length > 0) {
+        for (const v of product.variants) {
+          await supabase
+            .from('market_product_variants')
+            .upsert({
+              id: v.id,
+              product_id: product.id,
+              size_name: v.sizeName,
+              stock_quantity: v.stockQuantity,
+              price_override: v.priceOverride || null
+            });
+        }
       }
+    } catch (dbErr) {
+      console.warn("Supabase upsert product fallback:", dbErr);
     }
-    return true;
-  } catch (err) {
-    console.warn("Supabase upsert product failed:", err);
+
+    // 3. Save to local storage
     try {
       const local = localStorage.getItem('orbit_market_products');
-      const list = local ? JSON.parse(local) : [...DEFAULT_MARKET_PRODUCTS];
+      const list = local ? JSON.parse(local) : [];
       const idx = list.findIndex((p: any) => p.id === product.id);
       if (idx >= 0) list[idx] = product;
       else list.push(product);
       localStorage.setItem('orbit_market_products', JSON.stringify(list));
     } catch (e) {}
+
+    return true;
+  } catch (err) {
     return true;
   }
 }
 
 export async function dbFetchMarketOrders(userId?: string): Promise<MarketOrder[]> {
   try {
+    // 1. Check persistent server endpoint
+    try {
+      const url = userId ? `/api/market/orders?userId=${encodeURIComponent(userId)}` : '/api/market/orders';
+      const sRes = await fetch(url);
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        if (sData && sData.success && Array.isArray(sData.orders) && sData.orders.length > 0) {
+          return sData.orders.map((o: any) => ({
+            id: o.id,
+            orderNumber: o.orderNumber || o.order_number,
+            userId: o.userId || o.user_id,
+            customerName: o.customerName || o.customer_name,
+            customerEmail: o.customerEmail || o.customer_email,
+            customerPhone: o.customerPhone || o.customer_phone,
+            deliveryAddress: o.deliveryAddress || o.delivery_address,
+            subtotal: Number(o.subtotal || 0),
+            deliveryFee: Number(o.deliveryFee || o.delivery_fee || 0),
+            commissionRate: Number(o.commissionRate || o.commission_rate || 0.1),
+            commissionAmount: Number(o.commissionAmount || o.commission_amount || 0),
+            sellerPayoutAmount: Number(o.sellerPayoutAmount || o.seller_payout_amount || 0),
+            total: Number(o.total || 0),
+            paymentStatus: o.paymentStatus || o.payment_status || "Pending",
+            orderStatus: o.orderStatus || o.order_status || "Pending Payment",
+            paymentId: o.paymentId || o.payment_id,
+            trackingNumber: o.trackingNumber || o.tracking_number,
+            items: Array.isArray(o.items) ? o.items : [],
+            createdAt: o.createdAt || o.created_at,
+            updatedAt: o.updatedAt || o.updated_at
+          }));
+        }
+      }
+    } catch (e) {}
+
     let query = supabase
       .from('market_orders')
       .select('*')

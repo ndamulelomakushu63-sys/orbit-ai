@@ -81,7 +81,7 @@ export const MarketCheckoutScreen: React.FC<MarketCheckoutScreenProps> = ({
     setIsProcessing(true);
 
     try {
-      // 1. Send minimal cart & customer payload to Vercel server-side payment initialization endpoint
+      // 1. Send complete cart & customer payload to server-side payment initialization endpoint
       const payload = {
         userId: currentUser?.uid || null,
         customerName: customerName.trim(),
@@ -90,6 +90,10 @@ export const MarketCheckoutScreen: React.FC<MarketCheckoutScreenProps> = ({
         deliveryAddress: fullAddress,
         items: cart.map(item => ({
           productId: item.productId,
+          productName: item.productName,
+          brandId: item.brandId,
+          brandName: item.brandName,
+          price: item.price,
           variantName: item.variantName || null,
           quantity: item.quantity,
           sellerId: item.sellerId || null
@@ -365,22 +369,16 @@ export const MarketCheckoutScreen: React.FC<MarketCheckoutScreenProps> = ({
                 className="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-sm transition-all shadow-xs flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
               >
                 {isProcessing ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    <span>Connecting to PayFast Gateway...</span>
+                  </>
                 ) : (
                   <>
                     <CreditCard className="w-4 h-4" />
-                    <span>Pay with PayFast • R{cartTotal.toFixed(2)}</span>
+                    <span>Continue with PayFast • R{cartTotal.toFixed(2)}</span>
                   </>
                 )}
-              </button>
-
-              {/* Instant Demo Order simulation button for testing */}
-              <button
-                disabled={isProcessing}
-                onClick={() => handlePayFastCheckout(true)}
-                className="w-full py-2 px-3 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
-              >
-                Instant Demo Order (Verification Mode)
               </button>
             </div>
           </div>

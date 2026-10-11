@@ -1,0 +1,70 @@
+[
+  {
+    "id": "order-1791138227517-ieres",
+    "order_number": "ORB-55783",
+    "user_id": null,
+    "customer_name": "Ndamulelo Makushu",
+    "customer_email": "ndamulelomakushu63@gmail.com",
+    "customer_phone": "0821234567",
+    "delivery_address": "123 Main St, Johannesburg 2000",
+    "subtotal": 249,
+    "delivery_fee": 50,
+    "commission_rate": 0.1,
+    "commission_amount": 24.9,
+    "seller_payout_amount": 224.1,
+    "total": 299,
+    "payment_status": "Pending",
+    "order_status": "Pending Payment",
+    "items": [
+      {
+        "id": "item-1791138227818-vdiqf",
+        "order_id": "order-1791138227517-ieres",
+        "product_id": "prod-orbit-tshirt",
+        "brand_id": "brand-orbit-official",
+        "seller_id": null,
+        "product_name": "Orbit T-shirt",
+        "brand_name": "Orbit Collection",
+        "variant_name": "M",
+        "quantity": 1,
+        "unit_price": 249,
+        "total_price": 249
+      }
+    ],
+    "created_at": "2026-10-04T18:23:47.818Z",
+    "updated_at": "2026-10-04T18:23:47.818Z"
+  },
+  {
+    "id": "order-1791138367428-yiwrh",
+    "order_number": "ORB-29191",
+    "user_id": null,
+    "customer_name": "Ndamulelo Makushu",
+    "customer_email": "ndamulelomakushu63@gmail.com",
+    "customer_phone": "0821234567",
+    "delivery_address": "123 Main St, Johannesburg 2000",
+    "subtotal": 249,
+    "delivery_fee": 50,
+    "commission_rate": 0.1,
+    "commission_amount": 24.9,
+    "seller_payout_amount": 224.1,
+    "total": 299,
+    "payment_status": "Pending",
+    "order_status": "Pending Payment",
+    "items": [
+      {
+        "id": "item-1791138368052-acz03",
+        "order_id": "order-1791138367428-yiwrh",
+        "product_id": "prod-orbit-tshirt",
+        "brand_id": "brand-orbit-official",
+        "seller_id": null,
+        "product_name": "Orbit T-shirt",
+        "brand_name": "Orbit Collection",
+        "variant_name": "L",
+        "quantity": 1,
+        "unit_price": 249,
+        "total_price": 249
+      }
+    ],
+    "created_at": "2026-10-04T18:26:08.052Z",
+    "updated_at": "2026-10-04T18:26:08.052Z"
+  }
+]

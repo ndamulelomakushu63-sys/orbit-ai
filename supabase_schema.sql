@@ -1164,29 +1164,30 @@ CREATE POLICY "Insert order items" ON public.market_order_items FOR INSERT WITH 
 DROP POLICY IF EXISTS "Public can read market settings" ON public.market_settings;
 CREATE POLICY "Public can read market settings" ON public.market_settings FOR SELECT USING (true);
 
--- Clean up legacy placeholder test Orbit Collection brand/products if present
-DELETE FROM public.market_product_variants WHERE product_id IN ('prod-orb-tshirt', 'prod-orb-hoodie', 'prod-orb-cap', 'prod-orb-premium-tee');
-DELETE FROM public.market_products WHERE brand_id = 'brand-orbit' OR id IN ('prod-orb-tshirt', 'prod-orb-hoodie', 'prod-orb-cap', 'prod-orb-premium-tee');
-DELETE FROM public.market_brands WHERE id = 'brand-orbit' AND user_id IS NULL;
-
--- Seed Initial Default Data (Preserving existing marketplace brands)
-INSERT INTO public.market_brands (id, name, slug, description, location, is_verified, is_orbit_collection)
+-- Seed Initial Default Data (Preserving existing marketplace brands & Orbit Collection)
+INSERT INTO public.market_brands (id, name, slug, description, location, contact_email, contact_phone, is_verified, is_orbit_collection)
 VALUES 
+    ('brand-orbit-official', 'Orbit Collection', 'orbit-collection', 'Official Orbit AI signature merchandise and premium South African streetwear tailored with breathable local textiles.', 'Johannesburg, South Africa', 'ndamulelo@orbit.co.za', '+27 82 123 4567', true, true),
     ('brand-authentic', 'Authentic', 'authentic', 'Premium local clothing crafted for effortless style.', 'Johannesburg, ZA', true, false),
     ('brand-kasi-crafted', 'Kasi Crafted', 'kasi-crafted', 'Handmade local lifestyle accessories & apparel.', 'Cape Town, ZA', true, false)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.market_products (id, brand_id, brand_name, name, description, price, category, in_stock, stock_quantity)
+INSERT INTO public.market_products (id, brand_id, brand_name, name, description, price, category, image_url, in_stock, stock_quantity)
 VALUES 
-    ('prod-auth-tshirt', 'brand-authentic', 'Authentic', 'Authentic Classic T-Shirt', 'Clean-cut modern fit t-shirt tailored with breathable South African cotton.', 159.00, 'Authentic', true, 45),
-    ('prod-auth-sweat', 'brand-authentic', 'Authentic', 'Authentic Crewneck Sweatshirt', 'Relaxed fit pullover sweater with premium ribbed cuffs and neckline.', 299.00, 'Authentic', true, 25),
-    ('prod-auth-jacket', 'brand-authentic', 'Authentic', 'Authentic Denim Overshirt', 'Durable premium raw denim overshirt for all-season layering.', 499.00, 'Authentic', true, 15),
-    ('prod-kasi-wallet', 'brand-kasi-crafted', 'Kasi Crafted', 'Handmade Leather Cardholder', 'Genuine vegetable-tanned leather minimalist card wallet with 6 card slots.', 120.00, 'Other Local Brands', true, 30),
-    ('prod-kasi-tote', 'brand-kasi-crafted', 'Kasi Crafted', 'Heavy Canvas Market Tote', 'Eco-friendly natural canvas tote bag reinforced for everyday carry.', 99.00, 'Other Local Brands', true, 50)
+    ('prod-orbit-tshirt', 'brand-orbit-official', 'Orbit Collection', 'Orbit T-shirt', 'Official Orbit AI signature heavyweight cotton t-shirt featuring the embroidered Orbit emblem and modern streetwear fit. Tailored in South Africa with 100% pre-shrunk combed cotton.', 249.00, 'Orbit Collection', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&auto=format&fit=crop&q=80', true, 50),
+    ('prod-auth-tshirt', 'brand-authentic', 'Authentic', 'Authentic Classic T-Shirt', 'Clean-cut modern fit t-shirt tailored with breathable South African cotton.', 159.00, 'Authentic', 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=800&auto=format&fit=crop&q=80', true, 45),
+    ('prod-auth-sweat', 'brand-authentic', 'Authentic', 'Authentic Crewneck Sweatshirt', 'Relaxed fit pullover sweater with premium ribbed cuffs and neckline.', 299.00, 'Authentic', 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80', true, 25),
+    ('prod-auth-jacket', 'brand-authentic', 'Authentic', 'Authentic Denim Overshirt', 'Durable premium raw denim overshirt for all-season layering.', 499.00, 'Authentic', 'https://images.unsplash.com/photo-1601333144130-8cbb312386b6?w=800&auto=format&fit=crop&q=80', true, 15),
+    ('prod-kasi-wallet', 'brand-kasi-crafted', 'Kasi Crafted', 'Handmade Leather Cardholder', 'Genuine vegetable-tanned leather minimalist card wallet with 6 card slots.', 120.00, 'Other Local Brands', 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&auto=format&fit=crop&q=80', true, 30),
+    ('prod-kasi-tote', 'brand-kasi-crafted', 'Kasi Crafted', 'Heavy Canvas Market Tote', 'Eco-friendly natural canvas tote bag reinforced for everyday carry.', 99.00, 'Other Local Brands', 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=80', true, 50)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.market_product_variants (id, product_id, size_name, stock_quantity)
 VALUES
+    ('var-orb-ts-s', 'prod-orbit-tshirt', 'S', 15),
+    ('var-orb-ts-m', 'prod-orbit-tshirt', 'M', 20),
+    ('var-orb-ts-l', 'prod-orbit-tshirt', 'L', 10),
+    ('var-orb-ts-xl', 'prod-orbit-tshirt', 'XL', 5),
     ('var-auth-ts-s', 'prod-auth-tshirt', 'S', 10),
     ('var-auth-ts-m', 'prod-auth-tshirt', 'M', 20),
     ('var-auth-ts-l', 'prod-auth-tshirt', 'L', 10),
@@ -1205,5 +1206,12 @@ INSERT INTO public.market_settings (id, commission_rate, default_delivery_fee, m
 VALUES ('default', 0.10, 50.00, 0.00, true)
 ON CONFLICT (id) DO NOTHING;
 
+-- Grant permissions to public, anon, and authenticated roles
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.market_brands TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.market_products TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.market_product_variants TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.market_orders TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.market_order_items TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.market_settings TO anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 
