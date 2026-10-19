@@ -32,7 +32,109 @@ function withTimeout<T>(promise: Promise<T> | any, ms: number = 3000): Promise<T
   return raced;
 }
 
+async function handleDebugOpenAI(req: any, res: any) {
+  console.log("--- START DEBUG OPENAI ENDPOINT ---");
+  const results: any = {
+    envCheck: {
+      hasOpenaiKey: !!process.env.OPENAI_API_KEY,
+      openaiKeyLength: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
+      openaiKeyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 10) : "none",
+      hasSupabaseUrl: !!process.env.VITE_SUPABASE_URL,
+      hasSupabaseAnonKey: !!process.env.VITE_SUPABASE_ANON_KEY,
+    },
+    openaiDirectFetchResult: null,
+    openaiSdkResult: null,
+    errors: []
+  };
+
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+
+  if (!openaiApiKey) {
+    const msg = "CRITICAL: OPENAI_API_KEY is not defined in environment variables on Vercel.";
+    console.error(msg);
+    results.errors.push(msg);
+    return res.status(500).json({ error: msg, results });
+  }
+
+  // Test 1: Direct Fetch to OpenAI Chat Completion API
+  try {
+    const url = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiApiKey}`
+    };
+    const bodyPayload = JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a debug assistant." },
+        { role: "user", content: "Ping" }
+      ],
+      temperature: 0.1
+    });
+
+    const openAiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyPayload
+    });
+
+    const status = openAiResponse.status;
+    const responseText = await openAiResponse.text();
+
+    results.openaiDirectFetchResult = {
+      status,
+      body: responseText
+    };
+
+    if (!openAiResponse.ok) {
+      results.errors.push(`Direct fetch failed with status ${status}: ${responseText}`);
+    }
+  } catch (err: any) {
+    const errMsg = `Test 1 Crash: ${err.message || err}`;
+    results.errors.push({
+      message: errMsg,
+      stack: err.stack
+    });
+  }
+
+  // Test 2: SDK initialization and test
+  try {
+    const OpenAI = (await import('openai')).default;
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
+    });
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a debug assistant." },
+        { role: "user", content: "Ping" }
+      ],
+      temperature: 0.1
+    });
+
+    results.openaiSdkResult = {
+      choices: response.choices
+    };
+  } catch (err: any) {
+    const errMsg = `Test 2 Crash: ${err.message || err}`;
+    results.errors.push({
+      message: errMsg,
+      stack: err.stack
+    });
+  }
+
+  console.log("--- END DEBUG OPENAI ENDPOINT ---");
+  return res.status(200).json(results);
+}
+
 export default async function handler(req: any, res: any) {
+  // Check if routed for diagnostic debugging
+  const isDebug = req.query?.action === 'debug' || req.query?.debug === 'true' || (req.url && req.url.includes('debug'));
+  if (isDebug) {
+    return handleDebugOpenAI(req, res);
+  }
+
   console.log("--- START CHAT ENDPOINT CALL ---");
   
   // Ensure we always return JSON, even for general uncaught errors
