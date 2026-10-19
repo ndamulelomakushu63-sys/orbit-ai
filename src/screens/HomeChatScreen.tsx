@@ -695,10 +695,17 @@ export const HomeChatScreen: React.FC = () => {
               </TouchableOpacity>
 
               <TouchableOpacity 
+                onClick={() => { setShowMenu(false); setMobileScreen("resources"); }}
+                className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left"
+              >
+                <Text className="text-[16px] font-semibold text-blue-600 font-sans text-left w-full whitespace-nowrap">AI Guides &amp; Resources</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
                 onClick={() => { setShowMenu(false); setMobileScreen("orbit-rewards"); }}
                 className="px-4 h-[48px] flex flex-row items-center justify-start hover:bg-slate-50 cursor-pointer w-full text-left"
               >
-                <Text className="text-[16px] font-medium text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">Orbit Rewards</Text>
+                <Text className="text-[16px] font-medium text-[#1F1F1F] font-sans text-left w-full whitespace-nowrap">Showdown Rewards</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -722,6 +729,24 @@ export const HomeChatScreen: React.FC = () => {
       {/* TOP INFORMATION / LEGAL NAVIGATION AREA */}
       <View className="w-full bg-slate-50 border-b border-slate-200/80 select-none">
         <div className="flex flex-row items-center overflow-x-auto whitespace-nowrap scrollbar-none py-2 px-3 sm:px-4 gap-2.5 sm:gap-3 text-slate-600">
+          <TouchableOpacity 
+            onClick={() => setMobileScreen("resources")} 
+            className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"
+          >
+            <Text className="text-[11.5px] font-sans font-semibold text-blue-600 hover:text-blue-700">AI Guides &amp; Resources</Text>
+          </TouchableOpacity>
+          
+          <Text className="text-[10px] text-slate-300 select-none">|</Text>
+
+          <TouchableOpacity 
+            onClick={() => setMobileScreen("orbit-rewards")} 
+            className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"
+          >
+            <Text className="text-[11.5px] font-sans font-medium text-slate-600 hover:text-blue-600">Showdown Rewards</Text>
+          </TouchableOpacity>
+          
+          <Text className="text-[10px] text-slate-300 select-none">|</Text>
+
           <TouchableOpacity 
             onClick={() => setMobileScreen("about")} 
             className="py-1 px-1.5 hover:text-blue-600 transition cursor-pointer"

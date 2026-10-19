@@ -6,6 +6,8 @@
     { "src": "/api/payfast/checkout", "dest": "/api/payfast/checkout" },
     { "src": "/api/payfast/notify", "dest": "/api/payfast/notify" },
     { "src": "/api/market/checkout-init", "dest": "/api/market/checkout-init" },
+    { "src": "/api/rewards/quiz(.*)", "dest": "/api/rewards/quiz" },
+    { "src": "/api/rewards/redeem(.*)", "dest": "/api/rewards/redeem" },
     { "handle": "filesystem" },
     { "src": "/admin/(.*)", "dest": "/admin/index.html" },
     { "src": "/(.*)", "dest": "/index.html" }

@@ -1,7 +1,6 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { BottomNav } from '../components/BottomNav';
-import { GoogleAdSenseUnit } from '../components/GoogleAdSenseUnit';
 
 interface AboutScreenProps {
   onBack?: () => void;
@@ -106,9 +105,6 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
           </section>
 
           <hr className="border-slate-200" />
-
-          {/* Policy-Compliant Google AdSense Placement - Contextual Editorial Slot */}
-          <GoogleAdSenseUnit hasContentReady={true} />
 
           {/* Who We Build For */}
           <section className="space-y-4">

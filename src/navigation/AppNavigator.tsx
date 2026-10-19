@@ -34,6 +34,9 @@ import { TermsScreen } from '../screens/TermsScreen';
 import { RefundPolicyScreen } from '../screens/RefundPolicyScreen';
 import { CancellationPolicyScreen } from '../screens/CancellationPolicyScreen';
 import { AdminDashboardScreen } from '../screens/AdminDashboardScreen';
+import { ResourcesScreen } from '../screens/ResourcesScreen';
+import { GuideDetailScreen } from '../screens/GuideDetailScreen';
+import { ORBIT_GUIDES } from '../data/guidesData';
 
 export const AppNavigator: React.FC = () => {
   const { mobileScreen, setMobileScreen, currentUser } = useAppState();
@@ -42,12 +45,33 @@ export const AppNavigator: React.FC = () => {
   const isPro = subStatus === "pro_monthly" || subStatus === "pro_yearly" || currentUser?.plan === UserPlan.PRO;
 
   const renderScreen = () => {
+    if (mobileScreen.startsWith("guide-")) {
+      const slug = mobileScreen.replace(/^guide-/, '');
+      const guide = ORBIT_GUIDES.find(g => g.slug === slug || g.id === slug);
+      if (guide) {
+        return (
+          <GuideDetailScreen 
+            guide={guide} 
+            onBack={() => setMobileScreen("resources")} 
+          />
+        );
+      }
+    }
+
     switch (mobileScreen) {
       case "splash":
         return <SplashScreen />;
       case "home":
       case "chat":
         return <HomeChatScreen />;
+      case "resources":
+      case "guides":
+        return (
+          <ResourcesScreen 
+            onBack={() => setMobileScreen("chat")} 
+            onSelectGuide={(slug) => setMobileScreen(`guide-${slug}`)} 
+          />
+        );
       case "about":
       case "about-orbit":
       case "about-orbit-ai":

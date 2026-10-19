@@ -715,6 +715,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const getInitialScreenFromPath = (): string => {
     if (typeof window === 'undefined') return "home";
     const path = window.location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+    if (path === 'resources' || path === 'guides' || path === 'articles') return 'resources';
+    if (path.startsWith('guides/') || path.startsWith('resources/')) {
+      const slug = path.split('/')[1];
+      if (slug) return `guide-${slug}`;
+      return 'resources';
+    }
     if (path === 'about' || path === 'about-orbit' || path === 'about-orbit-ai') return 'about';
     if (path === 'contact' || path === 'support-contact') return 'contact';
     if (path === 'privacy' || path === 'privacy-policy') return 'privacy';
@@ -739,6 +745,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       if (typeof window !== 'undefined') {
         const publicPaths: Record<string, string> = {
+          'resources': '/resources',
+          'guides': '/resources',
           'about': '/about',
           'contact': '/contact',
           'privacy': '/privacy',
@@ -756,6 +764,13 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           'support': '/contact',
           'admin': '/admin'
         };
+        if (screen.startsWith('guide-')) {
+          const slug = screen.replace(/^guide-/, '');
+          if (window.location.pathname !== `/guides/${slug}`) {
+            window.history.pushState({}, '', `/guides/${slug}`);
+          }
+          return;
+        }
         const targetPath = publicPaths[screen];
         if (targetPath && window.location.pathname !== targetPath) {
           window.history.pushState({}, '', targetPath);

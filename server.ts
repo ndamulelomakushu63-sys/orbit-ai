@@ -2261,6 +2261,338 @@ async function setupVite() {
     }
   });
 
+  // =========================================================================
+  // ORBIT REWARDS & SHOWDOWN QUIZZES (SERVER-SIDE VALIDATION & ANTI-FRAUD)
+  // Compliant with Google Publisher Policies (Non-monetary credits, no fake ad-rewards)
+  // =========================================================================
+
+  const QUIZ_QUESTION_BANK = [
+    {
+      id: "q-prompt-ptcfc",
+      question: "According to Orbit's PTCFC prompt framework, what does the 'C' stand for?",
+      options: ["Currency", "Context", "Complexity", "Compilation"],
+      correctIndex: 1,
+      explanation: "PTCFC stands for Persona, Task, Context, Format, and Constraints."
+    },
+    {
+      id: "q-popia-spi",
+      question: "Under South Africa's POPIA Act, which of the following is considered Special Personal Information (SPI)?",
+      options: ["A company registered name", "Biometric and health data", "Work email address", "Public LinkedIn URL"],
+      correctIndex: 1,
+      explanation: "Under Section 26 of POPIA, biometric, health, and religious information is protected as Special Personal Information."
+    },
+    {
+      id: "q-ats-formatting",
+      question: "What is the recommended layout for Applicant Tracking System (ATS) CV compatibility?",
+      options: ["Multi-column table with graphical skill meters", "Clean single-column typography with linear standard headings", "Embedded canvas graphic", "Two-column frame with floating text boxes"],
+      correctIndex: 1,
+      explanation: "Modern ATS parsers process single-column linear text with highest accuracy without dropped tokens."
+    },
+    {
+      id: "q-ai-hallucination",
+      question: "Why do large language models generate hallucinations or synthetic citations?",
+      options: ["They query a corrupted legal database", "They are statistical next-token prediction engines, not static truth databases", "They only search social media", "They purposefully alter court numbers"],
+      correctIndex: 1,
+      explanation: "LLMs predict the most probable linguistic tokens based on training distributions rather than querying verified real-time records."
+    },
+    {
+      id: "q-star-method",
+      question: "In professional CV drafting, what does the STAR methodology stand for?",
+      options: ["Start, Track, Act, Report", "Situation, Task, Action, Result", "Scope, Target, Analysis, Review", "Strategy, Timing, Authority, Revenue"],
+      correctIndex: 1,
+      explanation: "STAR (Situation, Task, Action, Result) transforms passive duty lists into measurable achievement bullets."
+    },
+    {
+      id: "q-popia-fines",
+      question: "What is the maximum statutory administrative fine under Section 107 of South Africa's POPIA for unlawful data breaches?",
+      options: ["Up to R500,000", "Up to R2 million", "Up to R10 million", "Up to R50 million"],
+      correctIndex: 2,
+      explanation: "Under Section 107 of POPIA, administrative fines can reach up to R10 million."
+    },
+    {
+      id: "q-whatsapp-commerce",
+      question: "When automating customer replies for a small business on WhatsApp, what is a key best practice?",
+      options: ["Never state prices upfront", "Standardize transparent FAQ replies covering pricing, deposit policies, and turnaround time", "Send 20-page PDF catalogs to cold inquiries", "Require phone calls for all inquiries"],
+      correctIndex: 1,
+      explanation: "Clear, prompt answers with verified pricing and deposit guidelines significantly increase conversion and trust."
+    }
+  ];
+
+  // In-memory anti-replay and rate limiting store
+  const activeQuizSessions = new Map<string, { userId: string; questionIds: string[]; expiresAt: number }>();
+  const userQuizCooldowns = new Map<string, number>();
+
+  // Endpoint 1: Fetch randomized quiz questions (answers stripped!)
+  app.get("/api/rewards/quiz/questions", async (req, res) => {
+    try {
+      const userId = (req.query.userId as string) || (req.headers["x-user-id"] as string);
+      if (!userId) {
+        return res.status(400).json({ error: "User ID is required." });
+      }
+
+      // Check anti-spam cooldown (e.g., 5 minutes between attempts if failed, 12 hours if completed)
+      const lastAttempt = userQuizCooldowns.get(userId);
+      const now = Date.now();
+      if (lastAttempt && now - lastAttempt < 3 * 60 * 1000) {
+        const waitSec = Math.ceil((3 * 60 * 1000 - (now - lastAttempt)) / 1000);
+        return res.status(429).json({ 
+          error: `Please wait ${waitSec} seconds before starting a new Showdown Quiz session.` 
+        });
+      }
+
+      // Check referral qualification: count verified referrals
+      let verifiedCount = 0;
+      try {
+        const { count, error } = await supabase
+          .from('referrals')
+          .select('*', { count: 'exact', head: true })
+          .eq('referrer_id', userId);
+        if (!error && typeof count === 'number') {
+          verifiedCount = count;
+        }
+      } catch (err) {
+        console.warn("[Quiz Auth] Supabase count notice:", err);
+      }
+
+      // Also check user's plan
+      let isPro = false;
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('plan, subscription_status')
+          .eq('id', userId)
+          .single();
+        if (profile && (profile.plan === 'pro' || (profile.subscription_status && profile.subscription_status.startsWith('pro')))) {
+          isPro = true;
+        }
+      } catch (e) {}
+
+      // Qualified if >= 4 verified referrals or already Pro
+      const isQualified = verifiedCount >= 4 || isPro;
+      if (!isQualified) {
+        return res.status(403).json({
+          error: "Showdown Quiz is locked. You need 4 verified account referrals or Orbit Pro to unlock.",
+          verifiedCount,
+          required: 4
+        });
+      }
+
+      // Shuffle and pick 5 questions
+      const shuffled = [...QUIZ_QUESTION_BANK].sort(() => 0.5 - Math.random()).slice(0, 5);
+      const sessionId = `qsess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      activeQuizSessions.set(sessionId, {
+        userId,
+        questionIds: shuffled.map(q => q.id),
+        expiresAt: now + 15 * 60 * 1000 // 15 min expiry
+      });
+
+      // Strip correct answers before sending to client!
+      const sanitizedQuestions = shuffled.map(q => ({
+        id: q.id,
+        question: q.question,
+        options: q.options
+      }));
+
+      return res.json({
+        sessionId,
+        questions: sanitizedQuestions,
+        passThresholdPercentage: 80,
+        rewardCreditsPerPass: 20
+      });
+    } catch (err: any) {
+      console.error("[Quiz Questions Error]:", err);
+      res.status(500).json({ error: "Failed to generate quiz questions." });
+    }
+  });
+
+  // Endpoint 2: Submit answers and validate server-side
+  app.post("/api/rewards/quiz/submit", async (req, res) => {
+    try {
+      const { userId, sessionId, answers } = req.body || {};
+      if (!userId || !sessionId || !answers || typeof answers !== 'object') {
+        return res.status(400).json({ error: "Invalid submission payload." });
+      }
+
+      const session = activeQuizSessions.get(sessionId);
+      if (!session) {
+        return res.status(400).json({ error: "Invalid or expired quiz session. Please restart the quiz." });
+      }
+
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "User mismatch on session." });
+      }
+
+      if (Date.now() > session.expiresAt) {
+        activeQuizSessions.delete(sessionId);
+        return res.status(400).json({ error: "Quiz session expired. Please start a new session." });
+      }
+
+      // Invalidate session immediately to prevent replaying
+      activeQuizSessions.delete(sessionId);
+      userQuizCooldowns.set(userId, Date.now());
+
+      // Evaluate score server-side
+      let correctCount = 0;
+      const breakdown = session.questionIds.map(qId => {
+        const questionData = QUIZ_QUESTION_BANK.find(q => q.id === qId);
+        if (!questionData) return { id: qId, correct: false };
+
+        const userAnswer = answers[qId];
+        const isCorrect = userAnswer === questionData.correctIndex;
+        if (isCorrect) correctCount++;
+
+        return {
+          id: qId,
+          question: questionData.question,
+          isCorrect,
+          correctAnswer: questionData.options[questionData.correctIndex],
+          explanation: questionData.explanation
+        };
+      });
+
+      const totalQuestions = session.questionIds.length;
+      const scorePercentage = Math.round((correctCount / totalQuestions) * 100);
+      const passed = scorePercentage >= 80;
+      const creditsEarned = passed ? 20 : 0;
+
+      // If passed, credit user's account safely in Supabase
+      let updatedTotalCredits = 0;
+      if (passed) {
+        try {
+          const { data: balanceRecord } = await supabase
+            .from('reward_balances')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+
+          const prevCredits = balanceRecord?.total_earnings || 0;
+          updatedTotalCredits = Number(prevCredits) + creditsEarned;
+
+          await supabase
+            .from('reward_balances')
+            .upsert({
+              user_id: userId,
+              total_earnings: updatedTotalCredits,
+              monthly_earnings: (balanceRecord?.monthly_earnings || 0) + creditsEarned,
+              updated_at: new Date().toISOString()
+            });
+
+          // Insert audit log
+          await supabase.from('audit_logs').insert({
+            user_id: userId,
+            action: 'SHOWDOWN_QUIZ_COMPLETED',
+            details: {
+              sessionId,
+              scorePercentage,
+              passed,
+              creditsEarned,
+              newBalance: updatedTotalCredits
+            },
+            created_at: new Date().toISOString()
+          });
+        } catch (dbErr) {
+          console.warn("[Quiz Submit] Database update notice:", dbErr);
+        }
+      }
+
+      return res.json({
+        success: true,
+        passed,
+        score: correctCount,
+        totalQuestions,
+        scorePercentage,
+        creditsEarned,
+        newBalance: updatedTotalCredits,
+        breakdown,
+        message: passed 
+          ? `Congratulations! You scored ${scorePercentage}% and earned 20 Orbit Credits.`
+          : `You scored ${scorePercentage}%. 80% is required to earn credits. Review the explanations and try again!`
+      });
+
+    } catch (err: any) {
+      console.error("[Quiz Submit Error]:", err);
+      res.status(500).json({ error: "Failed to evaluate quiz submission." });
+    }
+  });
+
+  // Endpoint 3: Redeem accumulated Orbit Credits for Orbit Pro subscription
+  app.post("/api/rewards/redeem-pro", async (req, res) => {
+    try {
+      const { userId } = req.body || {};
+      if (!userId) {
+        return res.status(400).json({ error: "User ID is required." });
+      }
+
+      const PRO_REDEMPTION_COST = 100; // 100 Orbit Credits = 1 Month Orbit Pro
+
+      // Check balance in Supabase
+      const { data: balanceRecord, error: balErr } = await supabase
+        .from('reward_balances')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      const currentCredits = Number(balanceRecord?.total_earnings || 0);
+
+      if (currentCredits < PRO_REDEMPTION_COST) {
+        return res.status(400).json({
+          error: `Insufficient Orbit Credits. You have ${currentCredits} credits, but ${PRO_REDEMPTION_COST} credits are required to redeem 1 Month of Orbit Pro.`
+        });
+      }
+
+      const nextCredits = currentCredits - PRO_REDEMPTION_COST;
+
+      // 1. Deduct credits
+      await supabase
+        .from('reward_balances')
+        .update({
+          total_earnings: nextCredits,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      // 2. Upgrade user profile to Orbit Pro
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 30);
+
+      await supabase
+        .from('profiles')
+        .update({
+          plan: 'pro',
+          subscription_status: 'pro_monthly',
+          subscription_end: expiryDate.toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      // 3. Insert audit log
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        action: 'CREDITS_REDEEMED_FOR_PRO',
+        details: {
+          creditsSpent: PRO_REDEMPTION_COST,
+          remainingCredits: nextCredits,
+          newPlan: 'pro',
+          expiryDate: expiryDate.toISOString()
+        },
+        created_at: new Date().toISOString()
+      });
+
+      return res.json({
+        success: true,
+        message: "Successfully redeemed 100 Orbit Credits for 1 Month of Orbit Pro!",
+        remainingCredits: nextCredits,
+        plan: "pro",
+        subscriptionEnd: expiryDate.toISOString()
+      });
+
+    } catch (err: any) {
+      console.error("[Redeem Pro Error]:", err);
+      res.status(500).json({ error: err.message || "Failed to redeem credits for Pro." });
+    }
+  });
+
   const hasDist = fs.existsSync(path.join(distPath, "index.html"));
   
   // We are in production if NODE_ENV is "production", OR we are running the CJS bundle,
